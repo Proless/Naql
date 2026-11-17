@@ -1,0 +1,551 @@
+# Naql design
+
+This document describes how Naql works and why. In Naql, any transfer — a download, an upload, or a copy between two servers — is the same operation: bytes move from a **source** to a **target**, and one **engine** does the work that every protocol needs.
+
+## 1. Goals and non-goals
+
+### Goals
+
+1. **One model for both directions.** A download is "HTTP source → file target". An upload is "file source → HTTP target". Nothing in the core knows which one it is running.
+2. **Protocols only move bytes.** A protocol package implements reading a range and writing a range. Retries, timeouts, throttling, parallel parts, progress, resume and integrity checks are written once, in the engine.
+3. **Many protocols as separate packages.** `Naql` is the core, and each protocol ships as `Naql.<Protocol>` (`Naql.Http` first; `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.Tus` later). A third party can add a protocol using only the public API.
+4. **Idiomatic modern .NET.** `async` all the way, `CancellationToken` everywhere, `IProgress<T>` instead of events, a returned result, exceptions for failures, and options fixed before the transfer starts.
+5. **Testable without a network.** In-memory sources and targets (`MemorySource` and `MemoryTarget` in the tests) drive every engine test.
+6. **net8.0.** The packages target net8.0, with no dependencies beyond the base library. netstandard2.0 isn't a target: its consumers default to C# 7.3, which can't use the `init` setters and records the API is built on.
+
+### Non-goals
+
+- Transfers of whole folders or many files in one call (a batch API can come later on top of single transfers).
+- A download manager: queues, scheduling and storing transfers in a database. The core provides checkpoints and a store abstraction that such a manager can build on.
+- Remote file management (list, delete, rename, create folders).
+- Checksums beyond SHA-1, SHA-2 and MD5, and verifying content that already sits at the target without transferring it.
+
+## 2. Design principles
+
+- **The engine owns behavior, protocols own bytes.** Retrying, throttling, splitting into parts, timing out, reporting progress and resuming are the same problem for every protocol, so they live in one place. A protocol never contains a retry loop.
+- **Both directions are symmetric.** Sources and targets are the only two roles, so a file can be the target of a download and the source of an upload, and two remote endpoints can be connected directly.
+- **Contracts describe capabilities, not protocols.** A target says what it can do (parallel parts, partial parts, resuming, reading back) and the engine plans around it, instead of the core knowing about HTTP, S3 or SFTP.
+- **Settings are fixed before a transfer starts.** Options are immutable records, so a running transfer never sees its settings change.
+- **Failures say what happened.** Every error has a kind, the side it came from, and whether retrying can help, so both the engine and the caller can react without parsing messages.
+
+## 3. Core concepts
+
+```
+                 ┌──────────────────────── engine ────────────────────────┐
+ ITransferSource │ plan parts → read range → meter (rate, progress, idle) │ ITransferTarget
+ (HTTP, file, …) │ → write part → retry → checkpoint → verify → complete  │ (file, HTTP, …)
+                 └────────────────────────────────────────────────────────┘
+```
+
+| Concept | Type | Responsibility |
+|---|---|---|
+| Range | `ByteRange` | A span of bytes: an absolute start plus an optional length |
+| Source | `ITransferSource` | Describe the content, and open a stream for a range of it |
+| Target | `ITransferTarget`, `ITargetSession` | Accept parts at given ranges, then commit or discard them |
+| Engine | `TransferOperation` (run by `TransferClient`) | Plan parts, run them in parallel, retry, throttle, time out, report progress, verify, commit |
+| Options | `TransferOptions`, `RetryPolicy` | Immutable settings for one transfer |
+| Outcome | `TransferResult`, `TransferException` | What happened |
+| Resume | `TransferCheckpoint`, `ICheckpointStore` | Enough state to continue a transfer after the process restarts |
+| Integrity | `Checksum` | The hash the content must have |
+
+All core types live in the `Naql` namespace. File endpoints live in `Naql.Files`, stream endpoints in `Naql.Streams`, and each protocol package uses its own namespace (`Naql.Http`).
+
+## 4. Contracts for protocol implementers
+
+### 4.1 `ByteRange`
+
+```csharp
+public readonly struct ByteRange : IEquatable<ByteRange>
+{
+    public static ByteRange All { get; }          // Start 0, Length null
+
+    public long Start { get; }
+    public long? Length { get; }                  // null: to the end of the content
+    public long? End { get; }                     // Start + Length - 1, null when open-ended
+
+    public ByteRange(long start, long? length = null);
+    public static ByteRange FromBounds(long start, long end);   // inclusive end
+
+    public ByteRange Skip(long count);            // the rest of the range after count bytes
+}
+```
+
+Ranges are always absolute. HTTP suffix ranges (`bytes=-500`, "the last 500 bytes") aren't part of the core type, because no other protocol has them and the engine needs absolute positions to resume.
+
+### 4.2 `ITransferSource`
+
+```csharp
+public interface ITransferSource
+{
+    /// Describes the content without transferring it (HTTP: a probe request; file: file metadata).
+    Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken);
+
+    /// Opens the content for a range. The returned info describes what this response revealed.
+    Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class ReadRequest
+{
+    public ByteRange Range { get; }
+    public string? IfVersion { get; }     // fail with SourceChanged if the content is no longer this version
+}
+
+public sealed class SourceStream : IDisposable
+{
+    public Stream Content { get; }
+    public SourceInfo Info { get; }
+}
+
+public sealed record SourceInfo
+{
+    public long? Length { get; init; }                 // the whole content; null when unknown (chunked HTTP, a live stream)
+    public bool SupportsRanges { get; init; }          // can OpenReadAsync start anywhere but 0?
+    public bool IsRepeatable { get; init; } = true;    // can the content be read again after a failure?
+    public string? Version { get; init; }              // opaque: an ETag, a last-modified time, a file's size + write time
+    public string? Name { get; init; }                 // a suggested file name (Content-Disposition, the URL path, the file name)
+    public string? ContentType { get; init; }
+    public DateTimeOffset? LastModified { get; init; }
+    public Checksum? Checksum { get; init; }           // the hash the source reports, such as HTTP's Repr-Digest
+    public IReadOnlyDictionary<string, string> Metadata { get; init; }   // passed to targets that can store it
+}
+```
+
+Rules a source must follow:
+
+- When `SupportsRanges` is false, the engine only asks for `ByteRange.All`.
+- When `IfVersion` is set and the content has changed, throw `TransferException` with `TransferErrorKind.SourceChanged` instead of returning different bytes. HTTP maps this to `If-Range`.
+- `OpenReadAsync` returns when the content is ready to read (HTTP: when the response headers have arrived). The engine applies the response timeout around it.
+- The source maps its own errors to `TransferException` (see [errors](#62-errors)).
+
+The engine doesn't call `GetInfoAsync` when it doesn't need to plan: a single-connection transfer opens `ByteRange.All` straight away and reads the info from the `SourceStream`. A simple download therefore costs one request.
+
+### 4.3 `ITransferTarget` and `ITargetSession`
+
+```csharp
+public interface ITransferTarget
+{
+    TargetCapabilities Capabilities { get; }
+
+    /// Starts writing a new transfer, or re-attaches to an unfinished one when ResumeToken is set.
+    Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class TargetOpenRequest
+{
+    public SourceInfo Source { get; }          // length, name, content type, metadata
+    public string? ResumeToken { get; }        // from a checkpoint
+}
+
+public interface ITargetSession : IDisposable
+{
+    /// Identifies the unfinished transfer so it can be continued later (a temp file path, an S3 upload id, a tus URL).
+    string? ResumeToken { get; }
+
+    /// Writes one part. content holds exactly range.Length bytes when the length is known.
+    Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken);
+
+    /// Makes the result visible: rename the temp file, complete the S3 multipart upload.
+    Task CompleteAsync(CancellationToken cancellationToken);
+
+    /// Discards everything written so far.
+    Task AbortAsync(CancellationToken cancellationToken);
+}
+
+public interface IVerifiableSession
+{
+    /// Hashes the first length bytes written so far, to verify a checksum before completing.
+    Task<byte[]> ComputeHashAsync(HashAlgorithmName algorithm, long length, CancellationToken cancellationToken);
+}
+
+public sealed record TargetCapabilities
+{
+    public bool ParallelParts { get; init; }      // parts can be written at the same time, in any order
+    public bool ResumableParts { get; init; }     // bytes consumed from a failed part's stream are kept
+    public bool Resumable { get; init; }          // OpenAsync accepts a ResumeToken; a disposed session keeps its data
+    public bool RequiresLength { get; init; }     // the total length must be known up front (for example a server that refuses chunked uploads)
+    public bool Verifiable { get; init; }         // sessions implement IVerifiableSession
+    public long MinPartSize { get; init; }        // S3: 5 MiB except the last part
+    public long? MaxPartSize { get; init; }
+    public int? MaxParts { get; init; }
+}
+```
+
+Why the target takes a `Stream` instead of byte buffers: a file target writes what it reads from the stream at an offset, and an HTTP target wraps it in an `HttpContent` and lets `HttpClient` pull from it. Both work without the target knowing about buffers, and the engine controls the stream it hands over (see [the metered stream](#53-the-metered-stream)).
+
+How existing and planned protocols fit:
+
+| Target | ParallelParts | ResumableParts | Resumable | Commit (`CompleteAsync`) |
+|---|---|---|---|---|
+| File (`Naql.Files`) | yes, writes at offsets | yes | yes, the temp file path | rename `name.naql-part` to `name` |
+| HTTP PUT/POST (`Naql.Http`) | no, one part | no | no | nothing, the request is the commit |
+| tus (`Naql.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | nothing |
+| S3 multipart (`Naql.S3`) | yes | no, a part is redone | yes, the upload id | `CompleteMultipartUpload` |
+| SFTP (`Naql.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | rename |
+| FTP (`Naql.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | rename |
+
+### 4.4 Resources and ownership
+
+- Sources and targets are lightweight descriptions. Expensive resources (an `HttpClient`, an SFTP connection pool) belong to a protocol object the caller creates and disposes, such as `HttpTransport`. Shortcuts like `HttpSource.Get(uri)` use a shared `HttpClient`, so there is nothing to dispose.
+- The engine disposes what it opens: every `SourceStream` and every `ITargetSession`.
+- Disposing a session without calling `CompleteAsync` or `AbortAsync` leaves the partial data in place, so the transfer can be resumed.
+
+## 5. The engine
+
+### 5.1 How a transfer runs
+
+1. **Plan.** If the transfer can use more than one connection, or resumes from a checkpoint, call `source.GetInfoAsync`. Split the content into parts (see [5.2](#52-planning-parts)). Otherwise use one part covering `ByteRange.All`.
+2. **Open the target.** `target.OpenAsync` with the source info and, when resuming, the checkpoint's resume token. A target that `RequiresLength` fails early with `Unsupported` when the length is unknown.
+3. **Run the parts** with at most `MaxConnections` running at once. For each part:
+   1. `source.OpenReadAsync(range, IfVersion = info.Version)`, within the response timeout.
+   2. Wrap the content in the metered stream.
+   3. `session.WritePartAsync(range, meteredStream)`.
+   4. On success, mark the part finished, which the next checkpoint reflects.
+   5. On a transient failure, wait according to the retry policy and try again. When the target has `ResumableParts` and the source `SupportsRanges`, continue after the bytes the target already consumed; otherwise redo the whole part.
+4. **Verify.** When the length is known, the bytes transferred must equal it, or the transfer fails with `Integrity`. When there is a checksum to check, it's checked now, before the target makes the result visible (see [6.5](#65-checksums)).
+5. **Commit.** `session.CompleteAsync`, then return a `TransferResult`.
+
+Failures:
+
+- A part that fails with a non-transient error, or runs out of retries, cancels the other parts and fails the transfer.
+- `SourceChanged` restarts the whole transfer once from zero (the bytes already written belong to an old version), then fails if it happens again.
+- On failure or cancellation the engine disposes the session without aborting it, so the partial data stays for a resume. `TransferOptions.DiscardPartialOnFailure` calls `AbortAsync` instead. Targets that aren't `Resumable` are always aborted.
+- Exceptions thrown by the caller's own code (an `IProgress<T>` implementation, a callback) are never retried and surface unchanged.
+
+### 5.2 Planning parts
+
+The planner is a pure function, tested on its own:
+
+```
+parts = Plan(source length, source.SupportsRanges, target capabilities, options)
+```
+
+- One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1, or the content is smaller than `MinPartSize × 2`.
+- Otherwise `min(MaxConnections, length / MinPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
+- When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
+
+Callers don't check range support or the size themselves before choosing how to transfer; the planner decides.
+
+### 5.3 The metered stream
+
+The engine wraps every source stream in an internal `MeteredStream`, a read-only stream that:
+
+- **throttles** each read through the transfer's `BandwidthLimiter`, shared by all its parts, so the limit applies to the whole transfer;
+- **counts** bytes for progress, for resuming a part and for checkpoints;
+- **stops at the end of the part**, even when the source has more, and fails with a transient `Network` error when the source ends before it;
+- **records which side failed**: an exception from reading the source marks a source failure, anything else the target threw is a target failure. Only a source failure lets a `ResumableParts` target continue the part.
+
+A watchdog next to it enforces the **idle timeout**: when no bytes move for `IdleTimeout`, it cancels the attempt and disposes the source stream (which also ends reads that ignore cancellation). The failure is a transient `Timeout` on the side that stalled: the source when the target was waiting for a read, the target otherwise. Time spent waiting for the speed limit doesn't count as idle. `ResponseTimeout` covers `GetInfoAsync` and `OpenReadAsync` the same way, even when the source ignores cancellation.
+
+Throttling, progress and timeouts are therefore the same for every protocol and both directions, and no protocol contains that code.
+
+`BandwidthLimiter` is a small public token bucket. Passing the same instance to several transfers (or setting it on a `TransferClient`) limits their combined rate.
+
+### 5.4 Progress
+
+```csharp
+public sealed class TransferProgress
+{
+    public TransferState State { get; }          // Preparing, Transferring, Retrying, Completing, Completed
+    public long Transferred { get; }
+    public long? Total { get; }
+    public double? Fraction { get; }             // 0..1, null when the total is unknown
+    public double CurrentRate { get; }           // bytes per second over the last few seconds
+    public double AverageRate { get; }
+    public TimeSpan Elapsed { get; }
+    public TimeSpan? Remaining { get; }
+    public int ActiveParts { get; }
+    public int CompletedParts { get; }
+    public int TotalParts { get; }
+    public Exception? LastError { get; }         // set while Retrying
+}
+```
+
+Progress is reported from a timer every `ProgressInterval` (default 100 ms), and once more with `Completed` when the transfer succeeds; never on every buffer read. The engine calls `IProgress<T>.Report` directly. It doesn't marshal to a UI thread; `Progress<T>` already does that when the caller wants it. Because reports come from the timer, the caller's handler never runs inside a read: when it throws, the transfer stops and `RunAsync` throws that exception unchanged, without retrying.
+
+## 6. The public API
+
+### 6.1 Running a transfer
+
+```csharp
+// Download with progress
+var result = await Transfer
+    .From(HttpSource.Get("https://example.com/file.zip"))
+    .To(FileTarget.InDirectory("downloads"))          // the name comes from SourceInfo.Name
+    .RunAsync(progress, cancellationToken);
+
+// Parallel download with a speed limit
+await Transfer
+    .From(HttpSource.Get(uri))
+    .To(FileTarget.At("file.zip"))
+    .WithMaxConnections(4)
+    .WithMaxRate(1024 * 1024)
+    .RunAsync();
+
+// Upload
+await Transfer
+    .From(FileSource.At("backup.tar"))
+    .To(HttpTarget.Put(uploadUri))
+    .RunAsync();
+
+// Copy between servers without touching the disk, with a future Naql.Sftp package
+await Transfer.From(HttpSource.Get(uri)).To(SftpTarget.At(connection, "/backups/file.zip")).RunAsync();
+```
+
+The types behind it:
+
+```csharp
+public static class Transfer
+{
+    public static TransferBuilder From(ITransferSource source);     // uses TransferClient.Default
+}
+
+public sealed class TransferBuilder
+{
+    public TransferBuilder To(ITransferTarget target);
+    public TransferBuilder WithOptions(TransferOptions options);
+    public TransferBuilder WithMaxConnections(int value);
+    public TransferBuilder WithMaxRate(long bytesPerSecond);
+    public TransferBuilder WithRetry(RetryPolicy policy);
+    public TransferBuilder WithChecksum(Checksum checksum);
+    public TransferBuilder WithCheckpoints(ICheckpointStore store);
+    public TransferBuilder ResumeFrom(TransferCheckpoint checkpoint);
+
+    public TransferOperation Build();
+    public Task<TransferResult> RunAsync(IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
+}
+
+public sealed class TransferOperation
+{
+    public Task<TransferResult> RunAsync(IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
+    public TransferCheckpoint? GetCheckpoint();       // also while running; null when it can't be resumed
+}
+
+public sealed class TransferClient
+{
+    public static TransferClient Default { get; }
+    public TransferClient(TransferOptions? defaults = null, BandwidthLimiter? sharedLimiter = null);
+
+    public TransferBuilder From(ITransferSource source);
+    public Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null,
+        IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
+}
+```
+
+`TransferClient` is what an application registers for dependency injection. It holds default options and an optional limiter shared by all its transfers. `Transfer.From` is a shortcut for `TransferClient.Default.From`.
+
+```csharp
+public sealed record TransferOptions               // derive variants with `with { … }`; setters validate
+{
+    public int MaxConnections { get; init; } = 1;
+    public long MaxBytesPerSecond { get; init; }             // 0: unlimited
+    public RetryPolicy Retry { get; init; } = RetryPolicy.Default;
+    public TimeSpan ResponseTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    public int BufferSize { get; init; } = 81920;
+    public long MinPartSize { get; init; } = 1024 * 1024;
+    public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromMilliseconds(100);
+    public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(2);
+    public bool DiscardPartialOnFailure { get; init; }
+    public Checksum? ExpectedChecksum { get; init; }
+}
+
+public sealed record RetryPolicy
+{
+    public static RetryPolicy Default { get; }               // 3 retries, 1 s doubling to 30 s, with jitter
+    public static RetryPolicy None { get; }
+    public int MaxRetries { get; init; }
+    public TimeSpan InitialDelay { get; init; }
+    public TimeSpan MaxDelay { get; init; }
+    public double BackoffFactor { get; init; }
+    public bool Jitter { get; init; } = true;                // ±20%
+    public TimeSpan GetDelay(int retry, TimeSpan? retryAfter = null);
+}
+```
+
+The defaults retry transient errors three times with backoff, use an 80 KB buffer (the size `Stream.CopyToAsync` uses), and fail a stalled connection after 30 seconds.
+
+### 6.2 Errors
+
+```csharp
+public class TransferException : Exception
+{
+    public TransferException(string message, TransferErrorKind kind = TransferErrorKind.Unknown,
+        bool isTransient = false, Exception? innerException = null);
+
+    public TransferErrorKind Kind { get; }
+    public bool IsTransient { get; }
+    public TransferSide Side { get; init; }           // Source, Target, Engine; the engine fills it in when unset
+    public ByteRange? Part { get; init; }             // the engine fills it in when unset
+    public TimeSpan? RetryAfter { get; init; }        // HTTP 429/503 Retry-After
+    public IReadOnlyList<TransferException> PartFailures { get; }
+}
+
+public enum TransferErrorKind
+{
+    Unknown, NotFound, AccessDenied, Network, Timeout, Protocol,
+    SourceChanged, Integrity, InsufficientStorage, AlreadyExists, Unsupported
+}
+```
+
+- Protocols throw `TransferException` with the right kind. `Naql.Http` maps 404 and 410 to `NotFound`, 401 and 403 to `AccessDenied`, 408, 429 and 5xx to transient errors (honoring `Retry-After`), and other unexpected statuses to `Protocol`.
+- The engine also treats `IOException` and `TimeoutException` as transient `Network` and `Timeout` errors, so a simple protocol doesn't need to map everything. `Naql.Http` maps `HttpRequestException` itself, so the core doesn't need to know about HTTP.
+- `RunAsync` throws `TransferException` for failures and `OperationCanceledException` for cancellation. The exception thrown is the first part failure, and its `PartFailures` lists every part failure, itself included, in the order they happened.
+- `SourceChanged` is never retried within a part, whatever `IsTransient` says; the engine starts the whole transfer over instead (see [5.1](#51-how-a-transfer-runs)).
+
+### 6.3 Resuming after a restart
+
+```csharp
+var operation = Transfer.From(source).To(target).WithMaxConnections(4).Build();
+try
+{
+    await operation.RunAsync(progress, ct);
+}
+catch (OperationCanceledException)
+{
+    var checkpoint = operation.GetCheckpoint();
+    File.WriteAllText("file.zip.naql", checkpoint!.Serialize());
+}
+
+// Later, possibly in another process
+var checkpoint = TransferCheckpoint.Deserialize(File.ReadAllText("file.zip.naql"));
+await Transfer.From(source).To(target).ResumeFrom(checkpoint).RunAsync();
+```
+
+`TransferCheckpoint` holds a format version, the source version and length, the finished parts and the offset reached in unfinished ones, and the target's resume token. Resuming checks that the source still has the same version, or starts over. `Serialize` writes a small versioned text format with no JSON dependency.
+
+How checkpoints behave:
+
+- **Only kept bytes count.** A part counts the bytes the target has handled: the target asks for more only after it wrote what it read before. A checkpoint can therefore lag by one read, which a resume sends again; it never claims bytes the target doesn't have. A target without `ResumableParts` only counts finished parts.
+- **Available while running.** `GetCheckpoint` is safe to call during the transfer, for example from the progress handler, so an app can save it regularly in case the process ends without a chance to save it.
+- **`null` when nothing can be continued:** before the transfer starts, after it completes, when the target isn't `Resumable` or discarded its partial data, and when the source has no version or doesn't support ranges.
+- **Resuming checks first.** It always asks the source for its info. When the version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now.
+- **`TransferResult.Resumed`** tells how many bytes came from the earlier run; `Transferred` counts them too, and `AverageRate` covers only this run.
+
+**Automatic checkpoints.** `WithCheckpoints(ICheckpointStore)` lets the engine handle all of this:
+
+```csharp
+public interface ICheckpointStore
+{
+    Task<TransferCheckpoint?> LoadAsync(CancellationToken cancellationToken);
+    Task SaveAsync(TransferCheckpoint checkpoint, CancellationToken cancellationToken);
+    Task DeleteAsync(CancellationToken cancellationToken);
+}
+
+await Transfer.From(source).To(FileTarget.At("file.zip")).WithCheckpoints(FileCheckpointStore.For("file.zip")).RunAsync();
+```
+
+- Before starting, the engine loads the stored checkpoint and resumes from it; a checkpoint passed to `ResumeFrom` wins over it.
+- While running, it saves the checkpoint every `CheckpointInterval` (2 seconds by default) when it changed, so even a killed process loses at most that much progress. It saves once more when the transfer fails or is canceled.
+- When the transfer completes, or stops in a way that can't be continued, it deletes the checkpoint.
+- Saving is best effort: a failing store never fails a transfer that is otherwise fine.
+- `FileCheckpointStore` writes a temporary file and renames it over the previous checkpoint, so a crash while saving never leaves a damaged checkpoint; an unreadable file counts as no checkpoint. `FileCheckpointStore.For(path)` keeps it next to the file as `path.naql-checkpoint`.
+
+The store is a separate abstraction rather than a `FileTarget` feature so it works for every target, and for `FileTarget.InDirectory`, whose file name is only known once the transfer starts: the checkpoint's resume token already holds the partial file's path, so the store only needs a key the caller chooses, such as the URL.
+
+### 6.4 Adding a protocol
+
+A complete read-only protocol is a single class. A minimal version of `MemorySource` from the tests:
+
+```csharp
+public sealed class MemorySource(byte[] content) : ITransferSource
+{
+    private SourceInfo Info => new() { Length = content.Length, SupportsRanges = true };
+
+    public Task<SourceInfo> GetInfoAsync(CancellationToken ct) => Task.FromResult(Info);
+
+    public Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken ct)
+    {
+        var range = request.Range;
+        var length = range.Length ?? content.Length - range.Start;
+        var stream = new MemoryStream(content, (int)range.Start, (int)length, writable: false);
+        return Task.FromResult(new SourceStream(stream, Info));
+    }
+}
+```
+
+It gets retries, parallel parts, throttling, progress, checkpoints and checksum verification without any more code.
+
+### 6.5 Checksums
+
+A transfer can be verified against a `Checksum` (MD5, SHA-1 or SHA-2): the caller's (`TransferOptions.ExpectedChecksum`, `WithChecksum(Checksum.Sha256("…"))`), or else the source's (`SourceInfo.Checksum`; `HttpSource` reads `Repr-Digest` from RFC 9530 and the older `Digest`, preferring SHA-512 over SHA-256).
+
+- **One connection from the first byte** is hashed as the bytes pass, at no extra cost. A part that continues after a source failure keeps its hash, because it continues right after the hashed bytes; a part that starts over starts its hash over.
+- **Parallel parts and resumed transfers** can't be hashed while streaming, because a hash can't be combined from pieces. A target with `TargetCapabilities.Verifiable` reads its data back instead, through `IVerifiableSession.ComputeHashAsync`; `FileTarget` and readable seekable `StreamTarget`s do.
+- **A required checksum and a target that can't read back** make the engine use one connection and start over instead of resuming, so it can always hash while streaming. The transfer never fails just because the checksum can't be checked.
+- **A checksum only the source reported** is checked when that's free, and skipped when it would need a read-back nobody asked for.
+- **A mismatch** fails with a non-transient `Integrity` error, and the engine aborts the session, so wrong data never gets the real name and no checkpoint points to it. `TransferResult.VerifiedChecksum` tells which checksum a successful transfer was checked against.
+
+### 6.6 Diagnostics
+
+Transfers report traces and metrics through .NET's own `ActivitySource` and `Meter`, both named `NaqlDiagnostics.ActivitySourceName` (`"Naql"`). That needs no package, costs next to nothing without a listener, and works with OpenTelemetry, Application Insights, `dotnet-trace` and `dotnet-counters`.
+
+- **Traces:** a `naql.transfer` activity per run, tagged with the source and target types, `naql.outcome` (`completed`, `failed` or `canceled`), bytes, resumed bytes, parts and retries, and on failure `error.type` (the `TransferErrorKind`) and `naql.error.side`. Each part is a `naql.part` child. Retries are `naql.retry` events on the part, or on the transfer for describing the content and opening or completing the target; starting over because the content changed is a `naql.restart` event, and a failing checkpoint store a `naql.checkpoint.error` event.
+- **Metrics:** `naql.transfer.bytes`, `naql.transfer.retries` (by error kind and side), `naql.transfers` and `naql.transfer.duration` (by outcome and error kind) and `naql.transfers.active`, all tagged with the source and target types.
+
+There's no `ILogger` in the core: it would add a package dependency, which section 7.1 keeps out of the core, and progress already carries the last error. Integration with `Microsoft.Extensions.Logging` or dependency injection can come later as a separate `Naql.Extensions` package.
+
+## 7. Packages
+
+| Package | Contents | Dependencies |
+|---|---|---|
+| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none |
+| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
+| Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
+
+### 7.1 Which endpoints belong in the core
+
+An endpoint ships in the core package when **all** of these hold, and in its own `Naql.<Name>` package otherwise:
+
+1. **It's local I/O that most transfers touch.** A download usually ends in a file or a stream, and an upload usually starts from one. Keeping them in the core means the most common transfer needs one protocol package, not two.
+2. **It needs nothing beyond the base library.** Files and streams only use `System.IO`, which every runtime has, so a separate package wouldn't spare anyone a download.
+3. **It has nothing protocol-specific to configure.** There's no client, connection, authentication or error mapping of its own to version separately.
+4. **It's small and stable**, and can be released together with the engine.
+
+Each endpoint group gets its own namespace inside the package: `Naql.Files` for files, `Naql.Streams` for streams. Namespaces separate concepts; packages separate dependencies and configuration.
+
+Remote protocols always get their own package, even when they need no third-party library, as `Naql.Http` doesn't. Each brings its own client, settings, authentication and error mapping, and most future ones (SFTP, S3, Azure) bring an SDK. Building them only on the public contracts also keeps the extension model honest: if a protocol package can't be written without the core's internals, the contracts are missing something.
+
+How the file, stream and HTTP endpoints behave:
+
+- **`FileTarget`** writes `name.naql-part`, reserves the full length up front when it's known, writes each part at its offset with positional writes, and renames the file on completion. `FileTarget.At(path)` writes a fixed path; `FileTarget.InDirectory(dir, nameSelector?)` names the file from the source and makes the name safe, so it can't leave the directory. `FileConflict` chooses between overwriting an existing file (the default), failing with `AlreadyExists` before transferring, or keeping both (`name (1).ext`). The partial file's path is the resume token.
+- **`FileSource`** describes the file with its size and last write time as the version, and fails with `SourceChanged` when either changes.
+- **`StreamSource` and `StreamTarget`** wrap a stream the caller owns and never dispose it. A seekable stream takes ranges and parallel parts (each read or write seeks first, one at a time); a stream that can't seek is read once, or written in order, and can't be retried or rewritten.
+- **`HttpSource`** learns the length and range support by asking for byte 0 only (`Range: bytes=0-0`), because many servers answer `HEAD` badly. A strong ETag, or else `Last-Modified`, is the version; resumed ranges send it as `If-Range`. Status codes map to error kinds: 404 and 410 `NotFound`, 401, 403 and 407 `AccessDenied`, 408 `Timeout`, 429 and 5xx transient `Network` with `Retry-After`, and the rest `Protocol`. `HttpTransport.BasicAuthentication(user, password)` is a ready-made request configurator.
+- **`HttpTarget`** uploads the whole content in one streamed request: `Put(uri)` or `Post(uri)` send it as the body, `PostForm(uri, field)` as a file field of a `multipart/form-data` form named after `SourceInfo.Name`. The body has a `Content-Length` when the length is known (a form too) and is chunked otherwise; its `Content-Type` is the source's, or `application/octet-stream`. It takes no parallel or partial parts, so a failed upload is sent again from the start, and an accepted one can't be aborted. Rejections map like downloads, plus 413 and 507 to `InsufficientStorage`. `WithResponseHandler` passes the successful answer to the caller, for example to read the id of the uploaded file.
+
+Authentication isn't part of the core: each protocol configures it in its own way, through `HttpClient` handlers or a request configurator for HTTP, credentials on the connection for FTP and SFTP, the SDK's credentials for S3.
+
+## 8. Guarantees the tests pin down
+
+Besides the contracts above, these behaviors each have a test:
+
+1. A resumed range checks the version (the ETag or Last-Modified), and the transfer starts over when the content has changed.
+2. Open-ended ranges are resolved to absolute positions from `Content-Range` so they can be resumed.
+3. A server that ignores `Range` and answers `200 OK` with the full content is handled: it's accepted for `ByteRange.All` and is an error for any other range.
+4. A response that never arrives, and a read that stalls, both time out, even when the source ignores cancellation.
+5. Data received before a cancellation reaches the target.
+6. A retry that can't resume starts over at offset 0 and overwrites what was written.
+7. Exceptions from the caller's code are not retried and keep their type.
+8. A checkpoint never counts bytes the target hasn't written, and a stored checkpoint continues the transfer in a later run.
+9. Content that fails its checksum never appears under its real name.
+
+## 9. Roadmap
+
+After the first release:
+
+- **Protocol packages:** `Naql.Tus` (resumable HTTP uploads), `Naql.Sftp`, `Naql.Ftp`, `Naql.S3` and `Naql.AzureBlob`, each built only on the public contracts.
+- **A URL registry** that turns a URL into a source or target (`client.CopyAsync("sftp://…", "s3://…")`), where each protocol package registers its schemes.
+- **`Naql.Extensions`** for dependency injection (`services.AddNaql()`) and `Microsoft.Extensions.Logging`.
+
+## 10. Alternatives considered
+
+- **Separate download and upload types.** Simpler to name, but every engine feature would exist twice, and a copy between two servers would need a third model.
+- **Protocols that subclass a base transfer class.** Familiar, but each protocol would inherit and re-implement parts of retrying, throttling and splitting into parts, and the base class would grow with every protocol's needs.
+- **Pull-only targets (`OpenWriteAsync` returning a `Stream`).** Simpler for files, but `HttpClient` uploads pull from a stream rather than being written to, so an HTTP target would need a pipe and a background task. Passing a `Stream` to `WritePartAsync` suits both.
+- **Use `System.Threading.RateLimiting` and Polly.** Both are good libraries, but they add dependencies to the core for small, self-contained pieces. They can still be plugged in later behind `BandwidthLimiter` and `RetryPolicy`.
+- **An `ILogger` in the core.** Familiar to most .NET developers, but it adds a dependency; `ActivitySource` and `Meter` cover tracing and metrics without one (see 6.6).
+
+## 11. Open questions
+
+1. **Unknown-length uploads to part-based targets.** Uploading a non-seekable stream to S3 needs the engine to buffer the stream into parts. Is that worth supporting?
+2. **Batches.** Should there be a "many files" API, or is that the job of a separate download manager built on single transfers?

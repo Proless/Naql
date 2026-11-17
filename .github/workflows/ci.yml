@@ -1,0 +1,75 @@
+# Builds and tests every push and pull request on Linux and Windows, and packs the NuGet packages.
+# Pushing a tag such as v0.1.0-preview.1 also publishes them to nuget.org; that needs a NUGET_API_KEY secret.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Naql.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test --solution Naql.slnx --configuration Release --no-build
+
+      - name: Pack
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet pack Naql.slnx --configuration Release --no-build --output artifacts
+
+      - name: Check that the tag matches the package version
+        if: matrix.os == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for package in Naql Naql.Http; do
+            if [ ! -f "artifacts/$package.$version.nupkg" ]; then
+              echo "::error::The tag says $version, but artifacts/ has: $(ls artifacts)"
+              exit 1
+            fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: packages
+          path: artifacts/*
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: nuget
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: artifacts
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Pushing a .nupkg also pushes the .snupkg next to it to the symbol server
+      - name: Publish to nuget.org
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

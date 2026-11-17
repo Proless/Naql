@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- xunit.v3 4.x runs on Microsoft.Testing.Platform, so Microsoft.NET.Test.Sdk and xunit.runner.visualstudio are not needed -->
+		<PackageReference Include="xunit.v3" />
+		<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Naql\Naql.csproj" />
+		<ProjectReference Include="..\..\src\Naql.Http\Naql.Http.csproj" />
+	</ItemGroup>
+
+</Project>
