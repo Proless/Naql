@@ -59,7 +59,7 @@ public sealed class CheckpointStoreTests : IDisposable
     public async Task A_file_store_keeps_a_checkpoint_between_instances()
     {
         var path = _temp.File("sub/out.bin.naql-checkpoint");
-        var checkpoint = new TransferCheckpoint(100, "\"v1\"", "token", [new CheckpointPart(new ByteRange(0, 100), 40)]);
+        var checkpoint = new TransferCheckpoint(100, null, "\"v1\"", "token", [new CheckpointPart(new ByteRange(0, 100), 40)]);
 
         await new FileCheckpointStore(path).SaveAsync(checkpoint, Token);
         var loaded = await new FileCheckpointStore(path).LoadAsync(Token);
@@ -165,7 +165,7 @@ public sealed class CheckpointStoreTests : IDisposable
         var target = new MemoryTarget();
         var store = new RecordingStore();
         await CancelWhenStalledAsync(target, store);
-        var stale = new TransferCheckpoint(_content.Length, "v0", "memory-0", [new CheckpointPart(new ByteRange(0, _content.Length), 0)]);
+        var stale = new TransferCheckpoint(_content.Length, null, "v0", "memory-0", [new CheckpointPart(new ByteRange(0, _content.Length), 0)]);
         var source = new MemorySource(_content);
 
         // The stored checkpoint says 3,000 bytes; the explicit one has the wrong version, so the transfer starts over

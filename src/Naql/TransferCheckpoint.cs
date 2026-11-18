@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Naql;
@@ -12,19 +13,25 @@ namespace Naql;
 /// <remarks>
 /// Get one from <see cref="TransferOperation.GetCheckpoint"/>, save it with <see cref="Serialize"/>, and continue with
 /// <see cref="TransferBuilder.ResumeFrom"/>. The checkpoint only counts bytes the target is known to have kept, so it
-/// may be a little behind; resuming re-sends those bytes. If the content changed since, or the target lost its partial
-/// data, the transfer starts over instead.
+/// may be a little behind; resuming re-sends those bytes. If the source is different content, the content changed since,
+/// or the target lost its partial data, the transfer starts over instead.
 /// </remarks>
 public sealed class TransferCheckpoint
 {
     private const string Header = "naql-checkpoint";
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
     private const string Null = "-";
 
     /// <summary>
     /// Creates a checkpoint.
     /// </summary>
-    public TransferCheckpoint(long? length, string? sourceVersion, string? resumeToken, IEnumerable<CheckpointPart> parts)
+    /// <param name="length">The length of the content, or <c>null</c> when it was unknown</param>
+    /// <param name="sourceIdentity">The fingerprint of the source's <see cref="SourceInfo.Identity"/>, from <see cref="Fingerprint"/></param>
+    /// <param name="sourceVersion">The source's <see cref="SourceInfo.Version"/></param>
+    /// <param name="resumeToken">The target's <see cref="ITargetSession.ResumeToken"/></param>
+    /// <param name="parts">The parts, in order, covering the content from its first byte to its last without gaps</param>
+    /// <exception cref="ArgumentException">The parts don't cover the content exactly once</exception>
+    public TransferCheckpoint(long? length, string? sourceIdentity, string? sourceVersion, string? resumeToken, IEnumerable<CheckpointPart> parts)
     {
         if (length < 0)
         {
@@ -32,15 +39,23 @@ public sealed class TransferCheckpoint
         }
 
         Length = length;
+        SourceIdentity = sourceIdentity;
         SourceVersion = sourceVersion;
         ResumeToken = resumeToken;
         Parts = (parts ?? throw new ArgumentNullException(nameof(parts))).ToArray();
+        CheckCoverage(length, Parts);
     }
 
     /// <summary>
     /// The length of the content, or <c>null</c> when it was unknown.
     /// </summary>
     public long? Length { get; }
+
+    /// <summary>
+    /// A fingerprint of the source's <see cref="SourceInfo.Identity"/>. Resuming only continues when the source still
+    /// has the same identity.
+    /// </summary>
+    public string? SourceIdentity { get; }
 
     /// <summary>
     /// The <see cref="SourceInfo.Version"/> of the content. Resuming only continues when the source still reports it.
@@ -70,6 +85,7 @@ public sealed class TransferCheckpoint
         var text = new StringBuilder();
         text.Append(Header).Append(' ').Append(FormatVersion.ToString(CultureInfo.InvariantCulture)).Append('\n');
         text.Append("length ").Append(Length is long length ? Number(length) : Null).Append('\n');
+        text.Append("identity ").Append(Escape(SourceIdentity)).Append('\n');
         text.Append("version ").Append(Escape(SourceVersion)).Append('\n');
         text.Append("token ").Append(Escape(ResumeToken)).Append('\n');
         foreach (var part in Parts)
@@ -91,16 +107,17 @@ public sealed class TransferCheckpoint
         ArgumentNullException.ThrowIfNull(text);
 
         var lines = text.Split('\n').Select(line => line.TrimEnd('\r')).Where(line => line.Length > 0).ToList();
-        if (lines.Count < 4 || lines[0] != $"{Header} {FormatVersion}")
+        if (lines.Count < 5 || lines[0] != $"{Header} {FormatVersion}")
         {
             throw new FormatException($"Not a version {FormatVersion} Naql checkpoint");
         }
 
         var length = ParseOptionalNumber(Value(lines[1], "length"));
-        var version = Unescape(Value(lines[2], "version"));
-        var token = Unescape(Value(lines[3], "token"));
+        var identity = Unescape(Value(lines[2], "identity"));
+        var version = Unescape(Value(lines[3], "version"));
+        var token = Unescape(Value(lines[4], "token"));
         var parts = new List<CheckpointPart>();
-        foreach (var line in lines.Skip(4))
+        foreach (var line in lines.Skip(5))
         {
             var fields = Value(line, "part").Split(' ');
             if (fields.Length != 3)
@@ -120,11 +137,56 @@ public sealed class TransferCheckpoint
 
         try
         {
-            return new TransferCheckpoint(length, version, token, parts);
+            return new TransferCheckpoint(length, identity, version, token, parts);
         }
-        catch (ArgumentOutOfRangeException ex)
+        catch (ArgumentException ex)
         {
             throw new FormatException(ex.Message, ex);
+        }
+    }
+
+    /// <summary>
+    /// The fingerprint a checkpoint keeps of a source's <see cref="SourceInfo.Identity"/>: its SHA-256 in hex, so a
+    /// URL with credentials in it isn't written to disk. <c>null</c> for no identity.
+    /// </summary>
+    public static string? Fingerprint(string? identity)
+    {
+        return identity == null ? null : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+    }
+
+    /// <summary>
+    /// Checks that the parts cover the content exactly once, in order: otherwise resuming would complete a transfer
+    /// with bytes missing or written twice.
+    /// </summary>
+    private static void CheckCoverage(long? length, IReadOnlyList<CheckpointPart> parts)
+    {
+        if (parts.Count == 0)
+        {
+            throw new ArgumentException("A checkpoint needs at least one part", nameof(parts));
+        }
+
+        long next = 0;
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var range = parts[i].Range;
+            if (range.Start != next)
+            {
+                throw new ArgumentException($"Part {range} should start at {next}: the parts must be in order, without gaps or overlaps", nameof(parts));
+            }
+            if (range.Length is not long partLength)
+            {
+                if (i != parts.Count - 1 || length != null)
+                {
+                    throw new ArgumentException($"Only the last part of content of unknown length can be open-ended, not {range}", nameof(parts));
+                }
+                return;
+            }
+            next += partLength;
+        }
+
+        if (length != next)
+        {
+            throw new ArgumentException($"The parts end at {next}, not at the end of the content", nameof(parts));
         }
     }
 

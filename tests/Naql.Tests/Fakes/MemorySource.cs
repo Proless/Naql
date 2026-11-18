@@ -11,6 +11,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
 
     public byte[] Content { get; set; } = content;
     public string? Version { get; set; } = "v1";
+    public string? Identity { get; init; } = "memory://content";
     public bool SupportsRanges { get; init; } = true;
     public bool IsRepeatable { get; init; } = true;
     public bool ReportsLength { get; init; } = true;
@@ -53,6 +54,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
         Length = ReportsLength ? Content.Length : null,
         SupportsRanges = SupportsRanges,
         IsRepeatable = IsRepeatable,
+        Identity = Identity,
         Version = Version,
         Name = "memory.bin",
         Checksum = Checksum

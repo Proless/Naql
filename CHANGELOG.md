@@ -11,7 +11,7 @@ The first release: transfers from a source to a target through one shared engine
 - `Transfer.From(source).To(target)`, `TransferClient` and `TransferOperation` to run transfers, with immutable `TransferOptions` and `RetryPolicy`.
 - The engine: parallel parts, retries with backoff that continue a part where it stopped, response and idle timeouts (including the wait for an upload's answer), a speed limit per transfer or shared through `BandwidthLimiter`, progress through `IProgress<TransferProgress>`, and one restart when the content changes.
 - `TransferFailedException` for every failed transfer, with the error kind, the side that failed, whether it's transient, the failure itself and every failed part; protocol packages derive their own exceptions from `TransferException`.
-- Checkpoints: `GetCheckpoint()`, `ResumeFrom(checkpoint)`, and `WithCheckpoints(ICheckpointStore)` to continue unfinished transfers by themselves, with `FileCheckpointStore`.
+- Checkpoints: `GetCheckpoint()`, `ResumeFrom(checkpoint)`, and `WithCheckpoints(ICheckpointStore)` to continue unfinished transfers by themselves, with `FileCheckpointStore`. A checkpoint only continues the same content, by `SourceInfo.Identity` and version, and keeps a fingerprint of the identity rather than the URL.
 - Checksum verification with `WithChecksum(Checksum.Sha256("…"))`, hashed while streaming or by reading the target back.
 - Traces and metrics through `ActivitySource` and `Meter`, named in `NaqlDiagnostics`.
 - `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`.

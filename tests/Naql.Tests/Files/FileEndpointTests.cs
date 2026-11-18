@@ -67,6 +67,7 @@ public sealed class FileEndpointTests : IDisposable
         Assert.Equal("in.bin", info.Name);
         Assert.True(info.SupportsRanges);
         Assert.NotNull(info.Version);
+        Assert.Equal(Path.GetFullPath(path), info.Identity);
         Assert.Equal(new DateTimeOffset(File.GetLastWriteTimeUtc(path)), info.LastModified);
     }
 

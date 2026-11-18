@@ -101,6 +101,7 @@ public sealed record SourceInfo
     public long? Length { get; init; }                 // the whole content; null when unknown (chunked HTTP, a live stream)
     public bool SupportsRanges { get; init; }          // can OpenReadAsync start anywhere but 0?
     public bool IsRepeatable { get; init; } = true;    // can the content be read again after a failure?
+    public string? Identity { get; init; }             // what the content is: the requested URL, a file's full path
     public string? Version { get; init; }              // opaque: an ETag, a last-modified time, a file's size + write time; without one, it's read in one piece
     public string? Name { get; init; }                 // a suggested file name (Content-Disposition, the URL path, the file name)
     public string? ContentType { get; init; }
@@ -436,14 +437,17 @@ var checkpoint = TransferCheckpoint.Deserialize(File.ReadAllText("file.zip.naql"
 await Transfer.From(source).To(target).ResumeFrom(checkpoint).RunAsync();
 ```
 
-`TransferCheckpoint` holds a format version, the source version and length, the finished parts and the offset reached in unfinished ones, and the target's resume token. Resuming checks that the source still has the same version, or starts over. `Serialize` writes a small versioned text format with no JSON dependency.
+`TransferCheckpoint` holds a format version, a fingerprint of the source's identity, the source version and length, the finished parts and the offset reached in unfinished ones, and the target's resume token. Resuming checks that the source is still the same content in the same version, or starts over. `Serialize` writes a small versioned text format with no JSON dependency; a reader only accepts its own format version, so a checkpoint from an older format starts the transfer over.
 
 How checkpoints behave:
 
 - **Only kept bytes count.** A part counts the bytes the target has handled: the target asks for more only after it wrote what it read before. A checkpoint can therefore lag by one read, which a resume sends again; it never claims bytes the target doesn't have. A target without `ResumableParts` only counts finished parts.
 - **Available while running.** `GetCheckpoint` is safe to call during the transfer, for example from the progress handler, so an app can save it regularly in case the process ends without a chance to save it.
 - **`null` when nothing can be continued:** before the transfer starts, after it completes, when the target isn't `Resumable` or discarded its partial data, and when the source has no version or doesn't support ranges.
-- **Resuming checks first.** It always asks the source for its info. When the version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now.
+- **Resuming checks first.** It always asks the source for its info. When the identity, version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now.
+- **Identity, not just version.** `SourceInfo.Identity` (the requested URL, a file's full path) tells which content a checkpoint belongs to, so a checkpoint saved for one URL can't continue a download of another that happens to have the same ETag and length. The checkpoint keeps its SHA-256 (`TransferCheckpoint.Fingerprint`), so URLs with credentials or signatures aren't written to disk.
+- **Checked when created.** The parts must cover the content exactly once, in order and without gaps, or the constructor throws (and `Deserialize` throws `FormatException`): a damaged or hand-edited checkpoint can't complete a transfer with bytes missing.
+- **A target checks its token.** `FileTarget` only continues a partial file it could have written: the file's own for `FileTarget.At`, or one in its directory for `InDirectory` and `FileConflict.KeepBoth`. Any other path counts as `NotFound`, so the transfer starts over instead of writing somewhere else.
 - **`TransferResult.Resumed`** tells how many bytes came from the earlier run; `Transferred` counts them too, and `AverageRate` covers only this run.
 
 **Automatic checkpoints.** `WithCheckpoints(ICheckpointStore)` lets the engine handle all of this:
@@ -555,6 +559,7 @@ Besides the contracts above, these behaviors each have a test:
 9. Content that fails its checksum never appears under its real name.
 10. Content without a version is never spliced from separate reads unless a checksum will catch it.
 11. A target that isn't `RepeatableWrites` never gets a part again after it read all of it.
+12. A checkpoint only continues the same content: a different identity, version or length starts over, and so does a resume token that doesn't belong to the target.
 
 ## 9. Roadmap
 

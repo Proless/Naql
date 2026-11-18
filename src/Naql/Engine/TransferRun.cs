@@ -82,7 +82,7 @@ internal sealed class TransferRun
         }
 
         var resumableParts = _capabilities.ResumableParts;
-        return new TransferCheckpoint(info.Length, info.Version, token, parts.Select(part =>
+        return new TransferCheckpoint(info.Length, TransferCheckpoint.Fingerprint(info.Identity), info.Version, token, parts.Select(part =>
         {
             var range = part.Range.IsAll ? new ByteRange(0, info.Length) : part.Range;
             var completed = part.Done && range.Length is long length ? length : resumableParts ? part.Confirmed : 0;
@@ -342,13 +342,14 @@ internal sealed class TransferRun
     }
 
     /// <summary>
-    /// Continues the transfer a checkpoint describes, or returns <c>null</c> to start over when the content changed,
-    /// the source can't continue it, or the target lost the partial data.
+    /// Continues the transfer a checkpoint describes, or returns <c>null</c> to start over when the source is other
+    /// content, the content changed, the source can't continue it, or the target lost the partial data.
     /// </summary>
     private async Task<List<PartRun>?> TryResumeAsync(TransferCheckpoint checkpoint, SourceInfo info, CancellationToken token)
     {
         if (!_capabilities.Resumable || checkpoint.ResumeToken == null || !info.SupportsRanges ||
-            info.Version == null || info.Version != checkpoint.SourceVersion || info.Length != checkpoint.Length)
+            info.Version == null || info.Version != checkpoint.SourceVersion || info.Length != checkpoint.Length ||
+            TransferCheckpoint.Fingerprint(info.Identity) != checkpoint.SourceIdentity)
         {
             return null;
         }

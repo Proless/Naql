@@ -103,8 +103,13 @@ public sealed class FileTarget : ITransferTarget
             string partial;
             if (request.ResumeToken is string token)
             {
-                // Continue writing the partial file of an earlier transfer
-                if (!token.EndsWith(PartialExtension, StringComparison.Ordinal) || !File.Exists(token))
+                // Continue writing the partial file of an earlier transfer, but only one this target could have written:
+                // a checkpoint mustn't make it write somewhere else
+                if (!IsOwnPartialFile(token))
+                {
+                    throw new TransferException($"The partial file '{token}' doesn't belong to this target", TransferErrorKind.NotFound, side: TransferSide.Target);
+                }
+                if (!File.Exists(token))
                 {
                     throw new TransferException($"There is no partial file '{token}' to continue", TransferErrorKind.NotFound, side: TransferSide.Target);
                 }
@@ -132,6 +137,29 @@ public sealed class FileTarget : ITransferTarget
         {
             throw error;
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="token"/> is a full path to a partial file this target could have written: the file's
+    /// own, or, when the target picks the name, one in its directory.
+    /// </summary>
+    private bool IsOwnPartialFile(string token)
+    {
+        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!token.EndsWith(PartialExtension, comparison) || !System.IO.Path.IsPathFullyQualified(token) ||
+            !string.Equals(System.IO.Path.GetFullPath(token), token, comparison))
+        {
+            return false;
+        }
+
+        if (_file != null && Conflict != FileConflict.KeepBoth)
+        {
+            return string.Equals(token, _file + PartialExtension, comparison);
+        }
+
+        // A file kept next to an existing one, or a name from the source, can be any file in the directory
+        var directory = _directory ?? System.IO.Path.GetDirectoryName(_file)!;
+        return string.Equals(System.IO.Path.GetDirectoryName(token), System.IO.Path.TrimEndingDirectorySeparator(directory), comparison);
     }
 
     private string ResolvePath(SourceInfo source)

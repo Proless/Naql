@@ -36,7 +36,19 @@ public sealed record SourceInfo
     public bool IsRepeatable { get; init; } = true;
 
     /// <summary>
-    /// An opaque value that changes when the content changes: an ETag, a last-modified time, a file's size and write time.
+    /// What the content is, independent of its version: the requested URL, a file's full path. A checkpoint only
+    /// continues a transfer whose source reports the same identity, so it can't be applied to other content that
+    /// happens to have the same version and length. <c>null</c> when the source can't tell.
+    /// </summary>
+    /// <remarks>
+    /// Checkpoints keep a fingerprint of it, not the value, so a URL with credentials in it isn't written to disk.
+    /// </remarks>
+    public string? Identity { get; init; }
+
+    /// <summary>
+    /// An opaque value that changes when the content changes: an ETag, a last-modified time, a file's size and write
+    /// time. Without one, the engine reads the content in one piece and makes no checkpoint, because it can't tell
+    /// whether separate reads came from the same content.
     /// </summary>
     public string? Version { get; init; }
 

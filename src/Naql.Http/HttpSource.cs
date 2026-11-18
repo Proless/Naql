@@ -175,6 +175,7 @@ public sealed class HttpSource : ITransferSource
             Length = length,
             SupportsRanges = supportsRanges,
             IsRepeatable = true,
+            Identity = Uri.AbsoluteUri,
             Version = version,
             Name = GetName(response),
             ContentType = headers.ContentType?.ToString(),

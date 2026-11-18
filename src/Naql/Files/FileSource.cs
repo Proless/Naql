@@ -82,6 +82,7 @@ public sealed class FileSource : ITransferSource
             Length = file.Length,
             SupportsRanges = true,
             IsRepeatable = true,
+            Identity = file.FullName,
             Version = FormattableString.Invariant($"{file.Length}:{lastWrite.Ticks}"),
             Name = file.Name,
             LastModified = new DateTimeOffset(lastWrite, TimeSpan.Zero)

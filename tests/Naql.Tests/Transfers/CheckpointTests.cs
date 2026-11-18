@@ -96,12 +96,13 @@ public sealed class CheckpointTests : IDisposable
     [Fact]
     public void A_checkpoint_survives_serialization()
     {
-        var checkpoint = new TransferCheckpoint(10_000, "\"v1\" with spaces,\nnewlines & %25", @"C:\dir\file.bin.naql-part",
+        var checkpoint = new TransferCheckpoint(10_000, "ABC123", "\"v1\" with spaces,\nnewlines & %25", @"C:\dir\file.bin.naql-part",
             [new CheckpointPart(new ByteRange(0, 5_000), 5_000), new CheckpointPart(new ByteRange(5_000, 5_000), 1_234)]);
 
         var copy = TransferCheckpoint.Deserialize(checkpoint.Serialize());
 
         Assert.Equal(checkpoint.Length, copy.Length);
+        Assert.Equal(checkpoint.SourceIdentity, copy.SourceIdentity);
         Assert.Equal(checkpoint.SourceVersion, copy.SourceVersion);
         Assert.Equal(checkpoint.ResumeToken, copy.ResumeToken);
         Assert.Equal(checkpoint.Parts.Select(part => (part.Range, part.Completed)), copy.Parts.Select(part => (part.Range, part.Completed)));
@@ -113,9 +114,10 @@ public sealed class CheckpointTests : IDisposable
     [Fact]
     public void Missing_values_survive_serialization()
     {
-        var copy = TransferCheckpoint.Deserialize(new TransferCheckpoint(null, null, null, [new CheckpointPart(ByteRange.All, 42)]).Serialize());
+        var copy = TransferCheckpoint.Deserialize(new TransferCheckpoint(null, null, null, null, [new CheckpointPart(ByteRange.All, 42)]).Serialize());
 
         Assert.Null(copy.Length);
+        Assert.Null(copy.SourceIdentity);
         Assert.Null(copy.SourceVersion);
         Assert.Null(copy.ResumeToken);
         Assert.Equal(ByteRange.All, Assert.Single(copy.Parts).Range);
@@ -125,15 +127,50 @@ public sealed class CheckpointTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("hello")]
-    [InlineData("naql-checkpoint 2\nlength 10\nversion -\ntoken -\n")]
-    [InlineData("naql-checkpoint 1\nlength 10\nversion -\n")]
-    [InlineData("naql-checkpoint 1\nlength ten\nversion -\ntoken -\n")]
-    [InlineData("naql-checkpoint 1\nlength 10\nversion v1\ntoken -\n")]
-    [InlineData("naql-checkpoint 1\nlength 10\nversion -\ntoken -\npart 0 10 11\n")]
-    [InlineData("naql-checkpoint 1\nlength 10\nversion -\ntoken -\npart 0 10\n")]
+    // Version 1 had no identity, so it's not read
+    [InlineData("naql-checkpoint 1\nlength 10\nversion -\ntoken -\npart 0 10 0\n")]
+    [InlineData("naql-checkpoint 3\nlength 10\nidentity -\nversion -\ntoken -\npart 0 10 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\n")]
+    [InlineData("naql-checkpoint 2\nlength ten\nidentity -\nversion -\ntoken -\npart 0 10 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion v1\ntoken -\npart 0 10 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 10 11\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 10\n")]
+    // No parts, a gap, an overlap, parts out of order, short of the end, past the end, open-ended with a known length
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 4 0\npart 5 5 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 6 0\npart 5 5 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 5 5 0\npart 0 5 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 5 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 5 0\npart 5 6 0\n")]
+    [InlineData("naql-checkpoint 2\nlength 10\nidentity -\nversion -\ntoken -\npart 0 - 0\n")]
+    [InlineData("naql-checkpoint 2\nlength -\nidentity -\nversion -\ntoken -\npart 0 - 0\npart 0 5 0\n")]
     public void Rejects_text_that_isnt_a_checkpoint(string text)
     {
         Assert.Throws<FormatException>(() => TransferCheckpoint.Deserialize(text));
+    }
+
+    [Fact]
+    public void Parts_must_cover_the_content_exactly_once()
+    {
+        Assert.Throws<ArgumentException>(() => new TransferCheckpoint(10, null, "v1", "t", [new CheckpointPart(new ByteRange(0, 4), 0), new CheckpointPart(new ByteRange(5, 5), 0)]));
+        Assert.Throws<ArgumentException>(() => new TransferCheckpoint(10, null, "v1", "t", []));
+
+        var checkpoint = new TransferCheckpoint(10, null, "v1", "t", [new CheckpointPart(new ByteRange(0, 5), 5), new CheckpointPart(new ByteRange(5, 5), 0)]);
+        Assert.Equal(5, checkpoint.Completed);
+    }
+
+    [Fact]
+    public void A_checkpoint_keeps_a_fingerprint_of_the_identity_instead_of_the_identity()
+    {
+        const string url = "https://user:secret@example.com/file.zip?signature=abc";
+
+        var fingerprint = TransferCheckpoint.Fingerprint(url);
+
+        Assert.Equal(64, fingerprint!.Length);
+        Assert.DoesNotContain("secret", fingerprint);
+        Assert.Equal(fingerprint, TransferCheckpoint.Fingerprint(url));
+        Assert.NotEqual(fingerprint, TransferCheckpoint.Fingerprint("https://example.com/other.zip"));
+        Assert.Null(TransferCheckpoint.Fingerprint(null));
     }
 
     #endregion
@@ -288,6 +325,77 @@ public sealed class CheckpointTests : IDisposable
         Assert.Equal(_content, File.ReadAllBytes(path));
         Assert.Equal(0, result.Resumed);
         Assert.Equal(ByteRange.All, Assert.Single(source.Reads).Range);
+    }
+
+    [Fact]
+    public async Task Resuming_starts_over_when_the_source_is_other_content_with_the_same_version()
+    {
+        var stalls = new List<StallingStream>();
+        var target = new MemoryTarget();
+        var (operation, _) = await CancelWhenStalledAsync(StallingSource(stalls), target, stalls);
+        var other = new MemorySource(_content) { Identity = "memory://other" };
+
+        var result = await ResumeAsync(other, target, operation.GetCheckpoint()!);
+
+        Assert.Equal(ByteRange.All, Assert.Single(other.Reads).Range);
+        Assert.Null(target.Sessions[1].Request.ResumeToken);
+        Assert.Equal(0, result.Resumed);
+    }
+
+    [Fact]
+    public async Task A_checkpoint_doesnt_hold_the_sources_identity()
+    {
+        var stalls = new List<StallingStream>();
+        var source = StallingSource(stalls);
+        var (operation, _) = await CancelWhenStalledAsync(source, new MemoryTarget(), stalls);
+
+        var saved = operation.GetCheckpoint()!;
+
+        Assert.Equal(TransferCheckpoint.Fingerprint(source.Identity), saved.SourceIdentity);
+        Assert.DoesNotContain(source.Identity!, saved.Serialize());
+    }
+
+    [Fact]
+    public async Task A_file_target_doesnt_continue_a_partial_file_of_another_target()
+    {
+        var stalls = new List<StallingStream>();
+        var first = _temp.File("first.bin");
+        var (operation, _) = await CancelWhenStalledAsync(StallingSource(stalls), FileTarget.At(first), stalls);
+        var second = _temp.File("second.bin");
+
+        var result = await ResumeAsync(new MemorySource(_content), FileTarget.At(second), operation.GetCheckpoint()!);
+
+        Assert.Equal(_content, File.ReadAllBytes(second));
+        Assert.Equal(0, result.Resumed);
+        // The other target's partial file is left alone
+        Assert.True(File.Exists(first + FileTarget.PartialExtension));
+        Assert.False(File.Exists(first));
+    }
+
+    [Fact]
+    public async Task A_file_target_in_a_directory_continues_a_partial_file_in_that_directory()
+    {
+        var stalls = new List<StallingStream>();
+        var directory = _temp.File("downloads");
+        var (operation, _) = await CancelWhenStalledAsync(StallingSource(stalls), FileTarget.InDirectory(directory), stalls);
+
+        var result = await ResumeAsync(new MemorySource(_content), FileTarget.InDirectory(directory), operation.GetCheckpoint()!);
+
+        Assert.Equal(_content, File.ReadAllBytes(Path.Combine(directory, "memory.bin")));
+        Assert.Equal(3_000, result.Resumed);
+    }
+
+    [Fact]
+    public async Task A_file_target_in_a_directory_doesnt_continue_a_partial_file_elsewhere()
+    {
+        var stalls = new List<StallingStream>();
+        var (operation, _) = await CancelWhenStalledAsync(StallingSource(stalls), FileTarget.InDirectory(_temp.File("a")), stalls);
+        var other = _temp.File("b");
+
+        var result = await ResumeAsync(new MemorySource(_content), FileTarget.InDirectory(other), operation.GetCheckpoint()!);
+
+        Assert.Equal(_content, File.ReadAllBytes(Path.Combine(other, "memory.bin")));
+        Assert.Equal(0, result.Resumed);
     }
 
     #endregion

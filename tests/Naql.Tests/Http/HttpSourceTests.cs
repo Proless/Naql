@@ -178,6 +178,7 @@ public sealed class HttpSourceTests : IDisposable
         Assert.True(info.SupportsRanges);
         Assert.Equal("\"v1\"", info.Version);
         Assert.Equal("file.bin", info.Name);
+        Assert.Equal(FakeHttpServer.Uri.AbsoluteUri, info.Identity);
         var probe = Assert.Single(server.RequestedRanges)!.Ranges.Single();
         Assert.Equal(0, probe.From);
         Assert.Equal(0, probe.To);
