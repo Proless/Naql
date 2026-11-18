@@ -400,6 +400,23 @@ public sealed class TransferEngineTests
         Assert.False(target.Session.Completed);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task Opening_the_target_is_retried_on_its_own(int connections)
+    {
+        var content = Content(10_000);
+        var source = new MemorySource(content);
+        var target = new MemoryTarget { OnOpen = (open, _) => open == 0 ? throw Broken() : Task.CompletedTask };
+
+        var result = await RunAsync(source, target, Options with { MaxConnections = connections });
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(1, result.Retries);
+        // The source isn't read again just because the target failed to open
+        Assert.Equal(result.Parts, source.Reads.Count);
+    }
+
     [Fact]
     public async Task A_part_is_written_again_after_the_target_failed_once_it_had_all_of_it()
     {

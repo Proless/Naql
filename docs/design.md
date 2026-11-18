@@ -199,7 +199,7 @@ When a target isn't `RepeatableWrites`, the engine only writes a part again if t
 ### 5.1 How a transfer runs
 
 1. **Plan.** If the transfer can use more than one connection, or resumes from a checkpoint, call `source.GetInfoAsync`. Split the content into parts (see [5.2](#52-planning-parts)). Otherwise use one part covering `ByteRange.All`.
-2. **Open the target.** `target.OpenAsync` with the source info and, when resuming, the checkpoint's resume token. A target that `RequiresLength` fails early with `Unsupported` when the length is unknown.
+2. **Open the target.** `target.OpenAsync` with the source info and, when resuming, the checkpoint's resume token, within the response timeout and with its own retries. With one connection this happens once the first read has described the content, but in the same way: a target that fails to open doesn't make the engine read the source again. A target that `RequiresLength` fails early with `Unsupported` when the length is unknown.
 3. **Run the parts** with at most `MaxConnections` running at once. For each part:
    1. `source.OpenReadAsync(range, IfVersion = info.Version)`, within the response timeout.
    2. Wrap the content in the metered stream.
@@ -208,6 +208,8 @@ When a target isn't `RepeatableWrites`, the engine only writes a part again if t
    5. On a transient failure, wait according to the retry policy and try again. When the target has `ResumableParts` and the source `SupportsRanges`, continue after the bytes the target already consumed; otherwise redo the whole part.
 4. **Verify.** When the length is known, the bytes transferred must equal it, or the transfer fails with `Integrity`. When there is a checksum to check, it's checked now, before the target makes the result visible (see [6.5](#65-checksums)).
 5. **Commit.** `session.CompleteAsync`, then return a `TransferResult`.
+
+Inside the engine, three types share this work: `TransferRun` runs steps 1, 2, 4 and 5, restarts when the content changed, owns the target session and records the outcome; `PartRunner` runs step 3 and gives the rest of the run the same retries and timeouts; `RunState` holds what the run knows (the content, the parts, the counters progress and the result read), builds checkpoints and decides whether one can be continued.
 
 Failures:
 
