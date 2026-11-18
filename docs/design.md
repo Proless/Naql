@@ -101,7 +101,7 @@ public sealed record SourceInfo
     public long? Length { get; init; }                 // the whole content; null when unknown (chunked HTTP, a live stream)
     public bool SupportsRanges { get; init; }          // can OpenReadAsync start anywhere but 0?
     public bool IsRepeatable { get; init; } = true;    // can the content be read again after a failure?
-    public string? Version { get; init; }              // opaque: an ETag, a last-modified time, a file's size + write time
+    public string? Version { get; init; }              // opaque: an ETag, a last-modified time, a file's size + write time; without one, it's read in one piece
     public string? Name { get; init; }                 // a suggested file name (Content-Disposition, the URL path, the file name)
     public string? ContentType { get; init; }
     public DateTimeOffset? LastModified { get; init; }
@@ -222,6 +222,7 @@ parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 - One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1, or the content is smaller than `MinPartSize × 2`.
 - Otherwise `min(MaxConnections, length / MinPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
+- Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 
 Callers don't check range support or the size themselves before choosing how to transfer; the planner decides.
 
@@ -548,6 +549,7 @@ Besides the contracts above, these behaviors each have a test:
 7. Exceptions from the caller's code are not retried and keep their type.
 8. A checkpoint never counts bytes the target hasn't written, and a stored checkpoint continues the transfer in a later run.
 9. Content that fails its checksum never appears under its real name.
+10. Content without a version is never spliced from separate reads unless a checksum will catch it.
 
 ## 9. Roadmap
 

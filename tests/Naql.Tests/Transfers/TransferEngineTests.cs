@@ -93,6 +93,49 @@ public sealed class TransferEngineTests
     }
 
     [Fact]
+    public async Task Content_without_a_version_isnt_split_into_parts()
+    {
+        var content = Content(10_000);
+        var target = new MemoryTarget();
+
+        // Parts read at different times could come from different versions of the content
+        var result = await RunAsync(new MemorySource(content) { Version = null }, target, Parallel);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(1, result.Parts);
+    }
+
+    [Fact]
+    public async Task Content_without_a_version_is_split_when_a_checksum_will_catch_a_splice()
+    {
+        var content = Content(10_000);
+        var checksum = new Checksum(System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.SHA256.HashData(content));
+        var target = new MemoryTarget { Capabilities = new() { ParallelParts = true, ResumableParts = true, Resumable = true, Verifiable = true } };
+
+        var result = await RunAsync(new MemorySource(content) { Version = null }, target, Parallel with { ExpectedChecksum = checksum });
+
+        Assert.Equal(4, result.Parts);
+        Assert.Equal(checksum, result.VerifiedChecksum);
+    }
+
+    [Fact]
+    public async Task A_part_of_content_without_a_version_starts_over_instead_of_continuing()
+    {
+        var content = Content(10_000);
+        var source = new MemorySource(content)
+        {
+            Version = null,
+            WrapContent = (index, _, stream) => index == 0 ? new FailingStream(stream, 4_000, Broken) : stream
+        };
+        var target = new MemoryTarget();
+
+        await RunAsync(source, target);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(new ByteRange[] { ByteRange.All, ByteRange.All }, source.Reads.Select(read => read.Range));
+    }
+
+    [Fact]
     public async Task Uses_one_connection_when_the_source_has_no_ranges()
     {
         var content = Content(10_000);

@@ -301,7 +301,9 @@ internal sealed class TransferRun
             }
             if (parts == null)
             {
-                parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, _options)
+                // Parts of content without a version could come from different versions and be spliced together
+                var planOptions = CanCombine(info) ? _options : _options with { MaxConnections = 1 };
+                parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, planOptions)
                     .Select(range => new PartRun(range, range.IsAll ? info.Length : range.Length))
                     .ToList();
                 await OpenSessionAsync(new TargetOpenRequest(info), token).ConfigureAwait(false);
@@ -770,7 +772,17 @@ internal sealed class TransferRun
         _info = info;
     }
 
-    private bool CanResumePart() => _capabilities.ResumableParts && _info?.SupportsRanges == true;
+    /// <summary>
+    /// Whether a failed part can continue where it stopped. Continuing joins bytes from two requests, which is only safe
+    /// when they are known to be the same content.
+    /// </summary>
+    private bool CanResumePart() => _capabilities.ResumableParts && _info is { SupportsRanges: true } info && CanCombine(info);
+
+    /// <summary>
+    /// Whether bytes from separate requests can be joined into one result: the source names a version every request
+    /// is checked against, or a required checksum would catch content that changed in between.
+    /// </summary>
+    private bool CanCombine(SourceInfo info) => info.Version != null || _options.ExpectedChecksum != null;
 
     private bool CanRetry(TransferException error, bool checkRepeatable)
     {

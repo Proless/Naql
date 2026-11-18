@@ -32,7 +32,7 @@ public sealed class StreamEndpointTests
 
 
     [Fact]
-    public async Task A_seekable_stream_source_supports_parallel_parts_from_its_position()
+    public async Task A_seekable_stream_source_is_read_from_its_position_in_one_part()
     {
         var content = Content(10_000);
         var stream = new MemoryStream([9, 9, 9, .. content]) { Position = 3 };
@@ -41,8 +41,22 @@ public sealed class StreamEndpointTests
         var result = await RunAsync(new StreamSource(stream, "data.bin"), target, Parallel);
 
         Assert.Equal(content, target.Session.Data);
-        Assert.Equal(4, result.Parts);
+        Assert.Equal(1, result.Parts);
         Assert.Equal("data.bin", result.Source.Name);
+    }
+
+    [Fact]
+    public async Task A_seekable_stream_source_supports_parallel_parts_when_a_checksum_guards_them()
+    {
+        var content = Content(10_000);
+        var stream = new MemoryStream([9, 9, 9, .. content]) { Position = 3 };
+        var target = new MemoryTarget { Capabilities = new() { ParallelParts = true, ResumableParts = true, Resumable = true, Verifiable = true } };
+        var checksum = new Checksum(System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.SHA256.HashData(content));
+
+        var result = await RunAsync(new StreamSource(stream, "data.bin"), target, Parallel with { ExpectedChecksum = checksum });
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(4, result.Parts);
     }
 
     [Fact]
