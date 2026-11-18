@@ -52,7 +52,7 @@ public sealed class StreamTarget : ITransferTarget
     {
         if (!_stream.CanSeek && Interlocked.Read(ref _written) > 0)
         {
-            throw new TransferException("A stream that can't seek can't start over", TransferErrorKind.Unsupported) { Side = TransferSide.Target };
+            throw new TransferException("A stream that can't seek can't start over", TransferErrorKind.Unsupported, side: TransferSide.Target);
         }
         return Task.FromResult<ITargetSession>(new StreamSession(this));
     }
@@ -66,10 +66,7 @@ public sealed class StreamTarget : ITransferTarget
             var stream = target._stream;
             if (!stream.CanSeek && range.Start != Interlocked.Read(ref target._written))
             {
-                throw new TransferException("A stream that can't seek can only be written in order, once", TransferErrorKind.Unsupported)
-                {
-                    Side = TransferSide.Target
-                };
+                throw new TransferException("A stream that can't seek can only be written in order, once", TransferErrorKind.Unsupported, side: TransferSide.Target);
             }
 
             var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
@@ -112,7 +109,7 @@ public sealed class StreamTarget : ITransferTarget
             var stream = target._stream;
             if (!stream.CanSeek || !stream.CanRead)
             {
-                throw new TransferException("A stream that can't seek and read can't be read back", TransferErrorKind.Unsupported) { Side = TransferSide.Target };
+                throw new TransferException("A stream that can't seek and read can't be read back", TransferErrorKind.Unsupported, side: TransferSide.Target);
             }
 
             await target._gate.WaitAsync(cancellationToken).ConfigureAwait(false);

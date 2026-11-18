@@ -367,17 +367,31 @@ The defaults retry transient errors three times with backoff, use an 80 KB buffe
 ### 6.2 Errors
 
 ```csharp
+// What protocols throw and the engine produces. Immutable: nothing changes it after it's thrown.
 public class TransferException : Exception
 {
-    public TransferException(string message, TransferErrorKind kind = TransferErrorKind.Unknown,
-        bool isTransient = false, Exception? innerException = null);
+    public TransferException(string message, TransferErrorKind kind, bool isTransient = false,
+        TransferSide side = TransferSide.Unknown, TimeSpan? retryDelay = null, Exception? innerException = null);
 
     public TransferErrorKind Kind { get; }
     public bool IsTransient { get; }
-    public TransferSide Side { get; init; }           // Source, Target, Engine; the engine fills it in when unset
-    public ByteRange? Part { get; init; }             // the engine fills it in when unset
-    public TimeSpan? RetryAfter { get; init; }        // HTTP 429/503 Retry-After
-    public IReadOnlyList<TransferException> PartFailures { get; }
+    public TransferSide Side { get; }                 // Source, Target, Engine, or Unknown when the thrower didn't say
+    public TimeSpan? RetryDelay { get; }              // the other side asked to wait this long (HTTP Retry-After, S3 SlowDown…)
+}
+
+// What RunAsync throws when a transfer fails, so one type is always enough to catch.
+public sealed class TransferFailedException : TransferException   // Kind, IsTransient and RetryDelay come from Error
+{
+    public TransferException Error { get; }                  // the failure that ended the transfer, also InnerException
+    public IReadOnlyList<PartFailure> PartFailures { get; }  // every part that failed, in order; empty outside parts
+}
+
+public sealed class PartFailure
+{
+    public ByteRange Part { get; }
+    public TransferException Error { get; }
+    public TransferSide Side { get; }                 // the side the engine saw the failure on
+    public int Attempts { get; }
 }
 
 public enum TransferErrorKind
@@ -387,9 +401,15 @@ public enum TransferErrorKind
 }
 ```
 
-- Protocols throw `TransferException` with the right kind. `Naql.Http` maps 404 and 410 to `NotFound`, 401 and 403 to `AccessDenied`, 408, 429 and 5xx to transient errors (honoring `Retry-After`), and other unexpected statuses to `Protocol`.
-- The engine also treats `IOException` and `TimeoutException` as transient `Network` and `Timeout` errors, so a simple protocol doesn't need to map everything. `Naql.Http` maps `HttpRequestException` itself, so the core doesn't need to know about HTTP.
-- `RunAsync` throws `TransferException` for failures and `OperationCanceledException` for cancellation. The exception thrown is the first part failure, and its `PartFailures` lists every part failure, itself included, in the order they happened.
+- **Protocol details live in the protocol package.** `Naql.Http` throws `HttpTransferException`, with the `StatusCode` (`null` when no response arrived), `ReasonPhrase`, `Method` and `RequestUri`, and fills `RetryDelay` from `Retry-After`. It maps 404 and 410 to `NotFound`, 401, 403 and 407 to `AccessDenied`, 408, 429 and 5xx to transient errors, 413 and 507 to `InsufficientStorage`, and other unexpected statuses to `Protocol`.
+- **Nothing is changed after it's thrown.** The engine records what it knows about a failure, the part and the side it was calling, in `PartFailure` and `TransferFailedException.Side`, and leaves the protocol's exception as it was. A source's own exception therefore reaches the caller unchanged as `Error`.
+- **One type to catch.** `RunAsync` throws `TransferFailedException` for every failure, `OperationCanceledException` for cancellation, and exceptions from the caller's own code (such as a progress handler) unchanged. Protocol details are one pattern away:
+
+  ```csharp
+  catch (TransferFailedException ex) when (ex.Error is HttpTransferException { StatusCode: HttpStatusCode.NotFound })
+  ```
+
+- **Other exceptions are classified.** `IOException` becomes a transient `Network` error and `TimeoutException` a transient `Timeout`, so a simple protocol doesn't need to map everything. A `TaskCanceledException` the caller didn't cause is HttpClient's own timeout and becomes a transient `Timeout`; any other cancellation the caller didn't ask for is a non-transient `Unknown` error, because retrying a bug doesn't help.
 - `SourceChanged` is never retried within a part, whatever `IsTransient` says; the engine starts the whole transfer over instead (see [5.1](#51-how-a-transfer-runs)).
 
 ### 6.3 Resuming after a restart

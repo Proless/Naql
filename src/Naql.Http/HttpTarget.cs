@@ -166,10 +166,7 @@ public sealed class HttpTarget : ITransferTarget
         {
             if (!range.IsAll)
             {
-                throw new TransferException($"An HTTP upload sends the whole content in one request, not the bytes {range}", TransferErrorKind.Unsupported)
-                {
-                    Side = TransferSide.Target
-                };
+                throw new TransferException($"An HTTP upload sends the whole content in one request, not the bytes {range}", TransferErrorKind.Unsupported, side: TransferSide.Target);
             }
 
             using var request = new HttpRequestMessage(target.Method, target.Uri) { Content = target.CreateContent(content, source) };

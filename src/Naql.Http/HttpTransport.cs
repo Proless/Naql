@@ -169,7 +169,7 @@ public sealed class HttpTransport : IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new TransferException(ex.Message, TransferErrorKind.Network, isTransient: true, ex) { Side = side };
+            throw new HttpTransferException(ex.Message, TransferErrorKind.Network, isTransient: true, side, request.Method, request.RequestUri!, statusCode: ex.StatusCode, innerException: ex);
         }
     }
 }

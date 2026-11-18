@@ -93,10 +93,12 @@ try
 {
     await Transfer.From(source).To(target).RunAsync();
 }
-catch (TransferException ex)
+catch (TransferFailedException ex)
 {
     // ex.Kind: NotFound, AccessDenied, Network, Timeout, SourceChanged, AlreadyExists, ...
     // ex.Side: Source or Target; ex.IsTransient: whether a later attempt could succeed
+    // ex.Error: the failure itself, such as an HttpTransferException with its StatusCode
+    // ex.PartFailures: every part that failed, with its range and number of attempts
 }
 ```
 

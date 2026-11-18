@@ -8,7 +8,7 @@ namespace Naql.Http;
 /// </summary>
 internal static class HttpErrors
 {
-    public static TransferException FromStatus(HttpResponseMessage response, TransferSide side)
+    public static HttpTransferException FromStatus(HttpResponseMessage response, TransferSide side)
     {
         var code = (int)response.StatusCode;
         var (kind, transient) = code switch
@@ -23,11 +23,21 @@ internal static class HttpErrors
             _ => (TransferErrorKind.Protocol, false)
         };
 
+        return FromResponse(response, $"The server answered {code} {response.ReasonPhrase}".TrimEnd(), kind, transient, side);
+    }
+
+    /// <summary>
+    /// An error about a response, with its status, reason and <c>Retry-After</c>.
+    /// </summary>
+    public static HttpTransferException FromResponse(HttpResponseMessage response, string message, TransferErrorKind kind, bool transient, TransferSide side)
+    {
+        var request = response.RequestMessage;
         var retryAfter = response.Headers.RetryAfter;
-        return new TransferException($"The server answered {code} {response.ReasonPhrase}".TrimEnd(), kind, transient)
-        {
-            Side = side,
-            RetryAfter = retryAfter?.Delta ?? (retryAfter?.Date - DateTimeOffset.UtcNow)
-        };
+        return new HttpTransferException(message, kind, transient, side,
+            request?.Method ?? HttpMethod.Get,
+            request?.RequestUri ?? throw new ArgumentException("The response has no request", nameof(response)),
+            response.StatusCode,
+            response.ReasonPhrase,
+            retryAfter?.Delta ?? (retryAfter?.Date - DateTimeOffset.UtcNow));
     }
 }

@@ -111,7 +111,16 @@ internal sealed class TransferRun
                 keeper.Start();
             }
 
-            var result = await RunCoreAsync(cancellationToken).ConfigureAwait(false);
+            TransferResult result;
+            try
+            {
+                result = await RunCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (TransferException ex) when (ex is not TransferFailedException)
+            {
+                // Errors the engine raises itself, such as a failed length check, end the transfer the same way
+                throw new TransferFailedException(ex, ex.Side);
+            }
             outcome = "completed";
             return result;
         }
@@ -315,10 +324,7 @@ internal sealed class TransferRun
         var transferred = Interlocked.Read(ref _transferred);
         if (_info!.Length is long length && transferred != length)
         {
-            throw new TransferException($"Transferred {transferred} bytes, but the source reported {length}", TransferErrorKind.Integrity)
-            {
-                Side = TransferSide.Engine
-            };
+            throw new TransferException($"Transferred {transferred} bytes, but the source reported {length}", TransferErrorKind.Integrity, side: TransferSide.Engine);
         }
 
         await VerifyChecksumAsync(transferred, token).ConfigureAwait(false);
@@ -401,10 +407,7 @@ internal sealed class TransferRun
         {
             // The bytes are wrong, so keeping them for a resume would only resume corrupt data
             await DiscardSessionAsync().ConfigureAwait(false);
-            throw new TransferException($"The content's {expected.Algorithm.Name} is {Convert.ToHexString(actual).ToLowerInvariant()}, not {expected.ToHex()}", TransferErrorKind.Integrity)
-            {
-                Side = TransferSide.Engine
-            };
+            throw new TransferException($"The content's {expected.Algorithm.Name} is {Convert.ToHexString(actual).ToLowerInvariant()}, not {expected.ToHex()}", TransferErrorKind.Integrity, side: TransferSide.Engine);
         }
         _verified = expected;
     }
@@ -452,7 +455,7 @@ internal sealed class TransferRun
     {
         using var gate = new SemaphoreSlim(_options.MaxConnections);
         using var partsCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var failures = new List<TransferException>();
+        var failures = new List<PartFailure>();
 
         async Task RunGuardedAsync(PartRun part)
         {
@@ -472,21 +475,24 @@ internal sealed class TransferRun
             activity?.SetTag("naql.part.resumed", part.Consumed);
             try
             {
-                await RunPartAsync(part, partsCts.Token).ConfigureAwait(false);
-                Interlocked.Increment(ref _completedParts);
-                activity?.SetStatus(ActivityStatusCode.Ok);
-            }
-            catch (TransferException ex)
-            {
-                // One failed part fails the transfer, so stop the others
-                lock (failures)
+                var failure = await RunPartAsync(part, partsCts.Token).ConfigureAwait(false);
+                if (failure == null)
                 {
-                    failures.Add(ex);
+                    Interlocked.Increment(ref _completedParts);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
                 }
-                CancelQuietly(partsCts);
-                activity?.SetTag(Telemetry.ErrorType, ex.Kind.ToString());
-                activity?.SetTag(Telemetry.ErrorSide, ex.Side.ToString());
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                else
+                {
+                    // One failed part fails the transfer, so stop the others
+                    lock (failures)
+                    {
+                        failures.Add(failure);
+                    }
+                    CancelQuietly(partsCts);
+                    activity?.SetTag(Telemetry.ErrorType, failure.Error.Kind.ToString());
+                    activity?.SetTag(Telemetry.ErrorSide, failure.Side.ToString());
+                    activity?.SetStatus(ActivityStatusCode.Error, failure.Error.Message);
+                }
             }
             catch (OperationCanceledException) when (partsCts.IsCancellationRequested)
             {
@@ -508,21 +514,24 @@ internal sealed class TransferRun
         if (failures.Count > 0)
         {
             var first = failures[0];
-            first.SetPartFailures(failures.ToArray());
-            throw Rethrow(first);
+            throw new TransferFailedException(first.Error, first.Side, failures.ToArray());
         }
     }
 
-    private async Task RunPartAsync(PartRun part, CancellationToken token)
+    /// <summary>
+    /// Runs a part, retrying it as the policy allows.
+    /// </summary>
+    /// <returns><c>null</c> when the part is done, otherwise why it failed for good</returns>
+    private async Task<PartFailure?> RunPartAsync(PartRun part, CancellationToken token)
     {
-        for (var retry = 0; ;)
+        for (var attempts = 1; ; attempts++)
         {
             var failure = await TryPartAsync(part, token).ConfigureAwait(false);
             if (failure == null)
             {
                 part.Confirmed = part.Consumed;
                 part.Done = true;
-                return;
+                return null;
             }
 
             if (!failure.Resume && part.Consumed > 0)
@@ -534,14 +543,13 @@ internal sealed class TransferRun
                 ResetHash();
             }
 
-            var error = failure.Error;
-            if (!CanRetry(error, checkRepeatable: true) || retry >= _options.Retry.MaxRetries)
+            if (!CanRetry(failure.Error, checkRepeatable: true) || attempts > _options.Retry.MaxRetries)
             {
-                throw Rethrow(error);
+                var range = part.Range.IsAll && _info?.Length is long length ? new ByteRange(0, length) : part.Range;
+                return new PartFailure(range, failure.Error, failure.Side, attempts);
             }
 
-            retry++;
-            await WaitBeforeRetryAsync(error, retry, token).ConfigureAwait(false);
+            await WaitBeforeRetryAsync(failure.Error, failure.Side, attempts, token).ConfigureAwait(false);
         }
     }
 
@@ -549,7 +557,7 @@ internal sealed class TransferRun
     /// Makes one attempt at a part.
     /// </summary>
     /// <returns><c>null</c> when the part is done, otherwise what went wrong and whether the part can continue where it stopped</returns>
-    private async Task<PartFailure?> TryPartAsync(PartRun part, CancellationToken token)
+    private async Task<AttemptFailure?> TryPartAsync(PartRun part, CancellationToken token)
     {
         var range = part.Range.Skip(part.Consumed);
         using var attempt = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -595,8 +603,8 @@ internal sealed class TransferRun
             await _session.WritePartAsync(range, metered, attempt.Token).ConfigureAwait(false);
             if (!metered.ReachedEnd)
             {
-                var error = new TransferException("The target finished the part without reading all of it", TransferErrorKind.Integrity);
-                return new PartFailure(error.WithContext(TransferSide.Target, part.Range), resume: false);
+                var error = new TransferException("The target finished the part without reading all of it", TransferErrorKind.Integrity, side: TransferSide.Target);
+                return new AttemptFailure(error, TransferSide.Target, resume: false);
             }
             return null;
         }
@@ -609,21 +617,22 @@ internal sealed class TransferRun
             if (watchdog?.TimedOut == true)
             {
                 var side = watchdog.StalledSide;
-                var error = new TransferException($"No data moved for {_options.IdleTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout, isTransient: true, ex);
-                return new PartFailure(error.WithContext(side, part.Range), resume: side == TransferSide.Source && CanResumePart());
+                var error = new TransferException($"No data moved for {_options.IdleTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout,
+                    isTransient: true, side, innerException: ex);
+                return new AttemptFailure(error, side, resume: side == TransferSide.Source && CanResumePart());
             }
             if (metered?.ReadFailure is Exception readFailure)
             {
                 // The source failed while the target was reading: the target kept what it read
-                return new PartFailure(Classify(readFailure, TransferSide.Source, part.Range), resume: CanResumePart());
+                return Failed(readFailure, TransferSide.Source, resume: CanResumePart());
             }
             if (metered == null)
             {
                 // Nothing was written in this attempt, so earlier progress still holds
-                return new PartFailure(Classify(ex, source == null ? TransferSide.Source : TransferSide.Target, part.Range), resume: CanResumePart());
+                return Failed(ex, source == null ? TransferSide.Source : TransferSide.Target, resume: CanResumePart());
             }
             // The target failed on its own, so what it read may not have been kept
-            return new PartFailure(Classify(ex, TransferSide.Target, part.Range), resume: false);
+            return Failed(ex, TransferSide.Target, resume: false);
         }
         finally
         {
@@ -632,45 +641,50 @@ internal sealed class TransferRun
         }
     }
 
+    /// <summary>
+    /// What one attempt at a part failed with, and whether the next attempt can continue where it stopped.
+    /// </summary>
+    private static AttemptFailure Failed(Exception exception, TransferSide side, bool resume)
+    {
+        var (error, observed) = Classify(exception, side);
+        return new AttemptFailure(error, observed, resume);
+    }
+
     private async Task<T> RetryAsync<T>(TransferSide side, Func<CancellationToken, Task<T>> operation, CancellationToken token)
     {
-        for (var retry = 0; ;)
+        for (var attempts = 1; ; attempts++)
         {
             TransferException error;
+            TransferSide observed;
             try
             {
                 return await operation(token).ConfigureAwait(false);
             }
             catch (Exception ex) when (!token.IsCancellationRequested)
             {
-                error = Classify(ex, side, null);
-                if (!CanRetry(error, checkRepeatable: false) || retry >= _options.Retry.MaxRetries)
+                (error, observed) = Classify(ex, side);
+                if (!CanRetry(error, checkRepeatable: false) || attempts > _options.Retry.MaxRetries)
                 {
-                    if (ReferenceEquals(error, ex))
-                    {
-                        throw;
-                    }
-                    throw error;
+                    throw new TransferFailedException(error, observed);
                 }
             }
 
-            retry++;
-            await WaitBeforeRetryAsync(error, retry, token).ConfigureAwait(false);
+            await WaitBeforeRetryAsync(error, observed, attempts, token).ConfigureAwait(false);
         }
     }
 
-    private async Task WaitBeforeRetryAsync(TransferException error, int retry, CancellationToken token)
+    private async Task WaitBeforeRetryAsync(TransferException error, TransferSide side, int retry, CancellationToken token)
     {
         Interlocked.Increment(ref _retries);
         Volatile.Write(ref _lastError, error);
         Interlocked.Increment(ref _retryingParts);
         try
         {
-            var delay = _options.Retry.GetDelay(retry, error.RetryAfter);
+            var delay = _options.Retry.GetDelay(retry, error.RetryDelay);
 
             var tags = _tags;
             tags.Add(Telemetry.ErrorType, error.Kind.ToString());
-            tags.Add(Telemetry.ErrorSide, error.Side.ToString());
+            tags.Add(Telemetry.ErrorSide, side.ToString());
             Telemetry.Retries.Add(1, tags);
             // The current activity is the part's, or the transfer's for operations outside parts
             Activity.Current?.AddEvent(new ActivityEvent("naql.retry", tags: new ActivityTagsCollection
@@ -678,7 +692,7 @@ internal sealed class TransferRun
                 ["naql.retry.number"] = retry,
                 ["naql.retry.delay_ms"] = delay.TotalMilliseconds,
                 [Telemetry.ErrorType] = error.Kind.ToString(),
-                [Telemetry.ErrorSide] = error.Side.ToString(),
+                [Telemetry.ErrorSide] = side.ToString(),
                 ["exception.message"] = error.Message
             }));
 
@@ -740,24 +754,18 @@ internal sealed class TransferRun
 
     private TransferException ResponseTimeout(Exception? inner)
     {
-        return new TransferException($"The source didn't respond within {_options.ResponseTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout, isTransient: true, inner)
-        {
-            Side = TransferSide.Source
-        };
+        return new TransferException($"The source didn't respond within {_options.ResponseTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout, isTransient: true, TransferSide.Source, innerException: inner);
     }
 
     private void SetInfo(SourceInfo info)
     {
         if (info == null)
         {
-            throw new TransferException("The source didn't describe the content", TransferErrorKind.Protocol) { Side = TransferSide.Source };
+            throw new TransferException("The source didn't describe the content", TransferErrorKind.Protocol, side: TransferSide.Source);
         }
         if (_capabilities.RequiresLength && info.Length == null)
         {
-            throw new TransferException("The target needs to know the length up front, but the source didn't report one", TransferErrorKind.Unsupported)
-            {
-                Side = TransferSide.Engine
-            };
+            throw new TransferException("The target needs to know the length up front, but the source didn't report one", TransferErrorKind.Unsupported, side: TransferSide.Engine);
         }
         _info = info;
     }
@@ -771,18 +779,22 @@ internal sealed class TransferRun
                (!checkRepeatable || _info?.IsRepeatable != false);
     }
 
-    private static TransferException Classify(Exception ex, TransferSide side, ByteRange? part)
+    /// <summary>
+    /// Turns any exception from a source or target into a transfer error, and decides which side it belongs to: the
+    /// side a <see cref="TransferException"/> names, or else the side the engine was calling.
+    /// </summary>
+    private static (TransferException Error, TransferSide Side) Classify(Exception ex, TransferSide side)
     {
-        var error = ex switch
+        return ex switch
         {
-            TransferException transfer => transfer,
-            TimeoutException => new TransferException(ex.Message, TransferErrorKind.Timeout, isTransient: true, ex),
-            // Canceled, but not by the caller: an inner timeout such as HttpClient.Timeout
-            OperationCanceledException => new TransferException("The operation timed out", TransferErrorKind.Timeout, isTransient: true, ex),
-            IOException => new TransferException(ex.Message, TransferErrorKind.Network, isTransient: true, ex),
-            _ => new TransferException(ex.Message, TransferErrorKind.Unknown, isTransient: false, ex)
+            TransferException transfer => (transfer, transfer.Side == TransferSide.Unknown ? side : transfer.Side),
+            TimeoutException => (new TransferException(ex.Message, TransferErrorKind.Timeout, isTransient: true, side, innerException: ex), side),
+            // HttpClient reports its own timeout as a canceled task; other cancellations the caller didn't ask for are bugs
+            TaskCanceledException => (new TransferException("The operation timed out", TransferErrorKind.Timeout, isTransient: true, side, innerException: ex), side),
+            OperationCanceledException => (new TransferException(ex.Message, TransferErrorKind.Unknown, isTransient: false, side, innerException: ex), side),
+            IOException => (new TransferException(ex.Message, TransferErrorKind.Network, isTransient: true, side, innerException: ex), side),
+            _ => (new TransferException(ex.Message, TransferErrorKind.Unknown, isTransient: false, side, innerException: ex), side)
         };
-        return error.WithContext(side, part);
     }
 
     private TransferProgress Snapshot()
@@ -859,12 +871,6 @@ internal sealed class TransferRun
         }
     }
 
-    private static Exception Rethrow(Exception exception)
-    {
-        ExceptionDispatchInfo.Throw(exception);
-        return exception;
-    }
-
     private sealed class PartRun
     {
         public PartRun(ByteRange range, long? expectedLength)
@@ -903,15 +909,19 @@ internal sealed class TransferRun
         private int _done;
     }
 
-    private sealed class PartFailure
+    private sealed class AttemptFailure
     {
-        public PartFailure(TransferException error, bool resume)
+        public AttemptFailure(TransferException error, TransferSide side, bool resume)
         {
             Error = error;
+            Side = side;
             Resume = resume;
         }
 
         public TransferException Error { get; }
+
+        /// <summary>The side the engine saw the failure on.</summary>
+        public TransferSide Side { get; }
 
         /// <summary>Whether the next attempt can continue after the bytes the target kept.</summary>
         public bool Resume { get; }

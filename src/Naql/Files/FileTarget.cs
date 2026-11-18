@@ -106,7 +106,7 @@ public sealed class FileTarget : ITransferTarget
                 // Continue writing the partial file of an earlier transfer
                 if (!token.EndsWith(PartialExtension, StringComparison.Ordinal) || !File.Exists(token))
                 {
-                    throw new TransferException($"There is no partial file '{token}' to continue", TransferErrorKind.NotFound) { Side = TransferSide.Target };
+                    throw new TransferException($"There is no partial file '{token}' to continue", TransferErrorKind.NotFound, side: TransferSide.Target);
                 }
                 partial = token;
                 path = token[..^PartialExtension.Length];
@@ -175,7 +175,7 @@ public sealed class FileTarget : ITransferTarget
 
     private static TransferException AlreadyExists(string path)
     {
-        return new TransferException($"The file '{path}' already exists", TransferErrorKind.AlreadyExists) { Side = TransferSide.Target };
+        return new TransferException($"The file '{path}' already exists", TransferErrorKind.AlreadyExists, side: TransferSide.Target);
     }
 
     private sealed class FileSession : ITargetSession, IVerifiableSession

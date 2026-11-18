@@ -31,6 +31,6 @@ internal static class FileErrors
 
     private static TransferException Create(Exception ex, TransferErrorKind kind, TransferSide side)
     {
-        return new TransferException(ex.Message, kind, isTransient: false, ex) { Side = side };
+        return new TransferException(ex.Message, kind, isTransient: false, side, innerException: ex);
     }
 }

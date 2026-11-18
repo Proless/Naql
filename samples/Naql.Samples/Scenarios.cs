@@ -227,9 +227,7 @@ public static class Scenarios
         }
         catch (TransferException ex)
         {
-            var cause = ex.InnerException is null ? "" : $" (cause: {ex.InnerException.GetType().Name})";
-            var transient = ex.IsTransient ? "transient" : "permanent";
-            Console.WriteLine($"{name}: {transient} {ex.Kind} error on the {ex.Side.ToString().ToLowerInvariant()} side after {(DateTime.UtcNow - started).TotalSeconds:0.0}s: {ex.Message}{cause}");
+            Console.WriteLine($"{name} after {(DateTime.UtcNow - started).TotalSeconds:0.0}s: {Format.Error(ex)}");
             return;
         }
 

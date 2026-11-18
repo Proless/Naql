@@ -42,8 +42,7 @@ internal static class PartPlanner
         {
             throw new TransferException(
                 $"The target can't take {total} bytes in at most {target.MaxParts} parts of {target.MinPartSize} to {target.MaxPartSize} bytes",
-                TransferErrorKind.Unsupported)
-            { Side = TransferSide.Engine };
+                TransferErrorKind.Unsupported, side: TransferSide.Engine);
         }
 
         var parts = new List<ByteRange>((int)count);

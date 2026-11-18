@@ -62,7 +62,7 @@ public static class UploadCommand
         }
         catch (TransferException ex)
         {
-            Console.WriteLine($"FAILED: {ex.Kind} on the {ex.Side.ToString().ToLowerInvariant()} side: {ex.Message}");
+            Console.WriteLine($"FAILED: {Format.Error(ex)}");
             return 1;
         }
     }

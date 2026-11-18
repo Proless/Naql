@@ -138,11 +138,50 @@ public sealed class TransferEngineTests
     {
         var target = new MemoryTarget { Capabilities = new() { RequiresLength = true } };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(Content(100)) { ReportsLength = false }, target));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(100)) { ReportsLength = false }, target));
 
         Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
         Assert.Equal(TransferSide.Engine, ex.Side);
         Assert.Empty(target.Sessions);
+    }
+
+    #endregion
+
+    #region Errors
+
+    [Fact]
+    public async Task A_failure_outside_the_parts_has_no_part_failures()
+    {
+        var source = new MemorySource(Content(10_000)) { OnGetInfo = (_, _) => throw new TransferException("Denied", TransferErrorKind.AccessDenied) };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), Parallel));
+
+        Assert.Equal(TransferErrorKind.AccessDenied, ex.Kind);
+        Assert.Equal(TransferSide.Source, ex.Side);
+        Assert.Empty(ex.PartFailures);
+    }
+
+    [Fact]
+    public async Task A_timed_out_task_is_retried_as_a_timeout()
+    {
+        var source = new MemorySource(Content(1_000)) { OnOpen = (index, _, _) => index == 0 ? throw new TaskCanceledException("HttpClient.Timeout") : Task.CompletedTask };
+
+        var result = await RunAsync(source, new MemoryTarget());
+
+        Assert.Equal(1, result.Retries);
+    }
+
+    [Fact]
+    public async Task A_cancellation_the_caller_didnt_ask_for_isnt_retried()
+    {
+        var source = new MemorySource(Content(1_000)) { OnOpen = (_, _, _) => throw new OperationCanceledException("Someone else's token") };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget()));
+
+        Assert.Equal(TransferErrorKind.Unknown, ex.Kind);
+        Assert.False(ex.IsTransient);
+        Assert.IsType<OperationCanceledException>(ex.Error.InnerException);
+        Assert.Single(source.Reads);
     }
 
     #endregion
@@ -249,17 +288,21 @@ public sealed class TransferEngineTests
     [Fact]
     public async Task Does_not_retry_a_permanent_error()
     {
-        var source = new MemorySource(Content(100))
-        {
-            OnOpen = (_, _, _) => throw new TransferException("Gone", TransferErrorKind.NotFound)
-        };
+        var gone = new TransferException("Gone", TransferErrorKind.NotFound);
+        var source = new MemorySource(Content(100)) { OnOpen = (_, _, _) => throw gone };
         var target = new MemoryTarget();
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, target));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, target));
 
         Assert.Equal(TransferErrorKind.NotFound, ex.Kind);
+        // The engine knows it was reading the source; the source's own exception reaches the caller unchanged
         Assert.Equal(TransferSide.Source, ex.Side);
-        Assert.Equal(ByteRange.All, ex.Part);
+        Assert.Same(gone, ex.Error);
+        Assert.Same(gone, ex.InnerException);
+        Assert.Equal(TransferSide.Unknown, gone.Side);
+        var part = Assert.Single(ex.PartFailures);
+        Assert.Equal(ByteRange.All, part.Part);
+        Assert.Equal(1, part.Attempts);
         Assert.Single(source.Reads);
         Assert.Empty(target.Sessions);
     }
@@ -270,11 +313,12 @@ public sealed class TransferEngineTests
         var source = new MemorySource(Content(100)) { OnOpen = (_, _, _) => throw Broken() };
         var options = Options with { Retry = Options.Retry with { MaxRetries = 2 } };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, new MemoryTarget(), options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), options));
 
         Assert.Equal(TransferErrorKind.Network, ex.Kind);
         Assert.True(ex.IsTransient);
-        Assert.IsType<IOException>(ex.InnerException);
+        Assert.IsType<IOException>(ex.Error.InnerException);
+        Assert.Equal(3, Assert.Single(ex.PartFailures).Attempts);
         Assert.Equal(3, source.Reads.Count);
     }
 
@@ -287,7 +331,7 @@ public sealed class TransferEngineTests
             WrapContent = (_, _, stream) => new FailingStream(stream, 1_000, Broken)
         };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, new MemoryTarget()));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget()));
 
         Assert.Equal(TransferErrorKind.Network, ex.Kind);
         Assert.Single(source.Reads);
@@ -304,11 +348,12 @@ public sealed class TransferEngineTests
         // The other parts wait until they are canceled
         var target = new MemoryTarget { OnWrite = (_, _, ct) => Task.Delay(Timeout.Infinite, ct) };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, target, Parallel));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, target, Parallel));
 
         Assert.Equal(TransferErrorKind.AccessDenied, ex.Kind);
-        Assert.Equal(failing, ex.Part);
-        Assert.Same(ex, Assert.Single(ex.PartFailures));
+        var part = Assert.Single(ex.PartFailures);
+        Assert.Equal(failing, part.Part);
+        Assert.Same(ex.Error, part.Error);
         Assert.False(target.Session.Completed);
     }
 
@@ -360,7 +405,7 @@ public sealed class TransferEngineTests
         };
         var target = new MemoryTarget();
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, target));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, target));
 
         Assert.Equal(TransferErrorKind.SourceChanged, ex.Kind);
         Assert.Equal(2, target.Sessions.Count);
@@ -393,7 +438,7 @@ public sealed class TransferEngineTests
         var source = new MemorySource(Content(1_000)) { OnOpen = (_, _, ct) => Task.Delay(Timeout.Infinite, ct) };
         var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(100), Retry = RetryPolicy.None };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, new MemoryTarget(), options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), options));
 
         Assert.Equal(TransferErrorKind.Timeout, ex.Kind);
         Assert.Equal(TransferSide.Source, ex.Side);
@@ -424,7 +469,7 @@ public sealed class TransferEngineTests
         var target = new MemoryTarget { OnWrite = (_, _, ct) => Task.Delay(Timeout.Infinite, ct) };
         var options = Options with { IdleTimeout = TimeSpan.FromMilliseconds(200), Retry = RetryPolicy.None };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(Content(1_000)), target, options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(1_000)), target, options));
 
         Assert.Equal(TransferErrorKind.Timeout, ex.Kind);
         Assert.Equal(TransferSide.Target, ex.Side);
@@ -502,7 +547,7 @@ public sealed class TransferEngineTests
         var target = new MemoryTarget();
         var options = Options with { DiscardPartialOnFailure = true, Retry = RetryPolicy.None };
 
-        await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, target, options));
+        await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, target, options));
 
         Assert.True(target.Session.Aborted);
     }
@@ -536,7 +581,7 @@ public sealed class TransferEngineTests
         var source = new MemorySource(Content(10_000));
         var target = new MemoryTarget { StopReadingAfter = 1_000 };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, target));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, target));
 
         Assert.Equal(TransferErrorKind.Integrity, ex.Kind);
         Assert.Equal(TransferSide.Target, ex.Side);

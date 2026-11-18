@@ -48,8 +48,7 @@ public static class GetCommand
             }
             catch (TransferException ex)
             {
-                var cause = ex.InnerException is null ? "" : $" ({ex.InnerException.GetType().Name})";
-                Console.WriteLine($"FAILED: {ex.Kind} on the {ex.Side.ToString().ToLowerInvariant()} side: {ex.Message}{cause}");
+                Console.WriteLine($"FAILED: {Format.Error(ex)}");
                 failed++;
             }
         }

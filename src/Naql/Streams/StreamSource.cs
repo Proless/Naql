@@ -71,11 +71,11 @@ public sealed class StreamSource : ITransferSource
         {
             if (!range.IsAll)
             {
-                throw new TransferException("A stream that can't seek can only be read from its start", TransferErrorKind.Unsupported) { Side = TransferSide.Source };
+                throw new TransferException("A stream that can't seek can only be read from its start", TransferErrorKind.Unsupported, side: TransferSide.Source);
             }
             if (Interlocked.Exchange(ref _opened, 1) == 1)
             {
-                throw new TransferException("A stream that can't seek can only be read once", TransferErrorKind.Unsupported) { Side = TransferSide.Source };
+                throw new TransferException("A stream that can't seek can only be read once", TransferErrorKind.Unsupported, side: TransferSide.Source);
             }
             return Task.FromResult(new SourceStream(new StreamSlice(_stream, Info.Length, ownsInner: false), Info));
         }
@@ -83,7 +83,7 @@ public sealed class StreamSource : ITransferSource
         var remaining = Info.Length!.Value - range.Start;
         if (remaining < 0)
         {
-            throw new TransferException($"The range {range} starts after the end of the stream", TransferErrorKind.Protocol) { Side = TransferSide.Source };
+            throw new TransferException($"The range {range} starts after the end of the stream", TransferErrorKind.Protocol, side: TransferSide.Source);
         }
         var length = range.Length is long requested ? Math.Min(requested, remaining) : remaining;
         var slice = new StreamSlice(_stream, length, ownsInner: false, _origin + range.Start, _gate);

@@ -51,7 +51,7 @@ public sealed class FileSource : ITransferSource
             var info = Describe(new FileInfo(Path));
             if (request.IfVersion != null && request.IfVersion != info.Version)
             {
-                throw new TransferException("The file changed", TransferErrorKind.SourceChanged) { Side = TransferSide.Source };
+                throw new TransferException("The file changed", TransferErrorKind.SourceChanged, side: TransferSide.Source);
             }
 
             file.Seek(request.Range.Start, SeekOrigin.Begin);

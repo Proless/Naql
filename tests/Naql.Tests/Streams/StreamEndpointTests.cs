@@ -52,7 +52,7 @@ public sealed class StreamEndpointTests
         var stream = new NonSeekableStream(new FailingStream(new MemoryStream(content), 2_000, () => new IOException("Reset")));
         var source = new StreamSource(stream);
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, new MemoryTarget(), Parallel));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), Parallel));
 
         Assert.Equal(TransferErrorKind.Network, ex.Kind);
         Assert.False(source.Info.IsRepeatable);
@@ -104,7 +104,7 @@ public sealed class StreamEndpointTests
             WrapContent = (index, _, stream) => index == 0 ? new FailingStream(stream, 3_000, () => new IOException("Reset")) : stream
         };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, new StreamTarget(new NonSeekableStream(output))));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new StreamTarget(new NonSeekableStream(output))));
 
         Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
     }

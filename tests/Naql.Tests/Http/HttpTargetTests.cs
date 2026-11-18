@@ -152,7 +152,7 @@ public sealed class HttpTargetTests : IDisposable
     {
         var server = new FakeUploadServer { Respond = _ => new HttpResponseMessage(status) };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(Content(100)), Transport(server).Put(FakeUploadServer.Uri)));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(100)), Transport(server).Put(FakeUploadServer.Uri)));
 
         Assert.Equal(kind, ex.Kind);
         Assert.Equal(TransferSide.Target, ex.Side);

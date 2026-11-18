@@ -8,7 +8,7 @@ namespace Naql;
 /// <remarks>
 /// The delay before retry <c>n</c> is <see cref="InitialDelay"/> × <see cref="BackoffFactor"/>^(n-1), capped at
 /// <see cref="MaxDelay"/>, varied by ±20% when <see cref="Jitter"/> is on, and never shorter than a
-/// <see cref="TransferException.RetryAfter"/> the other side asked for.
+/// <see cref="TransferException.RetryDelay"/> the other side asked for.
 /// </remarks>
 public sealed record RetryPolicy
 {

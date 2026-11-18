@@ -30,10 +30,7 @@ internal static class Hashing
                 var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)), cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
-                    throw new TransferException($"The target holds {length - remaining} of {length} bytes", TransferErrorKind.Integrity)
-                    {
-                        Side = TransferSide.Target
-                    };
+                    throw new TransferException($"The target holds {length - remaining} of {length} bytes", TransferErrorKind.Integrity, side: TransferSide.Target);
                 }
                 hash.AppendData(buffer, 0, read);
                 remaining -= read;

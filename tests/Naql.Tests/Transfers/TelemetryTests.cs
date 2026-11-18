@@ -147,7 +147,7 @@ public sealed class TelemetryTests : IDisposable
     {
         var source = new MemorySource(Content(100)) { OnOpen = (_, _, _) => throw new TransferException("Gone", TransferErrorKind.NotFound) };
 
-        await Assert.ThrowsAsync<TransferException>(() => RunAsync(source));
+        await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source));
 
         var transfer = Assert.Single(Activities("naql.transfer"));
         Assert.Equal(ActivityStatusCode.Error, transfer.Status);

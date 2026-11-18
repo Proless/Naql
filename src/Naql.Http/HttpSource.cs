@@ -99,25 +99,19 @@ public sealed class HttpSource : ITransferSource
             {
                 if (contentRange?.From != range.Start)
                 {
-                    throw new TransferException($"The server sent bytes from {contentRange?.From} instead of {range.Start}", TransferErrorKind.Protocol, isTransient: true)
-                    {
-                        Side = TransferSide.Source
-                    };
+                    throw HttpErrors.FromResponse(response, $"The server sent bytes from {contentRange?.From} instead of {range.Start}", TransferErrorKind.Protocol, transient: true, TransferSide.Source);
                 }
                 info = Describe(response, contentRange.Length, supportsRanges: true);
-                EnsureSameVersion(request.IfVersion, info);
+                EnsureSameVersion(response, request.IfVersion, info);
             }
             else if (response.StatusCode == HttpStatusCode.OK)
             {
                 info = Describe(response, response.Content.Headers.ContentLength, AcceptsRanges(response));
                 // A server that supports If-Range answers a changed file with the whole new content
-                EnsureSameVersion(request.IfVersion, info);
+                EnsureSameVersion(response, request.IfVersion, info);
                 if (rangeHeader != null)
                 {
-                    throw new TransferException($"The server sent the whole content instead of the bytes {range}; it doesn't support ranges", TransferErrorKind.Protocol)
-                    {
-                        Side = TransferSide.Source
-                    };
+                    throw HttpErrors.FromResponse(response, $"The server sent the whole content instead of the bytes {range}; it doesn't support ranges", TransferErrorKind.Protocol, transient: false, TransferSide.Source);
                 }
             }
             else
@@ -155,14 +149,11 @@ public sealed class HttpSource : ITransferSource
         return DateTimeOffset.TryParse(version, out var date) ? new RangeConditionHeaderValue(date) : null;
     }
 
-    private static void EnsureSameVersion(string? expected, SourceInfo info)
+    private static void EnsureSameVersion(HttpResponseMessage response, string? expected, SourceInfo info)
     {
         if (expected != null && info.Version != null && expected != info.Version)
         {
-            throw new TransferException($"The content changed from version {expected} to {info.Version}", TransferErrorKind.SourceChanged)
-            {
-                Side = TransferSide.Source
-            };
+            throw HttpErrors.FromResponse(response, $"The content changed from version {expected} to {info.Version}", TransferErrorKind.SourceChanged, transient: false, TransferSide.Source);
         }
     }
 

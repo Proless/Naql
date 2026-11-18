@@ -90,7 +90,7 @@ public sealed class ChecksumTests : IDisposable
     {
         var target = new MemoryTarget();
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(_content), target, Options with { ExpectedChecksum = Wrong }));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(_content), target, Options with { ExpectedChecksum = Wrong }));
 
         Assert.Equal(TransferErrorKind.Integrity, ex.Kind);
         Assert.Equal(TransferSide.Engine, ex.Side);
@@ -153,7 +153,7 @@ public sealed class ChecksumTests : IDisposable
     {
         var path = _temp.File("out.bin");
 
-        await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(_content), FileTarget.At(path), Parallel with { ExpectedChecksum = Wrong }));
+        await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(_content), FileTarget.At(path), Parallel with { ExpectedChecksum = Wrong }));
 
         Assert.False(File.Exists(path));
         Assert.False(File.Exists(path + FileTarget.PartialExtension));
@@ -182,7 +182,7 @@ public sealed class ChecksumTests : IDisposable
     {
         var target = new MemoryTarget();
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(_content) { Checksum = Wrong }, target, Options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(_content) { Checksum = Wrong }, target, Options));
 
         Assert.Equal(TransferErrorKind.Integrity, ex.Kind);
         Assert.True(target.Session.Aborted);
@@ -247,7 +247,7 @@ public sealed class ChecksumTests : IDisposable
         server.Headers["Repr-Digest"] = $"sha-256=:{Convert.ToBase64String(new byte[32])}:";
         var path = _temp.File("out.bin");
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new HttpTransport(server.CreateClient()).Get(FakeHttpServer.Uri), FileTarget.At(path), Options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new HttpTransport(server.CreateClient()).Get(FakeHttpServer.Uri), FileTarget.At(path), Options));
 
         Assert.Equal(TransferErrorKind.Integrity, ex.Kind);
         Assert.False(File.Exists(path));

@@ -199,7 +199,7 @@ public sealed class HttpSourceTests : IDisposable
     {
         var server = new FakeHttpServer { Intercept = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => Source(server).GetInfoAsync(Token));
+        var ex = await Assert.ThrowsAsync<HttpTransferException>(() => Source(server).GetInfoAsync(Token));
 
         Assert.Equal(TransferErrorKind.NotFound, ex.Kind);
     }
@@ -284,7 +284,7 @@ public sealed class HttpSourceTests : IDisposable
     {
         var server = new FakeHttpServer { SupportsRanges = false };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => Source(server).OpenReadAsync(new ReadRequest(new ByteRange(1_000, 1_000)), Token));
+        var ex = await Assert.ThrowsAsync<HttpTransferException>(() => Source(server).OpenReadAsync(new ReadRequest(new ByteRange(1_000, 1_000)), Token));
 
         Assert.Equal(TransferErrorKind.Protocol, ex.Kind);
         Assert.False(ex.IsTransient);
@@ -310,12 +310,48 @@ public sealed class HttpSourceTests : IDisposable
     {
         var server = new FakeHttpServer { Intercept = _ => new HttpResponseMessage(status) };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => Source(server).OpenReadAsync(new ReadRequest(ByteRange.All), Token));
+        var ex = await Assert.ThrowsAsync<HttpTransferException>(() => Source(server).OpenReadAsync(new ReadRequest(ByteRange.All), Token));
 
         Assert.Equal(kind, ex.Kind);
         Assert.Equal(transient, ex.IsTransient);
         Assert.Equal(TransferSide.Source, ex.Side);
+        Assert.Equal(status, ex.StatusCode);
+        Assert.Equal(HttpMethod.Get, ex.Method);
+        Assert.Equal(FakeHttpServer.Uri, ex.RequestUri);
         Assert.Contains(((int)status).ToString(), ex.Message);
+    }
+
+    [Fact]
+    public async Task Retry_after_becomes_the_retry_delay_and_the_status_reaches_the_caller()
+    {
+        var server = new FakeHttpServer();
+        server.Intercept = _ =>
+        {
+            var busy = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { ReasonPhrase = "Busy" };
+            busy.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromMilliseconds(50));
+            return busy;
+        };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(Source(server), new MemoryTarget(), Options with { Retry = RetryPolicy.None }));
+
+        var http = Assert.IsType<HttpTransferException>(ex.Error);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, http.StatusCode);
+        Assert.Equal("Busy", http.ReasonPhrase);
+        Assert.Equal(TimeSpan.FromMilliseconds(50), http.RetryDelay);
+        Assert.Equal(http.RetryDelay, ex.RetryDelay);
+    }
+
+    [Fact]
+    public async Task A_request_that_gets_no_response_has_no_status()
+    {
+        var server = new FakeHttpServer { Intercept = _ => throw new HttpRequestException("Connection refused") };
+
+        var ex = await Assert.ThrowsAsync<HttpTransferException>(() => Source(server).OpenReadAsync(new ReadRequest(ByteRange.All), Token));
+
+        Assert.Null(ex.StatusCode);
+        Assert.Equal(TransferErrorKind.Network, ex.Kind);
+        Assert.True(ex.IsTransient);
+        Assert.IsType<HttpRequestException>(ex.InnerException);
     }
 
     [Fact]
@@ -323,7 +359,7 @@ public sealed class HttpSourceTests : IDisposable
     {
         var server = new FakeHttpServer { Intercept = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(Source(server), new MemoryTarget()));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(Source(server), new MemoryTarget()));
 
         Assert.Equal(TransferErrorKind.NotFound, ex.Kind);
         Assert.Equal(1, server.RequestCount);
@@ -357,7 +393,7 @@ public sealed class HttpSourceTests : IDisposable
         var server = new FakeHttpServer { ResponseDelay = TimeSpan.FromSeconds(30) };
         var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200), Retry = RetryPolicy.None };
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(Source(server), new MemoryTarget(), options));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(Source(server), new MemoryTarget(), options));
 
         Assert.Equal(TransferErrorKind.Timeout, ex.Kind);
         Assert.Equal(TransferSide.Source, ex.Side);

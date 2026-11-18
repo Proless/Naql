@@ -96,7 +96,7 @@ public sealed class FileEndpointTests : IDisposable
     [Fact]
     public async Task A_missing_file_fails_without_retrying()
     {
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(FileSource.At(_temp.File("missing.bin")), new MemoryTarget()));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(FileSource.At(_temp.File("missing.bin")), new MemoryTarget()));
 
         Assert.Equal(TransferErrorKind.NotFound, ex.Kind);
         Assert.Equal(TransferSide.Source, ex.Side);
@@ -178,7 +178,7 @@ public sealed class FileEndpointTests : IDisposable
         var existing = Content(5_000);
         var path = CreateFile("out.bin", existing);
 
-        var ex = await Assert.ThrowsAsync<TransferException>(() => RunAsync(new MemorySource(Content(100)), FileTarget.At(path, FileConflict.Fail)));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(100)), FileTarget.At(path, FileConflict.Fail)));
 
         Assert.Equal(TransferErrorKind.AlreadyExists, ex.Kind);
         Assert.Equal(existing, File.ReadAllBytes(path));
@@ -206,7 +206,7 @@ public sealed class FileEndpointTests : IDisposable
         var source = new MemorySource(Content(10_000)) { WrapContent = (_, _, stream) => new FailingStream(stream, 1_000, () => new IOException("Reset")) };
         var options = Options with { Retry = RetryPolicy.None, DiscardPartialOnFailure = true };
 
-        await Assert.ThrowsAsync<TransferException>(() => RunAsync(source, FileTarget.At(path), options));
+        await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, FileTarget.At(path), options));
 
         Assert.False(File.Exists(path));
         Assert.False(File.Exists(path + FileTarget.PartialExtension));
