@@ -89,7 +89,9 @@ public static class GetCommand
         {
             Console.WriteLine($"Verified {verified.Algorithm.Name} {verified.ToHex()[..16]}...");
         }
-        var parts = result.Parts == 1 ? "one connection" : $"{result.Parts} parallel parts";
+        var parts = result.Parts > 1 ? $"{result.Parts} parallel parts"
+            : result.SingleConnectionReason is SingleConnectionReason.None or SingleConnectionReason.NotRequested ? "one connection"
+            : $"one connection: {result.SingleConnectionReason}";
         var retries = result.Retries == 0 ? "" : $", {result.Retries} retries";
         Console.WriteLine($"Saved {Format.Bytes(result.Transferred)} in {result.Duration.TotalSeconds:0.0}s ({Format.Bytes(result.AverageRate)}/s, {parts}{retries}{resumed}) to {result.Location}");
     }

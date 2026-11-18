@@ -8,8 +8,9 @@ namespace Naql;
 public sealed class TransferResult
 {
     internal TransferResult(SourceInfo source, long transferred, long resumed, TimeSpan duration, int parts, int retries, Checksum? verifiedChecksum,
-        string? location)
+        string? location, SingleConnectionReason singleConnectionReason)
     {
+        SingleConnectionReason = singleConnectionReason;
         Source = source;
         Location = location;
         Transferred = transferred;
@@ -57,6 +58,11 @@ public sealed class TransferResult
     public int Parts { get; }
 
     /// <summary>
+    /// Why the transfer used one connection, or <see cref="Naql.SingleConnectionReason.None"/> when it used more.
+    /// </summary>
+    public SingleConnectionReason SingleConnectionReason { get; }
+
+    /// <summary>
     /// How many times an operation was retried after a transient error.
     /// </summary>
     public int Retries { get; }
@@ -65,4 +71,43 @@ public sealed class TransferResult
     /// The checksum the content was verified against, or <c>null</c> when it wasn't verified.
     /// </summary>
     public Checksum? VerifiedChecksum { get; }
+}
+
+/// <summary>
+/// Why a transfer moved its content in one part, over one connection.
+/// </summary>
+public enum SingleConnectionReason
+{
+    /// <summary>The transfer used more than one part.</summary>
+    None,
+
+    /// <summary><see cref="TransferOptions.MaxConnections"/> is 1.</summary>
+    NotRequested,
+
+    /// <summary>The source didn't report the length, so the content can't be split.</summary>
+    UnknownLength,
+
+    /// <summary>The source can't read ranges.</summary>
+    NoRangeSupport,
+
+    /// <summary>
+    /// The source reported no version, so separate reads could come from different versions, and no checksum would
+    /// catch that.
+    /// </summary>
+    NoVersion,
+
+    /// <summary>
+    /// A required checksum is hashed as the bytes pass, because the target can't read them back, and that needs one
+    /// connection from the first byte.
+    /// </summary>
+    ChecksumHashedWhileStreaming,
+
+    /// <summary>The target takes the content in one part, such as one HTTP upload.</summary>
+    TargetTakesOnePart,
+
+    /// <summary>The content is smaller than two parts of <see cref="TransferOptions.MinSplitPartSize"/>.</summary>
+    TooSmall,
+
+    /// <summary>The transfer continued a checkpoint that had one part.</summary>
+    ContinuedCheckpoint
 }

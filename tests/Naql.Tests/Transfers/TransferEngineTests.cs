@@ -857,6 +857,82 @@ public sealed class TransferEngineTests
         Assert.Equal(0, last.ActiveParts);
     }
 
+    [Theory]
+    [InlineData(TransferState.Failed)]
+    [InlineData(TransferState.Canceled)]
+    public async Task Progress_ends_with_how_a_transfer_that_didnt_complete_ended(TransferState expected)
+    {
+        var reports = new List<TransferProgress>();
+        var progress = new SynchronousProgress(report =>
+        {
+            lock (reports)
+            {
+                reports.Add(report);
+            }
+        });
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        var denied = new UnauthorizedAccessException("Denied");
+        var source = new MemorySource(Content(10_000))
+        {
+            WrapContent = (_, _, stream) => expected == TransferState.Failed
+                ? new FailingStream(stream, 2_000, () => denied)
+                : new StallingStream(stream, 2_000, honorCancellation: true)
+        };
+        var options = Options with { ProgressInterval = TimeSpan.FromMilliseconds(10) };
+
+        var run = RunAsync(source, new MemoryTarget(), options, progress, cts.Token);
+        if (expected == TransferState.Canceled)
+        {
+            await Task.Delay(100, Token);
+            cts.Cancel();
+        }
+        await Assert.ThrowsAnyAsync<Exception>(() => run);
+
+        var last = reports[^1];
+        Assert.Equal(expected, last.State);
+        Assert.Equal(2_000, last.Transferred);
+        if (expected == TransferState.Failed)
+        {
+            Assert.IsType<TransferFailedException>(last.LastError);
+        }
+    }
+
+    [Fact]
+    public async Task A_progress_handler_that_fails_on_the_final_report_of_a_failure_doesnt_replace_the_error()
+    {
+        var progress = new SynchronousProgress(report =>
+        {
+            if (report.State == TransferState.Failed)
+            {
+                throw new InvalidOperationException("The handler broke");
+            }
+        });
+        var source = new MemorySource(Content(1_000)) { WrapContent = (_, _, stream) => new FailingStream(stream, 500, () => new UnauthorizedAccessException("Denied")) };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), progress: progress));
+
+        Assert.Equal(TransferErrorKind.Unknown, ex.Kind);
+    }
+
+    [Fact]
+    public async Task The_result_says_why_the_transfer_used_one_connection()
+    {
+        async Task<SingleConnectionReason> ReasonAsync(MemorySource source, MemoryTarget target, TransferOptions options)
+        {
+            return (await RunAsync(source, target, options)).SingleConnectionReason;
+        }
+        var content = Content(10_000);
+        var checksum = new Checksum(System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.SHA256.HashData(content));
+
+        Assert.Equal(SingleConnectionReason.None, await ReasonAsync(new MemorySource(content), new MemoryTarget(), Parallel));
+        Assert.Equal(SingleConnectionReason.NotRequested, await ReasonAsync(new MemorySource(content), new MemoryTarget(), Options));
+        Assert.Equal(SingleConnectionReason.NoVersion, await ReasonAsync(new MemorySource(content) { Version = null }, new MemoryTarget(), Parallel));
+        Assert.Equal(SingleConnectionReason.TargetTakesOnePart, await ReasonAsync(new MemorySource(content), new MemoryTarget { Capabilities = new() }, Parallel));
+        Assert.Equal(SingleConnectionReason.ChecksumHashedWhileStreaming,
+            await ReasonAsync(new MemorySource(content), new MemoryTarget(), Parallel with { ExpectedChecksum = checksum }));
+        Assert.Equal(SingleConnectionReason.NoRangeSupport, await ReasonAsync(new MemorySource(content) { SupportsRanges = false }, new MemoryTarget(), Parallel));
+    }
+
     [Fact]
     public async Task Progress_shows_retries_with_the_error()
     {

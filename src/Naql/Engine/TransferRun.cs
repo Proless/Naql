@@ -182,18 +182,20 @@ internal sealed class TransferRun
             {
                 await RunWithRestartAsync(transfer.Token).ConfigureAwait(false);
             }
-            finally
+            catch (Exception ex) when (Volatile.Read(ref _callerFailure) == null)
             {
-                if (reporter != null)
-                {
-                    await reporter.StopAsync().ConfigureAwait(false);
-                }
+                _state.Failure = ex;
+                _state.State = cancellationToken.IsCancellationRequested ? TransferState.Canceled : TransferState.Failed;
+                await StopReportingAsync(reporter, final: true).ConfigureAwait(false);
+                throw;
             }
+            await StopReportingAsync(reporter, final: false).ConfigureAwait(false);
 
             ThrowIfCallerFailed();
-            _state.Clock.Stop();
+            // The final report of a successful transfer is the caller's to fail, like any other report
             reporter?.ReportNow();
-            return new TransferResult(_state.Info!, _state.Transferred, _state.Resumed, _state.Clock.Elapsed, _state.TotalParts, _state.Retries, _state.Verified, _location);
+            return new TransferResult(_state.Info!, _state.Transferred, _state.Resumed, _state.Clock.Elapsed, _state.TotalParts, _state.Retries, _state.Verified,
+                _location, _state.SingleConnectionReason);
         }
         catch (Exception) when (Volatile.Read(ref _callerFailure) != null)
         {
@@ -208,6 +210,30 @@ internal sealed class TransferRun
         {
             await CloseSessionAsync().ConfigureAwait(false);
             _state.ResetHash();
+        }
+    }
+
+    /// <summary>
+    /// Stops the timed reports. For a transfer that failed or was canceled, it also sends the final report, and a
+    /// handler that fails on it can't replace the error the transfer ended with.
+    /// </summary>
+    private async Task StopReportingAsync(ProgressReporter? reporter, bool final)
+    {
+        if (reporter != null)
+        {
+            await reporter.StopAsync().ConfigureAwait(false);
+        }
+        _state.Clock.Stop();
+        if (final && reporter != null && Volatile.Read(ref _callerFailure) == null)
+        {
+            try
+            {
+                reporter.ReportNow();
+            }
+            catch (Exception)
+            {
+                // The transfer already ended with the error that matters
+            }
         }
     }
 
@@ -245,6 +271,7 @@ internal sealed class TransferRun
         }
 
         List<PartRun>? parts = null;
+        var reason = SingleConnectionReason.None;
         if (checkpoint != null || (!hashWhileStreaming && _options.MaxConnections > 1 && _capabilities.ParallelParts))
         {
             var info = await _runner.RetryAsync(TransferSide.Source, t => _runner.WithResponseTimeoutAsync(TransferSide.Source, _source.GetInfoAsync, t), token).ConfigureAwait(false);
@@ -252,14 +279,19 @@ internal sealed class TransferRun
             if (checkpoint != null)
             {
                 parts = await TryContinueAsync(checkpoint, info, token).ConfigureAwait(false);
+                reason = parts?.Count == 1 ? SingleConnectionReason.ContinuedCheckpoint : SingleConnectionReason.None;
             }
             if (parts == null)
             {
                 // Parts of content without a version could come from different versions and be spliced together
                 var planOptions = _state.CanCombine(info) ? _options : _options with { MaxConnections = 1 };
-                parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, planOptions)
+                parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, planOptions, out reason)
                     .Select(range => new PartRun(range, range.IsAll ? info.Length : range.Length))
                     .ToList();
+                if (reason == SingleConnectionReason.NotRequested && !_state.CanCombine(info))
+                {
+                    reason = SingleConnectionReason.NoVersion;
+                }
                 await OpenSessionAsync(new TargetOpenRequest(info, bufferSize: _options.BufferSize), token).ConfigureAwait(false);
             }
         }
@@ -268,8 +300,13 @@ internal sealed class TransferRun
             // One connection: the first read describes the content, which saves a request, and the part opens the
             // target once it has
             parts = [new(ByteRange.All, null)];
+            reason = _options.MaxConnections == 1 ? SingleConnectionReason.NotRequested
+                : !_capabilities.ParallelParts ? SingleConnectionReason.TargetTakesOnePart
+                : SingleConnectionReason.ChecksumHashedWhileStreaming;
         }
 
+        _state.SingleConnectionReason = reason;
+        Activity.Current?.SetTag("naql.single_connection_reason", reason == SingleConnectionReason.None ? null : reason.ToString());
         _state.SetParts(parts);
         _state.State = TransferState.Transferring;
         await _runner.RunAsync(parts, token).ConfigureAwait(false);

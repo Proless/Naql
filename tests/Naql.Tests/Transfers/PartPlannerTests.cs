@@ -7,30 +7,34 @@ public sealed class PartPlannerTests
     private static readonly TargetCapabilities Parallel = new() { ParallelParts = true };
     private static readonly TransferOptions Options = new() { MaxConnections = 4, MinSplitPartSize = 1_000 };
 
-    public static TheoryData<long?, bool, bool, int> SinglePartCases => new()
+    public static TheoryData<long?, bool, bool, int, SingleConnectionReason> SinglePartCases => new()
     {
-        // length, source supports ranges, target takes parallel parts, connections
-        { null, true, true, 4 },
-        { 0, true, true, 4 },
-        { 10_000, false, true, 4 },
-        { 10_000, true, false, 4 },
-        { 10_000, true, true, 1 },
-        { 1_999, true, true, 4 },
+        // length, source supports ranges, target takes parallel parts, connections, why
+        { null, true, true, 4, SingleConnectionReason.UnknownLength },
+        { 0, true, true, 4, SingleConnectionReason.TooSmall },
+        { 10_000, false, true, 4, SingleConnectionReason.NoRangeSupport },
+        { 10_000, true, false, 4, SingleConnectionReason.TargetTakesOnePart },
+        { 10_000, true, true, 1, SingleConnectionReason.NotRequested },
+        { 1_999, true, true, 4, SingleConnectionReason.TooSmall },
     };
 
     [Theory]
     [MemberData(nameof(SinglePartCases))]
-    public void Uses_one_part_when_splitting_isnt_possible_or_worth_it(long? length, bool supportsRanges, bool parallelParts, int connections)
+    public void Uses_one_part_when_splitting_isnt_possible_or_worth_it(long? length, bool supportsRanges, bool parallelParts, int connections,
+        SingleConnectionReason expected)
     {
-        var parts = PartPlanner.Plan(length, supportsRanges, new TargetCapabilities { ParallelParts = parallelParts }, Options with { MaxConnections = connections });
+        var parts = PartPlanner.Plan(length, supportsRanges, new TargetCapabilities { ParallelParts = parallelParts }, Options with { MaxConnections = connections }, out var reason);
 
         Assert.Equal(ByteRange.All, Assert.Single(parts));
+        Assert.Equal(expected, reason);
     }
 
     [Fact]
     public void Splits_into_one_equal_part_per_connection()
     {
-        var parts = PartPlanner.Plan(10_000, true, Parallel, Options);
+        var parts = PartPlanner.Plan(10_000, true, Parallel, Options, out var reason);
+
+        Assert.Equal(SingleConnectionReason.None, reason);
 
         Assert.Equal(new ByteRange[] { new(0, 2_500), new(2_500, 2_500), new(5_000, 2_500), new(7_500, 2_500) }, parts);
     }

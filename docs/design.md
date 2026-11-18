@@ -236,7 +236,7 @@ parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
 - Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 
-Callers don't check range support or the size themselves before choosing how to transfer; the planner decides.
+Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall` or `ContinuedCheckpoint`; the transfer's trace carries it as `naql.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
 
 ### 5.3 The metered stream
 
@@ -258,7 +258,7 @@ Throttling, progress and timeouts are therefore the same for every protocol and 
 ```csharp
 public sealed class TransferProgress
 {
-    public TransferState State { get; }          // Preparing, Transferring, Retrying, Completing, Completed
+    public TransferState State { get; }          // Preparing, Transferring, Retrying, Completing, Completed, Failed, Canceled
     public long Transferred { get; }
     public long? Total { get; }
     public double? Fraction { get; }             // 0..1, null when the total is unknown
@@ -269,11 +269,11 @@ public sealed class TransferProgress
     public int ActiveParts { get; }
     public int CompletedParts { get; }
     public int TotalParts { get; }
-    public Exception? LastError { get; }         // set while Retrying
+    public Exception? LastError { get; }         // set while Retrying, and to the failure when Failed
 }
 ```
 
-Progress is reported from a timer every `ProgressInterval` (default 100 ms), and once more with `Completed` when the transfer succeeds; never on every buffer read. The engine calls `IProgress<T>.Report` directly. It doesn't marshal to a UI thread; `Progress<T>` already does that when the caller wants it. Because reports come from the timer, the caller's handler never runs inside a read: when it throws, the transfer stops and `RunAsync` throws that exception unchanged, without retrying.
+Progress is reported from a timer every `ProgressInterval` (default 100 ms), and once more when the transfer ends, however it ends: `Completed`, `Failed` (with the error in `LastError`) or `Canceled`; never on every buffer read. A handler that throws on the final report of a failed transfer can't replace the transfer's error. The engine calls `IProgress<T>.Report` directly. It doesn't marshal to a UI thread; `Progress<T>` already does that when the caller wants it. Because reports come from the timer, the caller's handler never runs inside a read: when it throws, the transfer stops and `RunAsync` throws that exception unchanged, without retrying.
 
 ## 6. The public API
 

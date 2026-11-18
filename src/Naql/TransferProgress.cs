@@ -20,7 +20,13 @@ public enum TransferState
     Completing,
 
     /// <summary>The transfer finished successfully.</summary>
-    Completed
+    Completed,
+
+    /// <summary>The transfer failed; <see cref="TransferProgress.LastError"/> says why.</summary>
+    Failed,
+
+    /// <summary>The transfer was canceled.</summary>
+    Canceled
 }
 
 /// <summary>
@@ -101,7 +107,8 @@ public sealed class TransferProgress
     public int TotalParts { get; }
 
     /// <summary>
-    /// The most recent error a part is retrying after, or <c>null</c>.
+    /// The most recent error a part is retrying after, the error a <see cref="TransferState.Failed"/> transfer ended with,
+    /// or <c>null</c>.
     /// </summary>
     public Exception? LastError { get; }
 }

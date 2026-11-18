@@ -104,6 +104,16 @@ internal sealed class RunState
     public Checksum? Verified { get; set; }
 
     /// <summary>
+    /// Why the run uses one connection, or <see cref="SingleConnectionReason.None"/>.
+    /// </summary>
+    public SingleConnectionReason SingleConnectionReason { get; set; }
+
+    /// <summary>
+    /// The error the run failed with, which the final progress report shows.
+    /// </summary>
+    public Exception? Failure { get; set; }
+
+    /// <summary>
     /// Accepts the description of the content, if the target can work with it.
     /// </summary>
     public void SetInfo(SourceInfo? info)
@@ -265,9 +275,11 @@ internal sealed class RunState
     {
         var elapsed = Clock.Elapsed;
         var transferred = Transferred;
-        var retrying = Volatile.Read(ref _retryingParts) > 0 && _state != TransferState.Completed;
+        var state = _state;
+        var ended = state is TransferState.Completed or TransferState.Failed or TransferState.Canceled;
+        var retrying = Volatile.Read(ref _retryingParts) > 0 && !ended;
         return new TransferProgress(
-            retrying ? TransferState.Retrying : _state,
+            retrying ? TransferState.Retrying : state,
             transferred,
             _info?.Length,
             _rate.Sample(elapsed, transferred),
@@ -276,7 +288,7 @@ internal sealed class RunState
             Volatile.Read(ref _activeParts),
             Volatile.Read(ref _completedParts),
             TotalParts,
-            retrying ? Volatile.Read(ref _lastError) : null);
+            retrying ? Volatile.Read(ref _lastError) : state == TransferState.Failed ? Failure : null);
     }
 }
 
