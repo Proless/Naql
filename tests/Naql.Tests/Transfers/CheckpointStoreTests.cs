@@ -11,7 +11,7 @@ public sealed class CheckpointStoreTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000,
+        MinSplitPartSize = 1_000,
         BufferSize = 1_000,
         CheckpointInterval = TimeSpan.FromMilliseconds(20)
     };
@@ -42,7 +42,7 @@ public sealed class CheckpointStoreTests : IDisposable
         };
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(Token);
 
-        var run = new TransferClient(Options).From(source).To(target).WithCheckpoints(store).RunAsync(cancellationToken: cts.Token);
+        var run = new TransferClient(Options).From(source).To(target).WithCheckpointStore(store).RunAsync(cancellationToken: cts.Token);
         while (stalling is not { Stalled.IsCompleted: true } || !(ready?.Invoke() ?? true))
         {
             Assert.False(run.IsCompleted, "The transfer ended before it stalled");
@@ -103,7 +103,7 @@ public sealed class CheckpointStoreTests : IDisposable
 
         // The same transfer again, as after a restart: no checkpoint handling in the caller's code
         var source = new MemorySource(_content);
-        var result = await new TransferClient(Options).From(source).To(FileTarget.At(path)).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        var result = await new TransferClient(Options).From(source).To(FileTarget.At(path)).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         Assert.Equal(_content, File.ReadAllBytes(path));
         Assert.Equal(3_000, result.Resumed);
@@ -141,7 +141,7 @@ public sealed class CheckpointStoreTests : IDisposable
     {
         var store = new RecordingStore();
 
-        await new TransferClient(Options).From(new MemorySource(_content)).To(new MemoryTarget()).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        await new TransferClient(Options).From(new MemorySource(_content)).To(new MemoryTarget()).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         Assert.Null(store.Saved);
         Assert.Equal(1, store.Deletes);
@@ -169,7 +169,7 @@ public sealed class CheckpointStoreTests : IDisposable
         var source = new MemorySource(_content);
 
         // The stored checkpoint says 3,000 bytes; the explicit one has the wrong version, so the transfer starts over
-        var result = await new TransferClient(Options).From(source).To(target).ResumeFrom(stale).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        var result = await new TransferClient(Options).From(source).To(target).ResumeFrom(stale).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         Assert.Equal(0, result.Resumed);
         Assert.Equal(ByteRange.All, Assert.Single(source.Reads).Range);
@@ -181,7 +181,7 @@ public sealed class CheckpointStoreTests : IDisposable
         var store = new RecordingStore { FailLoading = true };
         var target = new MemoryTarget();
 
-        var result = await new TransferClient(Options).From(new MemorySource(_content)).To(target).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        var result = await new TransferClient(Options).From(new MemorySource(_content)).To(target).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         Assert.Equal(_content, target.Session.Data);
         Assert.Equal(0, result.Resumed);
@@ -194,7 +194,7 @@ public sealed class CheckpointStoreTests : IDisposable
         var target = new MemoryTarget();
         var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200) };
 
-        var run = new TransferClient(options).From(new MemorySource(_content)).To(target).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        var run = new TransferClient(options).From(new MemorySource(_content)).To(target).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         await run.WaitAsync(TimeSpan.FromSeconds(5), Token);
         Assert.Equal(_content, target.Session.Data);
@@ -206,7 +206,7 @@ public sealed class CheckpointStoreTests : IDisposable
         var store = new RecordingStore { Fail = true };
         var target = new MemoryTarget();
 
-        await new TransferClient(Options).From(new MemorySource(_content)).To(target).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+        await new TransferClient(Options).From(new MemorySource(_content)).To(target).WithCheckpointStore(store).RunAsync(cancellationToken: Token);
 
         Assert.Equal(_content, target.Session.Data);
     }

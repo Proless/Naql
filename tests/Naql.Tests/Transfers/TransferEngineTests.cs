@@ -10,7 +10,7 @@ public sealed class TransferEngineTests
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000,
+        MinSplitPartSize = 1_000,
         BufferSize = 1_000,
         ResponseTimeout = TimeSpan.FromSeconds(10),
         IdleTimeout = TimeSpan.FromSeconds(10),
@@ -31,7 +31,7 @@ public sealed class TransferEngineTests
     private static Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null,
         IProgress<TransferProgress>? progress = null, CancellationToken? cancellationToken = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, target, progress: progress, cancellationToken: cancellationToken ?? Token);
+        return new TransferClient(options ?? Options).From(source).To(target).RunAsync(progress, cancellationToken: cancellationToken ?? Token);
     }
 
     private static Exception Broken() => new IOException("The connection was reset");
@@ -884,7 +884,7 @@ public sealed class TransferEngineTests
     {
         var content = Content(200_000);
         var target = new MemoryTarget();
-        var options = Parallel with { MinPartSize = 10_000, MaxBytesPerSecond = 400_000 };
+        var options = Parallel with { MinSplitPartSize = 10_000, MaxBytesPerSecond = 400_000 };
 
         var result = await RunAsync(new MemorySource(content), target, options);
 
@@ -900,8 +900,8 @@ public sealed class TransferEngineTests
         var watch = System.Diagnostics.Stopwatch.StartNew();
 
         await Task.WhenAll(
-            client.RunAsync(new MemorySource(Content(100_000)), new MemoryTarget(), cancellationToken: Token),
-            client.RunAsync(new MemorySource(Content(100_000)), new MemoryTarget(), cancellationToken: Token));
+            client.From(new MemorySource(Content(100_000))).To(new MemoryTarget()).RunAsync(cancellationToken: Token),
+            client.From(new MemorySource(Content(100_000))).To(new MemoryTarget()).RunAsync(cancellationToken: Token));
 
         Assert.True(watch.Elapsed >= TimeSpan.FromMilliseconds(350), $"Took only {watch.Elapsed.TotalMilliseconds} ms");
     }

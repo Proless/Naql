@@ -27,7 +27,9 @@ public sealed class StreamSource : ITransferSource
     /// <param name="name">A suggested file name for the content</param>
     /// <param name="length">The number of bytes to read; by default the rest of a seekable stream, or everything until a
     /// stream that can't seek ends</param>
-    public StreamSource(Stream stream, string? name = null, long? length = null)
+    public static StreamSource From(Stream stream, string? name = null, long? length = null) => new(stream, name, length);
+
+    private StreamSource(Stream stream, string? name, long? length)
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
         if (!stream.CanRead)

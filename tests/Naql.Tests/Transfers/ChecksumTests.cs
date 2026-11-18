@@ -13,7 +13,7 @@ public sealed class ChecksumTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000,
+        MinSplitPartSize = 1_000,
         BufferSize = 1_000
     };
 
@@ -41,7 +41,7 @@ public sealed class ChecksumTests : IDisposable
 
     private static Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions options)
     {
-        return new TransferClient(options).RunAsync(source, target, cancellationToken: Token);
+        return new TransferClient(options).From(source).To(target).RunAsync(cancellationToken: Token);
     }
 
     #region Checksum

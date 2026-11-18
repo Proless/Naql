@@ -28,7 +28,7 @@ public sealed class TransferBuilderTests
             .From(new MemorySource([]))
             .To(new MemoryTarget())
             .WithMaxConnections(4)
-            .WithMaxRate(1_000)
+            .WithMaxBytesPerSecond(1_000)
             .WithRetry(retry)
             .Build();
 
@@ -47,7 +47,7 @@ public sealed class TransferBuilderTests
         var builder = Transfer.From(new MemorySource([]));
 
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMaxConnections(0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMaxRate(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMaxBytesPerSecond(-1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new TransferOptions { IdleTimeout = TimeSpan.Zero });
         Assert.Throws<ArgumentNullException>(() => new TransferOptions { Retry = null! });
     }

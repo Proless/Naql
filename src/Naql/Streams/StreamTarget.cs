@@ -28,7 +28,10 @@ public sealed class StreamTarget : ITransferTarget
     /// <summary>
     /// Writes into <paramref name="stream"/> from its current position.
     /// </summary>
-    public StreamTarget(Stream stream)
+    /// <param name="stream">The stream to write; it must be writable</param>
+    public static StreamTarget To(Stream stream) => new(stream);
+
+    private StreamTarget(Stream stream)
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
         if (!stream.CanWrite)

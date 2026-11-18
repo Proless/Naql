@@ -5,7 +5,7 @@ namespace Naql.Tests.Transfers;
 public sealed class PartPlannerTests
 {
     private static readonly TargetCapabilities Parallel = new() { ParallelParts = true };
-    private static readonly TransferOptions Options = new() { MaxConnections = 4, MinPartSize = 1_000 };
+    private static readonly TransferOptions Options = new() { MaxConnections = 4, MinSplitPartSize = 1_000 };
 
     public static TheoryData<long?, bool, bool, int> SinglePartCases => new()
     {

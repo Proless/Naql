@@ -11,7 +11,7 @@ public sealed class CheckpointTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000,
+        MinSplitPartSize = 1_000,
         BufferSize = 1_000
     };
 

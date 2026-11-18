@@ -19,7 +19,7 @@ public sealed class TelemetryTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000,
+        MinSplitPartSize = 1_000,
         BufferSize = 1_000
     };
 
@@ -98,7 +98,7 @@ public sealed class TelemetryTests : IDisposable
 
     private static Task<TransferResult> RunAsync(ITransferSource source, TransferOptions? options = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, new MemoryTarget(), cancellationToken: Token);
+        return new TransferClient(options ?? Options).From(source).To(new MemoryTarget()).RunAsync(cancellationToken: Token);
     }
 
     private static byte[] Content(int length) => new byte[length];
@@ -181,7 +181,7 @@ public sealed class TelemetryTests : IDisposable
         cts.CancelAfter(100);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => new TransferClient(Options).RunAsync(source, new MemoryTarget(), cancellationToken: cts.Token));
+            () => new TransferClient(Options).From(source).To(new MemoryTarget()).RunAsync(cancellationToken: cts.Token));
 
         Assert.Equal("canceled", Assert.Single(Activities("naql.transfer")).GetTagItem("naql.outcome"));
         Assert.Equal("canceled", Assert.Single(Measurements("naql.transfers")).Tags["naql.outcome"]);

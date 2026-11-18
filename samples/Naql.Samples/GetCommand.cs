@@ -15,7 +15,7 @@ public static class GetCommand
         var timeout = TimeSpan.FromSeconds(options.GetNumber("timeout", 30));
         var transferOptions = TransferOptions.Default with
         {
-            // Content smaller than two parts of MinPartSize (1 MB by default) still uses one connection
+            // Content smaller than two parts of MinSplitPartSize (1 MB by default) still uses one connection
             MaxConnections = (int)options.GetNumber("parallel", 1),
             MaxBytesPerSecond = (long)(options.GetNumber("limit", 0) * 1024),
             Retry = RetryPolicy.Default with { MaxRetries = (int)options.GetNumber("retries", 3) },
@@ -73,7 +73,7 @@ public static class GetCommand
         try
         {
             using var progress = new ConsoleProgress();
-            result = await Transfer.From(HttpSource.Get(uri)).To(target).WithOptions(options).WithCheckpoints(checkpoints).RunAsync(progress, cancellationToken);
+            result = await Transfer.From(HttpSource.Get(uri)).To(target).WithOptions(options).WithCheckpointStore(checkpoints).RunAsync(progress, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

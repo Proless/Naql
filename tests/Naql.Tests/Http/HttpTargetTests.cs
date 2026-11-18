@@ -15,7 +15,7 @@ public sealed class HttpTargetTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000
+        MinSplitPartSize = 1_000
     };
 
     private readonly TempDirectory _temp = new();
@@ -28,7 +28,7 @@ public sealed class HttpTargetTests : IDisposable
 
     private static Task<TransferResult> RunAsync(ITransferSource source, HttpTarget target, TransferOptions? options = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, target, cancellationToken: Token);
+        return new TransferClient(options ?? Options).From(source).To(target).RunAsync(cancellationToken: Token);
     }
 
     private static byte[] Content(int length)
@@ -102,7 +102,7 @@ public sealed class HttpTargetTests : IDisposable
         var content = Content(10_000);
         var server = new FakeUploadServer();
 
-        await RunAsync(new StreamSource(new NonSeekableStream(new MemoryStream(content))), Transport(server).Put(FakeUploadServer.Uri));
+        await RunAsync(StreamSource.From(new NonSeekableStream(new MemoryStream(content))), Transport(server).Put(FakeUploadServer.Uri));
 
         var upload = Assert.Single(server.Uploads);
         Assert.Null(upload.ContentLength);

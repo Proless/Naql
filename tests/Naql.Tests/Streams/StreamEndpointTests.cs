@@ -11,7 +11,7 @@ public sealed class StreamEndpointTests
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000
+        MinSplitPartSize = 1_000
     };
 
     private static readonly TransferOptions Parallel = Options with { MaxConnections = 4 };
@@ -27,7 +27,7 @@ public sealed class StreamEndpointTests
 
     private static Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, target, cancellationToken: Token);
+        return new TransferClient(options ?? Options).From(source).To(target).RunAsync(cancellationToken: Token);
     }
 
 
@@ -38,7 +38,7 @@ public sealed class StreamEndpointTests
         var stream = new MemoryStream([9, 9, 9, .. content]) { Position = 3 };
         var target = new MemoryTarget();
 
-        var result = await RunAsync(new StreamSource(stream, "data.bin"), target, Parallel);
+        var result = await RunAsync(StreamSource.From(stream, "data.bin"), target, Parallel);
 
         Assert.Equal(content, target.Session.Data);
         Assert.Equal(1, result.Parts);
@@ -53,7 +53,7 @@ public sealed class StreamEndpointTests
         var target = new MemoryTarget { Capabilities = new() { ParallelParts = true, ResumableParts = true, Resumable = true, Verifiable = true } };
         var checksum = new Checksum(System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.SHA256.HashData(content));
 
-        var result = await RunAsync(new StreamSource(stream, "data.bin"), target, Parallel with { ExpectedChecksum = checksum });
+        var result = await RunAsync(StreamSource.From(stream, "data.bin"), target, Parallel with { ExpectedChecksum = checksum });
 
         Assert.Equal(content, target.Session.Data);
         Assert.Equal(4, result.Parts);
@@ -64,7 +64,7 @@ public sealed class StreamEndpointTests
     {
         var content = Content(10_000);
         var stream = new NonSeekableStream(new FailingStream(new MemoryStream(content), 2_000, () => new IOException("Reset")));
-        var source = new StreamSource(stream);
+        var source = StreamSource.From(stream);
 
         var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), Parallel));
 
@@ -79,7 +79,7 @@ public sealed class StreamEndpointTests
         var content = Content(10_000);
         var target = new MemoryTarget();
 
-        await RunAsync(new StreamSource(new NonSeekableStream(new MemoryStream(content))), target, Parallel);
+        await RunAsync(StreamSource.From(new NonSeekableStream(new MemoryStream(content))), target, Parallel);
 
         Assert.Equal(content, target.Session.Data);
     }
@@ -91,7 +91,7 @@ public sealed class StreamEndpointTests
         var output = new MemoryStream();
         output.Write([7, 7]);
 
-        await RunAsync(new MemorySource(content), new StreamTarget(output), Parallel);
+        await RunAsync(new MemorySource(content), StreamTarget.To(output), Parallel);
 
         Assert.Equal([7, 7, .. content], output.ToArray());
     }
@@ -103,7 +103,7 @@ public sealed class StreamEndpointTests
         var output = new MemoryStream();
         var source = new MemorySource(content) { WrapContent = (index, _, stream) => index == 0 ? new FailingStream(stream, 3_000, () => new IOException("Reset")) : stream };
 
-        await RunAsync(source, new StreamTarget(new NonSeekableStream(output)));
+        await RunAsync(source, StreamTarget.To(new NonSeekableStream(output)));
 
         Assert.Equal(content, output.ToArray());
     }
@@ -118,7 +118,7 @@ public sealed class StreamEndpointTests
             WrapContent = (index, _, stream) => index == 0 ? new FailingStream(stream, 3_000, () => new IOException("Reset")) : stream
         };
 
-        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new StreamTarget(new NonSeekableStream(output))));
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, StreamTarget.To(new NonSeekableStream(output))));
 
         Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
     }

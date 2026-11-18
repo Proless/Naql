@@ -15,7 +15,7 @@ public sealed class HttpSourceTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 10_000,
+        MinSplitPartSize = 10_000,
         ResponseTimeout = TimeSpan.FromSeconds(10),
         IdleTimeout = TimeSpan.FromSeconds(10)
     };
@@ -33,7 +33,7 @@ public sealed class HttpSourceTests : IDisposable
 
     private static Task<TransferResult> RunAsync(HttpSource source, ITransferTarget target, TransferOptions? options = null, CancellationToken? cancellationToken = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, target, cancellationToken: cancellationToken ?? Token);
+        return new TransferClient(options ?? Options).From(source).To(target).RunAsync(cancellationToken: cancellationToken ?? Token);
     }
 
     private static long? RangeStart(RangeHeaderValue? range) => range?.Ranges.Single().From;

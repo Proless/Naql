@@ -43,17 +43,6 @@ public sealed class TransferClient
     {
         return new TransferBuilder(this, source ?? throw new ArgumentNullException(nameof(source)));
     }
-
-    /// <summary>
-    /// Transfers the content of <paramref name="source"/> to <paramref name="target"/>.
-    /// </summary>
-    /// <exception cref="TransferException">The transfer failed</exception>
-    /// <exception cref="OperationCanceledException">The transfer was canceled</exception>
-    public Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null,
-        IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default)
-    {
-        return new TransferOperation(source, target, options ?? DefaultOptions, SharedLimiter).RunAsync(progress, cancellationToken);
-    }
 }
 
 /// <summary>
@@ -116,7 +105,7 @@ public sealed class TransferBuilder
     /// <summary>
     /// Sets <see cref="TransferOptions.MaxBytesPerSecond"/>. 0 means unlimited.
     /// </summary>
-    public TransferBuilder WithMaxRate(long bytesPerSecond)
+    public TransferBuilder WithMaxBytesPerSecond(long bytesPerSecond)
     {
         _options = _options with { MaxBytesPerSecond = bytesPerSecond };
         return this;
@@ -135,7 +124,7 @@ public sealed class TransferBuilder
     /// Sets <see cref="TransferOptions.ExpectedChecksum"/>: the transfer fails and discards what it wrote unless the
     /// content has this hash.
     /// </summary>
-    public TransferBuilder WithChecksum(Checksum checksum)
+    public TransferBuilder WithExpectedChecksum(Checksum checksum)
     {
         _options = _options with { ExpectedChecksum = checksum ?? throw new ArgumentNullException(nameof(checksum)) };
         return this;
@@ -160,7 +149,7 @@ public sealed class TransferBuilder
     /// A checkpoint passed to <see cref="ResumeFrom"/> wins over the stored one. For a file,
     /// <c>FileCheckpointStore.For(path)</c> keeps the checkpoint next to it.
     /// </remarks>
-    public TransferBuilder WithCheckpoints(ICheckpointStore store)
+    public TransferBuilder WithCheckpointStore(ICheckpointStore store)
     {
         _checkpointStore = store ?? throw new ArgumentNullException(nameof(store));
         return this;

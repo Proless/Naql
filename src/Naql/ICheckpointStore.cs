@@ -8,7 +8,7 @@ namespace Naql;
 /// failure or a restart of the process.
 /// </summary>
 /// <remarks>
-/// Pass one to <see cref="TransferBuilder.WithCheckpoints"/>. The engine loads it before starting, saves it every
+/// Pass one to <see cref="TransferBuilder.WithCheckpointStore"/>. The engine loads it before starting, saves it every
 /// <see cref="TransferOptions.CheckpointInterval"/> while the transfer runs and once more when it stops, and deletes it
 /// when the transfer completes. The store is best effort: a store that fails, or takes longer than
 /// <see cref="TransferOptions.ResponseTimeout"/>, doesn't fail the transfer. If loading fails, the transfer starts over.

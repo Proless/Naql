@@ -230,8 +230,8 @@ The planner is a pure function, tested on its own:
 parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 ```
 
-- One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1, or the content is smaller than `MinPartSize × 2`.
-- Otherwise `min(MaxConnections, length / MinPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
+- One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1, or the content is smaller than `MinSplitPartSize × 2`.
+- Otherwise `min(MaxConnections, length / MinSplitPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
 - Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 
@@ -290,7 +290,7 @@ await Transfer
     .From(HttpSource.Get(uri))
     .To(FileTarget.At("file.zip"))
     .WithMaxConnections(4)
-    .WithMaxRate(1024 * 1024)
+    .WithMaxBytesPerSecond(1024 * 1024)
     .RunAsync();
 
 // Upload
@@ -316,10 +316,10 @@ public sealed class TransferBuilder
     public TransferBuilder To(ITransferTarget target);
     public TransferBuilder WithOptions(TransferOptions options);
     public TransferBuilder WithMaxConnections(int value);
-    public TransferBuilder WithMaxRate(long bytesPerSecond);
+    public TransferBuilder WithMaxBytesPerSecond(long bytesPerSecond);
     public TransferBuilder WithRetry(RetryPolicy policy);
-    public TransferBuilder WithChecksum(Checksum checksum);
-    public TransferBuilder WithCheckpoints(ICheckpointStore store);
+    public TransferBuilder WithExpectedChecksum(Checksum checksum);
+    public TransferBuilder WithCheckpointStore(ICheckpointStore store);
     public TransferBuilder ResumeFrom(TransferCheckpoint checkpoint);
 
     public TransferOperation Build();
@@ -338,12 +338,12 @@ public sealed class TransferClient
     public TransferClient(TransferOptions? defaults = null, BandwidthLimiter? sharedLimiter = null);
 
     public TransferBuilder From(ITransferSource source);
-    public Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null,
-        IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
 }
 ```
 
-`TransferClient` is what an application registers for dependency injection. It holds default options and an optional limiter shared by all its transfers. `Transfer.From` is a shortcut for `TransferClient.Default.From`.
+`TransferClient` is what an application registers for dependency injection. It holds default options and an optional limiter shared by all its transfers. `Transfer.From` is a shortcut for `TransferClient.Default.From`. There is one way to describe a transfer, the builder, so every transfer can use every feature, such as checkpoint stores. Builder methods are named after the option they set (`WithMaxBytesPerSecond` sets `MaxBytesPerSecond`).
+
+Endpoints are created with static factories named for what they point at: `FileSource.At`, `FileTarget.At` and `InDirectory`, `StreamSource.From`, `StreamTarget.To`, `HttpSource.Get`, `HttpTarget.Put`, `Post` and `PostForm`. Objects that hold settings rather than point at content, such as `HttpTransport` and `TransferClient`, have constructors.
 
 ```csharp
 public sealed record TransferOptions               // derive variants with `with { … }`; setters validate
@@ -354,7 +354,7 @@ public sealed record TransferOptions               // derive variants with `with
     public TimeSpan ResponseTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public int BufferSize { get; init; } = 81920;
-    public long MinPartSize { get; init; } = 1024 * 1024;
+    public long MinSplitPartSize { get; init; } = 1024 * 1024;   // a preference; a target's MinPartSize is a limit
     public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromMilliseconds(100);
     public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(2);
     public bool DiscardPartialOnFailure { get; init; }
@@ -456,7 +456,7 @@ How checkpoints behave:
 - **A target checks its token.** `FileTarget` only continues a partial file it could have written: the file's own for `FileTarget.At`, or one in its directory for `InDirectory` and `FileConflict.KeepBoth`. Any other path counts as `NotFound`, so the transfer starts over instead of writing somewhere else.
 - **`TransferResult.Resumed`** tells how many bytes came from the earlier run; `Transferred` counts them too, and `AverageRate` covers only this run.
 
-**Automatic checkpoints.** `WithCheckpoints(ICheckpointStore)` lets the engine handle all of this:
+**Automatic checkpoints.** `WithCheckpointStore(ICheckpointStore)` lets the engine handle all of this:
 
 ```csharp
 public interface ICheckpointStore
@@ -466,7 +466,7 @@ public interface ICheckpointStore
     Task DeleteAsync(CancellationToken cancellationToken);
 }
 
-await Transfer.From(source).To(FileTarget.At("file.zip")).WithCheckpoints(FileCheckpointStore.For("file.zip")).RunAsync();
+await Transfer.From(source).To(FileTarget.At("file.zip")).WithCheckpointStore(FileCheckpointStore.For("file.zip")).RunAsync();
 ```
 
 - Before starting, the engine loads the stored checkpoint and resumes from it; a checkpoint passed to `ResumeFrom` wins over it.
@@ -502,7 +502,7 @@ It gets retries, parallel parts, throttling, progress, checkpoints and checksum 
 
 ### 6.5 Checksums
 
-A transfer can be verified against a `Checksum` (MD5, SHA-1 or SHA-2): the caller's (`TransferOptions.ExpectedChecksum`, `WithChecksum(Checksum.Sha256("…"))`), or else the source's (`SourceInfo.Checksum`; `HttpSource` reads `Repr-Digest` from RFC 9530 and the older `Digest`, preferring SHA-512 over SHA-256).
+A transfer can be verified against a `Checksum` (MD5, SHA-1 or SHA-2): the caller's (`TransferOptions.ExpectedChecksum`, `WithExpectedChecksum(Checksum.Sha256("…"))`), or else the source's (`SourceInfo.Checksum`; `HttpSource` reads `Repr-Digest` from RFC 9530 and the older `Digest`, preferring SHA-512 over SHA-256).
 
 - **One connection from the first byte** is hashed as the bytes pass, at no extra cost. A part that continues after a source failure keeps its hash, because it continues right after the hashed bytes; a part that starts over starts its hash over.
 - **Parallel parts and resumed transfers** can't be hashed while streaming, because a hash can't be combined from pieces. A target with `TargetCapabilities.Verifiable` reads its data back instead, through `IVerifiableSession.ComputeHashAsync`; `FileTarget` and readable seekable `StreamTarget`s do.

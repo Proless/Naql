@@ -21,7 +21,7 @@ internal static class PartPlanner
             return Single;
         }
 
-        var minPartSize = Math.Max(options.MinPartSize, target.MinPartSize);
+        var minPartSize = Math.Max(options.MinSplitPartSize, target.MinPartSize);
         var count = Math.Min(options.MaxConnections, total / minPartSize);
         if (target.MaxPartSize is long maxPartSize)
         {

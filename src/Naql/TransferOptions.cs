@@ -90,14 +90,16 @@ public sealed record TransferOptions
     } = 81920;
 
     /// <summary>
-    /// The smallest part worth its own connection. Content smaller than twice this size uses one connection.
+    /// The smallest part worth its own connection when the engine splits the content: content smaller than twice this
+    /// size uses one connection. It's a preference, unlike <see cref="TargetCapabilities.MinPartSize"/>, which is a limit:
+    /// a target's <see cref="TargetCapabilities.MaxPartSize"/> can still make parts smaller than this.
     /// </summary>
-    public long MinPartSize
+    public long MinSplitPartSize
     {
         get;
         init
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, nameof(MinPartSize));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, nameof(MinSplitPartSize));
             field = value;
         }
     } = 1024 * 1024;

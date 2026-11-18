@@ -127,7 +127,7 @@ public static class Scenarios
                 .From(HttpSource.Get(context.FileUri))
                 .To(FileTarget.At(context.FilePath("throttle.bin")))
                 .WithMaxConnections(4)
-                .WithMaxRate(limit)
+                .WithMaxBytesPerSecond(limit)
                 .RunAsync(progress, context.CancellationToken);
         }
 
@@ -158,7 +158,7 @@ public static class Scenarios
         Console.WriteLine($"With credentials: {File.ReadAllText(path).ReplaceLineEndings(" ")}");
 
         await ExpectFailureAsync("Without credentials",
-            () => Transfer.From(HttpSource.Get(uri)).To(new StreamTarget(Stream.Null)).RunAsync(cancellationToken: context.CancellationToken));
+            () => Transfer.From(HttpSource.Get(uri)).To(StreamTarget.To(Stream.Null)).RunAsync(cancellationToken: context.CancellationToken));
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public static class Scenarios
         };
 
         Task Download(string url, TransferOptions options) =>
-            Transfer.From(HttpSource.Get(url)).To(new StreamTarget(Stream.Null)).WithOptions(options).RunAsync(new RetryPrinter(), context.CancellationToken);
+            Transfer.From(HttpSource.Get(url)).To(StreamTarget.To(Stream.Null)).WithOptions(options).RunAsync(new RetryPrinter(), context.CancellationToken);
 
         await ExpectFailureAsync("404 Not Found", () => Download("https://httpbin.org/status/404", quick));
 

@@ -11,7 +11,7 @@ public sealed class FileEndpointTests : IDisposable
     private static readonly TransferOptions Options = new()
     {
         Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.Zero, Jitter = false },
-        MinPartSize = 1_000
+        MinSplitPartSize = 1_000
     };
 
     private static readonly TransferOptions Parallel = Options with { MaxConnections = 4 };
@@ -31,7 +31,7 @@ public sealed class FileEndpointTests : IDisposable
 
     private static Task<TransferResult> RunAsync(ITransferSource source, ITransferTarget target, TransferOptions? options = null)
     {
-        return new TransferClient(options ?? Options).RunAsync(source, target, cancellationToken: Token);
+        return new TransferClient(options ?? Options).From(source).To(target).RunAsync(cancellationToken: Token);
     }
 
     private string CreateFile(string name, byte[] content)

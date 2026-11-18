@@ -53,7 +53,7 @@ await Transfer
     .From(HttpSource.Get(uri))
     .To(FileTarget.At("file.zip"))
     .WithMaxConnections(4)
-    .WithMaxRate(1024 * 1024)
+    .WithMaxBytesPerSecond(1024 * 1024)
     .RunAsync(progress, cancellationToken);
 ```
 
@@ -72,7 +72,7 @@ Continue an unfinished download by itself, even after a crash or a restart:
 await Transfer
     .From(HttpSource.Get(uri))
     .To(FileTarget.At("file.zip"))
-    .WithCheckpoints(FileCheckpointStore.For("file.zip"))
+    .WithCheckpointStore(FileCheckpointStore.For("file.zip"))
     .RunAsync(progress, cancellationToken);
 ```
 
@@ -82,7 +82,7 @@ Verify the content before it gets its real name:
 
 ```csharp
 await Transfer.From(HttpSource.Get(uri)).To(FileTarget.At("file.zip"))
-    .WithChecksum(Checksum.Sha256("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"))
+    .WithExpectedChecksum(Checksum.Sha256("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"))
     .RunAsync();
 ```
 
