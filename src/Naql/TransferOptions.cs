@@ -54,8 +54,10 @@ public sealed record TransferOptions
     } = RetryPolicy.Default;
 
     /// <summary>
-    /// How long to wait for the source to describe or start sending the content, and for the target to finish a part
-    /// once it has read all of it, such as the server's answer to an upload.
+    /// How long to wait for a source or target to respond: for the source to describe or start sending the content,
+    /// and for the target to open, to finish a part once it has read all of it (such as the server's answer to an
+    /// upload), to complete, and to clean up after a failure. Reading the target back to verify a checksum has no limit,
+    /// since it takes as long as the content is large.
     /// </summary>
     public TimeSpan ResponseTimeout
     {

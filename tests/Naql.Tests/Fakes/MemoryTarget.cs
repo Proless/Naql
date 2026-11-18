@@ -22,6 +22,23 @@ public sealed class MemoryTarget : ITransferTarget
     public Func<int, CancellationToken, Task>? AfterRead { get; init; }
 
     /// <summary>
+    /// Runs before a session opens, with the number of the open; throw to fail it, or wait to stall it.
+    /// </summary>
+    public Func<int, CancellationToken, Task>? OnOpen { get; init; }
+
+    /// <summary>
+    /// Runs when a session completes; throw to fail it, or wait to stall it.
+    /// </summary>
+    public Func<CancellationToken, Task>? OnComplete { get; init; }
+
+    /// <summary>
+    /// Runs when a session aborts; throw to fail it, or wait to stall it.
+    /// </summary>
+    public Func<CancellationToken, Task>? OnAbort { get; init; }
+
+    private int _opens;
+
+    /// <summary>
     /// The first write fails with an <see cref="IOException"/> after keeping this many bytes, like a full disk.
     /// </summary>
     public long? FailFirstWriteAfter { get; init; }
@@ -50,8 +67,14 @@ public sealed class MemoryTarget : ITransferTarget
     /// <summary>
     /// Opens a session; with a resume token, the new session starts with the data of the session that token names.
     /// </summary>
-    public Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken)
+    public async Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken)
     {
+        var open = Interlocked.Increment(ref _opens) - 1;
+        if (OnOpen != null)
+        {
+            await OnOpen(open, cancellationToken);
+        }
+
         lock (_lock)
         {
             var session = new MemorySession(this, request) { ResumeToken = $"memory-{_sessions.Count}" };
@@ -62,7 +85,7 @@ public sealed class MemoryTarget : ITransferTarget
                 session.CopyFrom(earlier);
             }
             _sessions.Add(session);
-            return Task.FromResult<ITargetSession>(session);
+            return session;
         }
     }
 }
@@ -186,16 +209,22 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
         }
     }
 
-    public Task CompleteAsync(CancellationToken cancellationToken)
+    public async Task CompleteAsync(CancellationToken cancellationToken)
     {
+        if (target.OnComplete != null)
+        {
+            await target.OnComplete(cancellationToken);
+        }
         Completed = true;
-        return Task.CompletedTask;
     }
 
-    public Task AbortAsync(CancellationToken cancellationToken)
+    public async Task AbortAsync(CancellationToken cancellationToken)
     {
         Aborted = true;
-        return Task.CompletedTask;
+        if (target.OnAbort != null)
+        {
+            await target.OnAbort(cancellationToken);
+        }
     }
 
     /// <summary>

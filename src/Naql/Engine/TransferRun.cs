@@ -15,6 +15,9 @@ namespace Naql.Engine;
 /// </summary>
 internal sealed class TransferRun
 {
+    // The result of a timed operation that returns nothing
+    private static readonly object Done = new();
+
     private readonly ITransferSource _source;
     private readonly ITransferTarget _target;
     private readonly TargetCapabilities _capabilities;
@@ -293,7 +296,7 @@ internal sealed class TransferRun
         List<PartRun>? parts = null;
         if (checkpoint != null || (!hashWhileStreaming && _options.MaxConnections > 1 && _capabilities.ParallelParts))
         {
-            var info = await RetryAsync(TransferSide.Source, t => WithResponseTimeoutAsync(_source.GetInfoAsync, t), token).ConfigureAwait(false);
+            var info = await RetryAsync(TransferSide.Source, t => WithResponseTimeoutAsync(TransferSide.Source, _source.GetInfoAsync, t), token).ConfigureAwait(false);
             SetInfo(info);
             if (checkpoint != null)
             {
@@ -332,11 +335,11 @@ internal sealed class TransferRun
         await VerifyChecksumAsync(transferred, token).ConfigureAwait(false);
 
         _state = TransferState.Completing;
-        await RetryAsync(TransferSide.Target, async t =>
+        await RetryAsync(TransferSide.Target, t => WithResponseTimeoutAsync(TransferSide.Target, async t2 =>
         {
-            await _session!.CompleteAsync(t).ConfigureAwait(false);
-            return true;
-        }, token).ConfigureAwait(false);
+            await _session!.CompleteAsync(t2).ConfigureAwait(false);
+            return Done;
+        }, t), token).ConfigureAwait(false);
         _completed = true;
         _state = TransferState.Completed;
     }
@@ -449,7 +452,7 @@ internal sealed class TransferRun
 
     private async Task OpenSessionAsync(TargetOpenRequest request, CancellationToken token)
     {
-        _session = await RetryAsync(TransferSide.Target, t => _target.OpenAsync(request, t), token).ConfigureAwait(false);
+        _session = await RetryAsync(TransferSide.Target, t => WithResponseTimeoutAsync(TransferSide.Target, t2 => _target.OpenAsync(request, t2), t), token).ConfigureAwait(false);
         _resumeToken = _session.ResumeToken;
         _discarded = false;
     }
@@ -569,7 +572,7 @@ internal sealed class TransferRun
         IdleWatchdog? watchdog = null;
         try
         {
-            source = await WithResponseTimeoutAsync(t => _source.OpenReadAsync(new ReadRequest(range, _info?.Version), t), attempt.Token).ConfigureAwait(false);
+            source = await WithResponseTimeoutAsync(TransferSide.Source, t => _source.OpenReadAsync(new ReadRequest(range, _info?.Version), t), attempt.Token).ConfigureAwait(false);
             if (_info == null)
             {
                 SetInfo(source.Info);
@@ -580,7 +583,7 @@ internal sealed class TransferRun
             }
             if (_session == null)
             {
-                _session = await _target.OpenAsync(new TargetOpenRequest(_info!), attempt.Token).ConfigureAwait(false);
+                _session = await WithResponseTimeoutAsync(TransferSide.Target, t => _target.OpenAsync(new TargetOpenRequest(_info!), t), attempt.Token).ConfigureAwait(false);
                 _resumeToken = _session.ResumeToken;
                 _discarded = false;
             }
@@ -715,9 +718,10 @@ internal sealed class TransferRun
     }
 
     /// <summary>
-    /// Waits for the source to respond, at most <see cref="TransferOptions.ResponseTimeout"/>, even when it ignores cancellation.
+    /// Waits for a source or target to respond, at most <see cref="TransferOptions.ResponseTimeout"/>, even when it ignores
+    /// cancellation.
     /// </summary>
-    private async Task<T> WithResponseTimeoutAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken token) where T : class
+    private async Task<T> WithResponseTimeoutAsync<T>(TransferSide side, Func<CancellationToken, Task<T>> operation, CancellationToken token) where T : class
     {
         var timeout = _options.ResponseTimeout;
         if (timeout == Timeout.InfiniteTimeSpan)
@@ -737,7 +741,7 @@ internal sealed class TransferRun
         {
             DisposeWhenDone(task);
             token.ThrowIfCancellationRequested();
-            throw ResponseTimeout(ex);
+            throw ResponseTimeout(side, ex);
         }
     }
 
@@ -759,9 +763,10 @@ internal sealed class TransferRun
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
-    private TransferException ResponseTimeout(Exception? inner)
+    private TransferException ResponseTimeout(TransferSide side, Exception? inner)
     {
-        return new TransferException($"The source didn't respond within {_options.ResponseTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout, isTransient: true, TransferSide.Source, innerException: inner);
+        var name = side == TransferSide.Target ? "target" : "source";
+        return new TransferException($"The {name} didn't respond within {_options.ResponseTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout, isTransient: true, side, innerException: inner);
     }
 
     private void SetInfo(SourceInfo info)
@@ -862,11 +867,19 @@ internal sealed class TransferRun
         }
     }
 
-    private static async Task AbortQuietlyAsync(ITargetSession session)
+    /// <summary>
+    /// Aborts a session, waiting at most <see cref="TransferOptions.ResponseTimeout"/>, so cleaning up after a failure
+    /// can't hang the transfer.
+    /// </summary>
+    private async Task AbortQuietlyAsync(ITargetSession session)
     {
         try
         {
-            await session.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+            await WithResponseTimeoutAsync(TransferSide.Target, async t =>
+            {
+                await session.AbortAsync(t).ConfigureAwait(false);
+                return Done;
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception)
         {

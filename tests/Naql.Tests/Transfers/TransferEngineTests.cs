@@ -601,6 +601,52 @@ public sealed class TransferEngineTests
         Assert.Contains("didn't finish", ex.Message);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task Times_out_a_target_that_doesnt_open_even_when_it_ignores_cancellation(int connections)
+    {
+        var content = Content(10_000);
+        var target = new MemoryTarget { OnOpen = (open, _) => open == 0 ? Task.Delay(Timeout.Infinite, CancellationToken.None) : Task.CompletedTask };
+        var options = Options with { MaxConnections = connections, ResponseTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var result = await RunAsync(new MemorySource(content), target, options);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(1, result.Retries);
+    }
+
+    [Fact]
+    public async Task A_target_that_doesnt_complete_times_out_as_a_target_error()
+    {
+        var target = new MemoryTarget { OnComplete = _ => Task.Delay(Timeout.Infinite, CancellationToken.None) };
+        var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200), Retry = RetryPolicy.None };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(1_000)), target, options));
+
+        Assert.Equal(TransferErrorKind.Timeout, ex.Kind);
+        Assert.Equal(TransferSide.Target, ex.Side);
+        Assert.Contains("target didn't respond", ex.Message);
+    }
+
+    [Fact]
+    public async Task Cleaning_up_after_a_failure_doesnt_wait_forever_for_the_target()
+    {
+        var target = new MemoryTarget
+        {
+            // A target that isn't resumable is aborted on failure
+            Capabilities = new TargetCapabilities(),
+            OnAbort = _ => Task.Delay(Timeout.Infinite, CancellationToken.None)
+        };
+        var source = new MemorySource(Content(1_000)) { WrapContent = (_, _, stream) => new FailingStream(stream, 500, () => new UnauthorizedAccessException("Denied")) };
+        var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var run = RunAsync(source, target, options);
+
+        await Assert.ThrowsAsync<TransferFailedException>(() => run.WaitAsync(TimeSpan.FromSeconds(5), Token));
+        Assert.True(target.Session.Aborted);
+    }
+
     #endregion
 
     #region Cancellation and cleanup
