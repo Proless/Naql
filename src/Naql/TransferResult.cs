@@ -7,9 +7,11 @@ namespace Naql;
 /// </summary>
 public sealed class TransferResult
 {
-    internal TransferResult(SourceInfo source, long transferred, long resumed, TimeSpan duration, int parts, int retries, Checksum? verifiedChecksum)
+    internal TransferResult(SourceInfo source, long transferred, long resumed, TimeSpan duration, int parts, int retries, Checksum? verifiedChecksum,
+        string? location)
     {
         Source = source;
+        Location = location;
         Transferred = transferred;
         Resumed = resumed;
         Duration = duration;
@@ -22,6 +24,12 @@ public sealed class TransferResult
     /// What the source reported about the content.
     /// </summary>
     public SourceInfo Source { get; }
+
+    /// <summary>
+    /// Where the content is now: a file's full path, an upload's URL, or <c>null</c> when the target has nothing to
+    /// point at, such as a stream. It comes from <see cref="ITargetSession.Location"/>.
+    /// </summary>
+    public string? Location { get; }
 
     /// <summary>
     /// The number of bytes the target holds, including those an earlier run had written.

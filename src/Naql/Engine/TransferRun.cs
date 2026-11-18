@@ -24,6 +24,7 @@ internal sealed class TransferRun
     private readonly PartRunner _runner;
     private TransferCheckpoint? _resumeFrom;
     private ITargetSession? _session;
+    private string? _location;
     private Exception? _callerFailure;
 
     public TransferRun(ITransferSource source, ITransferTarget target, TransferOptions options, BandwidthLimiter[] limiters,
@@ -192,7 +193,7 @@ internal sealed class TransferRun
             ThrowIfCallerFailed();
             _state.Clock.Stop();
             reporter?.ReportNow();
-            return new TransferResult(_state.Info!, _state.Transferred, _state.Resumed, _state.Clock.Elapsed, _state.TotalParts, _state.Retries, _state.Verified);
+            return new TransferResult(_state.Info!, _state.Transferred, _state.Resumed, _state.Clock.Elapsed, _state.TotalParts, _state.Retries, _state.Verified, _location);
         }
         catch (Exception) when (Volatile.Read(ref _callerFailure) != null)
         {
@@ -283,6 +284,7 @@ internal sealed class TransferRun
 
         _state.State = TransferState.Completing;
         await _runner.RetryAsync(TransferSide.Target, t => _runner.WithResponseTimeoutAsync(TransferSide.Target, _session!.CompleteAsync, t), token).ConfigureAwait(false);
+        _location = _session!.Location;
         _state.Completed = true;
         _state.State = TransferState.Completed;
     }
@@ -357,7 +359,16 @@ internal sealed class TransferRun
     /// </summary>
     private async Task OpenSessionAsync(TargetOpenRequest request, CancellationToken token)
     {
-        _session = await _runner.RetryAsync(TransferSide.Target, t => _runner.WithResponseTimeoutAsync(TransferSide.Target, t2 => _target.OpenAsync(request, t2), t), token).ConfigureAwait(false);
+        var session = await _runner.RetryAsync(TransferSide.Target, t => _runner.WithResponseTimeoutAsync(TransferSide.Target, t2 => _target.OpenAsync(request, t2), t), token).ConfigureAwait(false);
+        if (_capabilities.Verifiable && session is not IVerifiableSession)
+        {
+            // Without this check a required checksum would silently go unverified
+            await DisposeQuietlyAsync(session).ConfigureAwait(false);
+            var error = new TransferException($"The target {_target.GetType().Name} says it's Verifiable, but its session doesn't implement IVerifiableSession",
+                TransferErrorKind.Unsupported, side: TransferSide.Target);
+            throw new TransferFailedException(error, TransferSide.Target);
+        }
+        _session = session;
         _state.ResumeToken = _session.ResumeToken;
         _state.Discarded = false;
     }
@@ -373,7 +384,7 @@ internal sealed class TransferRun
         if (session != null)
         {
             await AbortQuietlyAsync(session).ConfigureAwait(false);
-            session.Dispose();
+            await DisposeQuietlyAsync(session).ConfigureAwait(false);
         }
     }
 
@@ -396,7 +407,7 @@ internal sealed class TransferRun
         }
         finally
         {
-            session.Dispose();
+            await DisposeQuietlyAsync(session).ConfigureAwait(false);
         }
     }
 
@@ -413,6 +424,22 @@ internal sealed class TransferRun
         catch (Exception)
         {
             // The transfer already ended with the error that matters; failing to clean up must not replace it
+        }
+    }
+
+    /// <summary>
+    /// Disposes a session, waiting at most <see cref="TransferOptions.ResponseTimeout"/>. A failure to release it can't
+    /// change how the transfer ended, so it's ignored.
+    /// </summary>
+    private async Task DisposeQuietlyAsync(ITargetSession session)
+    {
+        try
+        {
+            await _runner.WithResponseTimeoutAsync(TransferSide.Target, _ => session.DisposeAsync().AsTask(), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // The content is already committed, kept for a resume, or discarded
         }
     }
 

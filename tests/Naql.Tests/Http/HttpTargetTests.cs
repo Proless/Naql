@@ -221,6 +221,27 @@ public sealed class HttpTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task The_result_points_at_the_location_the_server_named()
+    {
+        var server = new FakeUploadServer
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.Created) { Headers = { Location = new Uri("/files/42", UriKind.Relative) } }
+        };
+
+        var result = await RunAsync(new MemorySource(Content(100)), Transport(server).Post(FakeUploadServer.Uri));
+
+        Assert.Equal("http://test.local/files/42", result.Location);
+    }
+
+    [Fact]
+    public async Task Without_a_location_the_result_points_at_the_upload_url()
+    {
+        var result = await RunAsync(new MemorySource(Content(100)), Transport(new FakeUploadServer()).Put(FakeUploadServer.Uri));
+
+        Assert.Equal(FakeUploadServer.Uri.AbsoluteUri, result.Location);
+    }
+
+    [Fact]
     public async Task Sends_the_configured_headers()
     {
         AuthenticationHeaderValue? authorization = null;

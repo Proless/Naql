@@ -765,6 +765,58 @@ public sealed class TransferEngineTests
         Assert.False(target.Session.Completed);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task A_target_that_claims_to_be_verifiable_but_isnt_fails_instead_of_skipping_the_check(int connections)
+    {
+        var inner = new MemoryTarget();
+        var target = new UnverifiableTarget(inner);
+        var options = Options with { MaxConnections = connections, ExpectedChecksum = Checksum.Sha256(new string('0', 64)) };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(10_000)), target, options));
+
+        Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
+        Assert.Equal(TransferSide.Target, ex.Side);
+        Assert.Contains("IVerifiableSession", ex.Message);
+        Assert.True(inner.Session.Disposed);
+        Assert.Empty(inner.Session.Writes);
+    }
+
+    [Fact]
+    public async Task The_result_has_the_sessions_location_and_the_session_is_disposed()
+    {
+        var target = new MemoryTarget();
+
+        var result = await RunAsync(new MemorySource(Content(1_000)), target);
+
+        Assert.Equal("memory://memory-0", result.Location);
+        Assert.True(target.Session.Disposed);
+    }
+
+    /// <summary>
+    /// Says it's verifiable, but its sessions can't read back what they wrote.
+    /// </summary>
+    private sealed class UnverifiableTarget(MemoryTarget inner) : ITransferTarget
+    {
+        public TargetCapabilities Capabilities { get; } = inner.Capabilities with { Verifiable = true };
+
+        public async Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken)
+        {
+            return new PlainSession(await inner.OpenAsync(request, cancellationToken));
+        }
+
+        private sealed class PlainSession(ITargetSession session) : ITargetSession
+        {
+            public string? Location => session.Location;
+            public string? ResumeToken => session.ResumeToken;
+            public Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken) => session.WritePartAsync(range, content, cancellationToken);
+            public Task CompleteAsync(CancellationToken cancellationToken) => session.CompleteAsync(cancellationToken);
+            public Task AbortAsync(CancellationToken cancellationToken) => session.AbortAsync(cancellationToken);
+            public ValueTask DisposeAsync() => session.DisposeAsync();
+        }
+    }
+
     #endregion
 
     #region Progress and throttling

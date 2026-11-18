@@ -165,6 +165,9 @@ public sealed class HttpTarget : ITransferTarget
     {
         public string? ResumeToken => null;
 
+        // The server's Location for what it created, or else the URL the content went to
+        public string? Location { get; private set; }
+
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
             if (!range.IsAll)
@@ -178,6 +181,7 @@ public sealed class HttpTarget : ITransferTarget
             {
                 throw HttpErrors.FromStatus(response, TransferSide.Target);
             }
+            Location = (response.Headers.Location is { } location ? new Uri(target.Uri, location) : target.Uri).AbsoluteUri;
             if (target._responseHandler != null)
             {
                 await target._responseHandler(response, cancellationToken).ConfigureAwait(false);
@@ -189,8 +193,6 @@ public sealed class HttpTarget : ITransferTarget
         // An upload the server accepted can't be taken back
         public Task AbortAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public void Dispose()
-        {
-        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

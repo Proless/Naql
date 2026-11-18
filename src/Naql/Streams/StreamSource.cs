@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 namespace Naql.Streams;
 
 /// <summary>
-/// Reads a stream the caller owns. The stream is never disposed by the transfer.
+/// Reads a stream the caller owns. The stream is never disposed by the transfer. The source wraps that one stream, so it
+/// belongs to one transfer.
 /// </summary>
 /// <remarks>
 /// A seekable stream supports ranges and retries: reads seek before every read, one at a time, so parallel parts can

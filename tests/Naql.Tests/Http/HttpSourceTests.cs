@@ -132,10 +132,10 @@ public sealed class HttpSourceTests : IDisposable
         var server = new FakeHttpServer();
         var target = FileTarget.InDirectory(_temp.Path);
 
-        await RunAsync(Source(server), target);
+        var result = await RunAsync(Source(server), target);
 
-        Assert.Equal(_temp.File("file.bin"), target.Path);
-        Assert.Equal(server.Content, File.ReadAllBytes(target.Path!));
+        Assert.Equal(_temp.File("file.bin"), result.Location);
+        Assert.Equal(server.Content, File.ReadAllBytes(result.Location!));
     }
 
     [Fact]

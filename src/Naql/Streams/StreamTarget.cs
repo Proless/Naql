@@ -8,7 +8,8 @@ using System.Threading.Tasks;
 namespace Naql.Streams;
 
 /// <summary>
-/// Writes into a stream the caller owns. The stream is flushed when the transfer completes, never disposed.
+/// Writes into a stream the caller owns. The stream is flushed when the transfer completes, never disposed. The target wraps
+/// that one stream, so it belongs to one transfer.
 /// </summary>
 /// <remarks>
 /// A seekable stream takes parallel parts: writes seek before every write, one at a time. A stream that can't seek is
@@ -60,6 +61,9 @@ public sealed class StreamTarget : ITransferTarget
     private sealed class StreamSession(StreamTarget target) : ITargetSession, IVerifiableSession
     {
         public string? ResumeToken => null;
+
+        // The caller has the stream, so there is no other place to point at
+        public string? Location => null;
 
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
@@ -124,9 +128,10 @@ public sealed class StreamTarget : ITransferTarget
             }
         }
 
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
             // The caller owns the stream
+            return ValueTask.CompletedTask;
         }
     }
 }

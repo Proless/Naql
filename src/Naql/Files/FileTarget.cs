@@ -89,11 +89,6 @@ public sealed class FileTarget : ITransferTarget
         Verifiable = true
     };
 
-    /// <summary>
-    /// The full path of the file, once a transfer has opened the target.
-    /// </summary>
-    public string? Path { get; private set; }
-
     /// <inheritdoc />
     public Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken)
     {
@@ -131,7 +126,6 @@ public sealed class FileTarget : ITransferTarget
                 }
             }
 
-            Path = path;
             return Task.FromResult<ITargetSession>(new FileSession(path, partial, request.Source.Length, Conflict));
         }
         catch (Exception ex) when (FileErrors.Map(ex, TransferSide.Target) is { } error)
@@ -226,6 +220,8 @@ public sealed class FileTarget : ITransferTarget
 
         public string? ResumeToken => _partial;
 
+        public string? Location => _path;
+
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
             var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
@@ -305,9 +301,10 @@ public sealed class FileTarget : ITransferTarget
             }
         }
 
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
             // Each part opens and closes the file itself, so there is nothing left open
+            return ValueTask.CompletedTask;
         }
     }
 }

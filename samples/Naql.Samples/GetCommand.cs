@@ -91,7 +91,7 @@ public static class GetCommand
         }
         var parts = result.Parts == 1 ? "one connection" : $"{result.Parts} parallel parts";
         var retries = result.Retries == 0 ? "" : $", {result.Retries} retries";
-        Console.WriteLine($"Saved {Format.Bytes(result.Transferred)} in {result.Duration.TotalSeconds:0.0}s ({Format.Bytes(result.AverageRate)}/s, {parts}{retries}{resumed}) to {target.Path}");
+        Console.WriteLine($"Saved {Format.Bytes(result.Transferred)} in {result.Duration.TotalSeconds:0.0}s ({Format.Bytes(result.AverageRate)}/s, {parts}{retries}{resumed}) to {result.Location}");
     }
 
     /// <summary>

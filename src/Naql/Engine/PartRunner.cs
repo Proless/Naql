@@ -416,7 +416,14 @@ internal sealed class PartRunner
         {
             if (t.IsCompletedSuccessfully)
             {
-                (t.Result as IDisposable)?.Dispose();
+                if (t.Result is IAsyncDisposable asyncDisposable)
+                {
+                    _ = asyncDisposable.DisposeAsync().AsTask().ContinueWith(d => _ = d.Exception, TaskScheduler.Default);
+                }
+                else
+                {
+                    (t.Result as IDisposable)?.Dispose();
+                }
             }
             else
             {

@@ -104,6 +104,8 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
     public TargetOpenRequest Request { get; } = request;
     public string? ResumeToken { get; init; }
 
+    public string? Location => "memory://" + ResumeToken;
+
     /// <summary>
     /// The writes that read their part to the end.
     /// </summary>
@@ -240,7 +242,11 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
         return Task.FromResult(hash.GetHashAndReset());
     }
 
-    public void Dispose() => Disposed = true;
+    public ValueTask DisposeAsync()
+    {
+        Disposed = true;
+        return ValueTask.CompletedTask;
+    }
 
     private void Store(long position, byte[] buffer, int count)
     {

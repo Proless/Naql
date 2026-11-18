@@ -123,12 +123,12 @@ public sealed class FileEndpointTests : IDisposable
         };
         var target = FileTarget.At(path);
 
-        await RunAsync(source, target, Parallel);
+        var result = await RunAsync(source, target, Parallel);
 
         Assert.True(sawPartial);
         Assert.Equal(content, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + FileTarget.PartialExtension));
-        Assert.Equal(Path.GetFullPath(path), target.Path);
+        Assert.Equal(Path.GetFullPath(path), result.Location);
     }
 
     [Theory]
@@ -152,9 +152,9 @@ public sealed class FileEndpointTests : IDisposable
     {
         var target = FileTarget.InDirectory(_temp.Path, info => $"{info.Length}.bin");
 
-        await RunAsync(new MemorySource(Content(42)), target);
+        var result = await RunAsync(new MemorySource(Content(42)), target);
 
-        Assert.Equal(_temp.File("42.bin"), target.Path);
+        Assert.Equal(_temp.File("42.bin"), result.Location);
     }
 
     [Fact]
@@ -188,10 +188,10 @@ public sealed class FileEndpointTests : IDisposable
         var content = Content(100);
         var target = FileTarget.InDirectory(_temp.Path, conflict: FileConflict.KeepBoth);
 
-        await RunAsync(new MemorySource(content), target);
+        var result = await RunAsync(new MemorySource(content), target);
 
-        Assert.Equal(_temp.File("memory (1).bin"), target.Path);
-        Assert.Equal(content, File.ReadAllBytes(target.Path!));
+        Assert.Equal(_temp.File("memory (1).bin"), result.Location);
+        Assert.Equal(content, File.ReadAllBytes(result.Location!));
         Assert.Equal(existing, File.ReadAllBytes(_temp.File("memory.bin")));
     }
 
@@ -216,13 +216,13 @@ public sealed class FileEndpointTests : IDisposable
         var path = _temp.File("out.bin");
 
         string token;
-        using (var first = await FileTarget.At(path).OpenAsync(new TargetOpenRequest(info), Token))
+        await using (var first = await FileTarget.At(path).OpenAsync(new TargetOpenRequest(info), Token))
         {
             await first.WritePartAsync(new ByteRange(0, 4_000), new MemoryStream(content, 0, 4_000), Token);
             token = first.ResumeToken!;
         }
 
-        using (var second = await FileTarget.At(path).OpenAsync(new TargetOpenRequest(info, token), Token))
+        await using (var second = await FileTarget.At(path).OpenAsync(new TargetOpenRequest(info, token), Token))
         {
             await second.WritePartAsync(new ByteRange(4_000, 6_000), new MemoryStream(content, 4_000, 6_000), Token);
             await second.CompleteAsync(Token);

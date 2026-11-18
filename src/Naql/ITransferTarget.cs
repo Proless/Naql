@@ -52,12 +52,21 @@ public sealed class TargetOpenRequest
 /// </summary>
 /// <remarks>
 /// Disposing the session without calling <see cref="CompleteAsync"/> or <see cref="AbortAsync"/> must keep what was
-/// written, so a resumable transfer can continue later.
+/// written, so a resumable transfer can continue later. Disposing is asynchronous because releasing a target can
+/// involve I/O, such as closing a remote file.
 /// </remarks>
-public interface ITargetSession : IDisposable
+public interface ITargetSession : IAsyncDisposable
 {
     /// <summary>
-    /// Identifies this unfinished transfer so it can be continued later (a temporary file, an upload id), or <c>null</c>.
+    /// Where the content is once the session completed: a file's full path, an upload's URL, or <c>null</c> when there
+    /// is nothing to point at, such as a stream. The engine reads it after <see cref="CompleteAsync"/> and returns it as
+    /// <see cref="TransferResult.Location"/>.
+    /// </summary>
+    string? Location { get; }
+
+    /// <summary>
+    /// Identifies this unfinished transfer so it can be continued later (a temporary file, an upload id), or <c>null</c>
+    /// when this session can't be continued, even if the target is <see cref="TargetCapabilities.Resumable"/>.
     /// </summary>
     string? ResumeToken { get; }
 
@@ -89,7 +98,8 @@ public interface ITargetSession : IDisposable
 
 /// <summary>
 /// A session that can read back what it wrote, so the engine can verify a checksum of content that arrived in parallel
-/// parts or was resumed. Sessions of targets with <see cref="TargetCapabilities.Verifiable"/> implement it.
+/// parts or was resumed. Sessions of targets with <see cref="TargetCapabilities.Verifiable"/> must implement it; the
+/// engine fails the transfer as <see cref="TransferErrorKind.Unsupported"/> when one doesn't.
 /// </summary>
 public interface IVerifiableSession
 {

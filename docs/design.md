@@ -137,8 +137,11 @@ public sealed class TargetOpenRequest
     public string? ResumeToken { get; }        // from a checkpoint
 }
 
-public interface ITargetSession : IDisposable
+public interface ITargetSession : IAsyncDisposable
 {
+    /// Where the content is once completed: a file's full path, an upload's URL; null for a stream. Becomes TransferResult.Location.
+    string? Location { get; }
+
     /// Identifies the unfinished transfer so it can be continued later (a temp file path, an S3 upload id, a tus URL).
     string? ResumeToken { get; }
 
@@ -184,14 +187,15 @@ How existing and planned protocols fit:
 | tus (`Naql.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | yes | nothing |
 | S3 multipart (`Naql.S3`) | yes | no, a part is redone | yes, the upload id | yes | `CompleteMultipartUpload` |
 | SFTP (`Naql.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | yes | rename |
+| FTP (`Naql.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | yes | rename |
 
 When a target isn't `RepeatableWrites`, the engine only writes a part again if the target failed before reading all of it: a request that never got its whole body can't have been processed, but a `POST` whose answer was lost may have created the upload already. The error stays as it was, transient or not, so a caller who knows the server can take a repeat may try again.
-| FTP (`Naql.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | rename |
 
 ### 4.4 Resources and ownership
 
-- Sources and targets are lightweight descriptions. Expensive resources (an `HttpClient`, an SFTP connection pool) belong to a protocol object the caller creates and disposes, such as `HttpTransport`. Shortcuts like `HttpSource.Get(uri)` use a shared `HttpClient`, so there is nothing to dispose.
-- The engine disposes what it opens: every `SourceStream` and every `ITargetSession`.
+- Sources and targets are lightweight descriptions, with no state from a run: what a run produced, such as where the file ended up, comes back in the `TransferResult` (`Location`), so one `FileTarget` can serve many transfers. Stream endpoints are the exception by nature: they wrap one stream the caller owns, so each belongs to one transfer. Expensive resources (an `HttpClient`, an SFTP connection pool) belong to a protocol object the caller creates and disposes, such as `HttpTransport`. Shortcuts like `HttpSource.Get(uri)` use a shared `HttpClient`, so there is nothing to dispose.
+- The engine disposes what it opens: every `SourceStream`, and every `ITargetSession` with `DisposeAsync`, since releasing a remote target can involve I/O. Disposing waits at most the response timeout.
+- A target that says it's `Verifiable` must return sessions that implement `IVerifiableSession`; otherwise the transfer fails as `Unsupported` as soon as the session opens, instead of skipping the checksum.
 - Disposing a session without calling `CompleteAsync` or `AbortAsync` leaves the partial data in place, so the transfer can be resumed.
 
 ## 5. The engine
