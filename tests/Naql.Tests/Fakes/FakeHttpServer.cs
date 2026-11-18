@@ -136,7 +136,10 @@ public sealed class FakeHttpServer : HttpMessageHandler
 
         foreach (var (name, value) in Headers)
         {
-            response.Headers.TryAddWithoutValidation(name, value);
+            if (!response.Headers.TryAddWithoutValidation(name, value))
+            {
+                response.Content.Headers.TryAddWithoutValidation(name, value);
+            }
         }
 
         if (FileName != null)

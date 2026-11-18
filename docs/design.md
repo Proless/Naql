@@ -518,7 +518,7 @@ There's no `ILogger` in the core: it would add a package dependency, which secti
 | Package | Contents | Dependencies |
 |---|---|---|
 | `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none |
-| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
+| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
 | Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
 
 ### 7.1 Which endpoints belong in the core

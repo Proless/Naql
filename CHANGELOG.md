@@ -20,6 +20,6 @@ The first release: transfers from a source to a target through one shared engine
 ### Naql.Http
 
 - `HttpTransferException` with the status code, reason phrase, method and URL of a failed request.
-- `HttpSource`: downloads with range requests, `If-Range` when resuming, a one-byte probe to learn the length and range support, the file name from `Content-Disposition`, and the checksum from `Repr-Digest` or `Digest`.
+- `HttpSource`: downloads with range requests, `If-Range` when resuming, a one-byte probe to learn the length and range support, the file name from `Content-Disposition`, and the checksum from `Repr-Digest` or `Digest`. It asks for content unencoded and refuses a response the server compressed anyway, whose bytes, length and ranges wouldn't be the content's.
 - `HttpTarget`: uploads with `PUT`, `POST` or a `multipart/form-data` form, and `WithResponseHandler` for the server's answer. A `POST` the server received completely is never sent again.
 - `HttpTransport` for the `HttpClient`, the User-Agent and request settings such as `BasicAuthentication`.

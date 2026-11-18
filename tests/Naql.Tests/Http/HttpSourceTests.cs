@@ -296,6 +296,54 @@ public sealed class HttpSourceTests : IDisposable
 
     #region Errors and timeouts
 
+    [Fact]
+    public async Task Every_request_asks_for_the_content_unencoded()
+    {
+        var server = new FakeHttpServer();
+        var encodings = new List<string>();
+        server.Intercept = request =>
+        {
+            lock (encodings)
+            {
+                encodings.Add(request.Headers.AcceptEncoding.ToString());
+            }
+            return null;
+        };
+
+        await RunAsync(Source(server), FileTarget.At(_temp.File("out.bin")), Options with { MaxConnections = 4 });
+
+        Assert.True(encodings.Count > 1);
+        Assert.All(encodings, encoding => Assert.Equal("identity", encoding));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task Content_the_server_encoded_anyway_fails_as_unsupported(int connections)
+    {
+        var server = new FakeHttpServer();
+        server.Headers["Content-Encoding"] = "gzip";
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(Source(server), FileTarget.At(_temp.File("out.bin")), Options with { MaxConnections = connections }));
+
+        Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
+        Assert.False(ex.IsTransient);
+        Assert.Contains("gzip", ex.Message);
+        Assert.Equal(1, server.RequestCount);
+    }
+
+    [Fact]
+    public async Task Content_marked_as_identity_is_fine()
+    {
+        var server = new FakeHttpServer();
+        server.Headers["Content-Encoding"] = "identity";
+        var path = _temp.File("out.bin");
+
+        await RunAsync(Source(server), FileTarget.At(path));
+
+        Assert.Equal(server.Content, File.ReadAllBytes(path));
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.NotFound, TransferErrorKind.NotFound, false)]
     [InlineData(HttpStatusCode.Gone, TransferErrorKind.NotFound, false)]

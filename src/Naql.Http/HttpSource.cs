@@ -18,6 +18,10 @@ namespace Naql.Http;
 /// <item>Ranges use the <c>Range</c> header; a resumed range sends <c>If-Range</c>, so a changed file is noticed.</item>
 /// <item>The version of the content is its strong ETag, or else its <c>Last-Modified</c> date.</item>
 /// <item>The suggested name comes from <c>Content-Disposition</c>, or else from the last segment of the final URL.</item>
+/// <item>Every request asks for the content unencoded (<c>Accept-Encoding: identity</c>), because ranges, lengths and
+/// checksums describe the bytes as sent. A response the server encoded anyway, such as with <c>gzip</c>, fails as
+/// <see cref="TransferErrorKind.Unsupported"/>. Don't give the transport an <see cref="HttpClient"/> with automatic
+/// decompression: it would decode the bytes without saying so.</item>
 /// </list>
 /// </remarks>
 public sealed class HttpSource : ITransferSource
@@ -57,6 +61,7 @@ public sealed class HttpSource : ITransferSource
     {
         using var request = CreateRequest(new RangeHeaderValue(0, 0), ifVersion: null);
         using var response = await Transport.SendAsync(request, TransferSide.Source, cancellationToken).ConfigureAwait(false);
+        EnsureNotEncoded(response);
 
         var contentRange = response.Content.Headers.ContentRange;
         switch (response.StatusCode)
@@ -93,6 +98,7 @@ public sealed class HttpSource : ITransferSource
         var response = await Transport.SendAsync(httpRequest, TransferSide.Source, cancellationToken).ConfigureAwait(false);
         try
         {
+            EnsureNotEncoded(response);
             SourceInfo info;
             var contentRange = response.Content.Headers.ContentRange;
             if (response.StatusCode == HttpStatusCode.PartialContent && rangeHeader != null)
@@ -133,11 +139,27 @@ public sealed class HttpSource : ITransferSource
     {
         var request = new HttpRequestMessage(HttpMethod.Get, Uri);
         request.Headers.Range = range;
+        // Ranges, lengths and checksums describe the bytes as sent, so ask for them as they are, not compressed
+        request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         if (range != null && ifVersion != null)
         {
             request.Headers.IfRange = ParseVersion(ifVersion);
         }
         return request;
+    }
+
+    /// <summary>
+    /// Fails for content the server encoded, such as with <c>gzip</c>, although the request asked for it as it is:
+    /// its bytes, length and ranges wouldn't be the content's.
+    /// </summary>
+    private static void EnsureNotEncoded(HttpResponseMessage response)
+    {
+        var encodings = response.Content.Headers.ContentEncoding;
+        if (response.IsSuccessStatusCode && encodings.Any(encoding => !encoding.Equals("identity", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw HttpErrors.FromResponse(response, $"The server sent the content encoded as {string.Join(", ", encodings)} although it was asked for it unencoded",
+                TransferErrorKind.Unsupported, transient: false, TransferSide.Source);
+        }
     }
 
     private static RangeConditionHeaderValue? ParseVersion(string version)
