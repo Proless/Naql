@@ -176,6 +176,31 @@ public sealed class CheckpointStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_store_that_cant_load_means_starting_over()
+    {
+        var store = new RecordingStore { FailLoading = true };
+        var target = new MemoryTarget();
+
+        var result = await new TransferClient(Options).From(new MemorySource(_content)).To(target).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+
+        Assert.Equal(_content, target.Session.Data);
+        Assert.Equal(0, result.Resumed);
+    }
+
+    [Fact]
+    public async Task A_store_that_doesnt_answer_doesnt_hang_the_transfer()
+    {
+        var store = new RecordingStore { Hang = true };
+        var target = new MemoryTarget();
+        var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var run = new TransferClient(options).From(new MemorySource(_content)).To(target).WithCheckpoints(store).RunAsync(cancellationToken: Token);
+
+        await run.WaitAsync(TimeSpan.FromSeconds(5), Token);
+        Assert.Equal(_content, target.Session.Data);
+    }
+
+    [Fact]
     public async Task A_failing_store_doesnt_fail_the_transfer()
     {
         var store = new RecordingStore { Fail = true };
@@ -202,7 +227,21 @@ public sealed class CheckpointStoreTests : IDisposable
         public int Saves => Volatile.Read(ref _saves);
         public int Deletes => Volatile.Read(ref _deletes);
 
-        public Task<TransferCheckpoint?> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Saved);
+        public bool FailLoading { get; init; }
+        public bool Hang { get; init; }
+
+        public async Task<TransferCheckpoint?> LoadAsync(CancellationToken cancellationToken)
+        {
+            if (Hang)
+            {
+                await Task.Delay(Timeout.Infinite, CancellationToken.None);
+            }
+            if (FailLoading)
+            {
+                throw new UnauthorizedAccessException("The store can't be read");
+            }
+            return Saved;
+        }
 
         public Task SaveAsync(TransferCheckpoint checkpoint, CancellationToken cancellationToken)
         {

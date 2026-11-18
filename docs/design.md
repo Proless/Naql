@@ -472,7 +472,7 @@ await Transfer.From(source).To(FileTarget.At("file.zip")).WithCheckpoints(FileCh
 - Before starting, the engine loads the stored checkpoint and resumes from it; a checkpoint passed to `ResumeFrom` wins over it.
 - While running, it saves the checkpoint every `CheckpointInterval` (2 seconds by default) when it changed, so even a killed process loses at most that much progress. It saves once more when the transfer fails or is canceled.
 - When the transfer completes, or stops in a way that can't be continued, it deletes the checkpoint.
-- Saving is best effort: a failing store never fails a transfer that is otherwise fine.
+- The store is best effort: a failing store never fails a transfer that is otherwise fine. If it can't load, the transfer starts over, which costs progress but no data; if it can't save, a later run may have to start over. Every call to the store waits at most the response timeout, and failures show up as a `naql.checkpoint.error` event.
 - `FileCheckpointStore` writes a temporary file and renames it over the previous checkpoint, so a crash while saving never leaves a damaged checkpoint; an unreadable file counts as no checkpoint. `FileCheckpointStore.For(path)` keeps it next to the file as `path.naql-checkpoint`.
 
 The store is a separate abstraction rather than a `FileTarget` feature so it works for every target, and for `FileTarget.InDirectory`, whose file name is only known once the transfer starts: the checkpoint's resume token already holds the partial file's path, so the store only needs a key the caller chooses, such as the URL.

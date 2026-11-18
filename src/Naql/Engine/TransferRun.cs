@@ -66,9 +66,9 @@ internal sealed class TransferRun
         {
             if (_store != null)
             {
-                // An explicit checkpoint wins over a stored one
-                _resumeFrom ??= await _store.LoadAsync(cancellationToken).ConfigureAwait(false);
-                keeper = new CheckpointKeeper(_store, _options.CheckpointInterval, GetCheckpoint);
+                // An explicit checkpoint wins over a stored one; a store that can't load means starting over
+                keeper = new CheckpointKeeper(_store, _options.CheckpointInterval, _options.ResponseTimeout, GetCheckpoint);
+                _resumeFrom ??= await keeper.LoadAsync(cancellationToken).ConfigureAwait(false);
                 keeper.Start();
             }
 
