@@ -260,7 +260,7 @@ internal sealed class TransferRun
                 parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, planOptions)
                     .Select(range => new PartRun(range, range.IsAll ? info.Length : range.Length))
                     .ToList();
-                await OpenSessionAsync(new TargetOpenRequest(info), token).ConfigureAwait(false);
+                await OpenSessionAsync(new TargetOpenRequest(info, bufferSize: _options.BufferSize), token).ConfigureAwait(false);
             }
         }
         else
@@ -302,7 +302,7 @@ internal sealed class TransferRun
 
         try
         {
-            await OpenSessionAsync(new TargetOpenRequest(info, checkpoint.ResumeToken), token).ConfigureAwait(false);
+            await OpenSessionAsync(new TargetOpenRequest(info, checkpoint.ResumeToken, _options.BufferSize), token).ConfigureAwait(false);
         }
         catch (TransferException ex) when (ex.Kind == TransferErrorKind.NotFound)
         {
@@ -349,7 +349,7 @@ internal sealed class TransferRun
     {
         if (_session == null)
         {
-            await OpenSessionAsync(new TargetOpenRequest(_state.Info!), token).ConfigureAwait(false);
+            await OpenSessionAsync(new TargetOpenRequest(_state.Info!, bufferSize: _options.BufferSize), token).ConfigureAwait(false);
         }
         return _session!;
     }

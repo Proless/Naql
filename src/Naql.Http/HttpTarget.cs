@@ -26,7 +26,6 @@ public sealed class HttpTarget : ITransferTarget
 {
     private const string DefaultContentType = "application/octet-stream";
     private const string DefaultFormFileName = "file";
-    private const int CopyBufferSize = 81920;
 
     private readonly Func<HttpResponseMessage, CancellationToken, Task>? _responseHandler;
 
@@ -109,12 +108,12 @@ public sealed class HttpTarget : ITransferTarget
     /// <inheritdoc />
     public Task<ITargetSession> OpenAsync(TargetOpenRequest request, CancellationToken cancellationToken)
     {
-        return Task.FromResult<ITargetSession>(new UploadSession(this, (request ?? throw new ArgumentNullException(nameof(request))).Source));
+        return Task.FromResult<ITargetSession>(new UploadSession(this, request ?? throw new ArgumentNullException(nameof(request))));
     }
 
-    private HttpContent CreateContent(Stream body, SourceInfo source)
+    private HttpContent CreateContent(Stream body, SourceInfo source, int bufferSize)
     {
-        var content = new UploadContent(body, source.Length);
+        var content = new UploadContent(body, source.Length, bufferSize);
         content.Headers.ContentType = MediaTypeHeaderValue.TryParse(source.ContentType, out var type)
             ? type
             : new MediaTypeHeaderValue(DefaultContentType);
@@ -133,7 +132,7 @@ public sealed class HttpTarget : ITransferTarget
     /// Streams the body and reports its length, so a form around it has a <c>Content-Length</c> too instead of being
     /// sent in chunks, which some servers refuse.
     /// </summary>
-    private sealed class UploadContent(Stream body, long? length) : HttpContent
+    private sealed class UploadContent(Stream body, long? length, int bufferSize) : HttpContent
     {
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
         {
@@ -142,7 +141,7 @@ public sealed class HttpTarget : ITransferTarget
 
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
         {
-            return body.CopyToAsync(stream, CopyBufferSize, cancellationToken);
+            return body.CopyToAsync(stream, bufferSize, cancellationToken);
         }
 
         protected override bool TryComputeLength(out long result)
@@ -161,7 +160,7 @@ public sealed class HttpTarget : ITransferTarget
         }
     }
 
-    private sealed class UploadSession(HttpTarget target, SourceInfo source) : ITargetSession
+    private sealed class UploadSession(HttpTarget target, TargetOpenRequest open) : ITargetSession
     {
         public string? ResumeToken => null;
 
@@ -175,7 +174,7 @@ public sealed class HttpTarget : ITransferTarget
                 throw new TransferException($"An HTTP upload sends the whole content in one request, not the bytes {range}", TransferErrorKind.Unsupported, side: TransferSide.Target);
             }
 
-            using var request = new HttpRequestMessage(target.Method, target.Uri) { Content = target.CreateContent(content, source) };
+            using var request = new HttpRequestMessage(target.Method, target.Uri) { Content = target.CreateContent(content, open.Source, open.BufferSize) };
             using var response = await target.Transport.SendAsync(request, TransferSide.Target, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {

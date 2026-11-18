@@ -783,6 +783,18 @@ public sealed class TransferEngineTests
         Assert.Empty(inner.Session.Writes);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task The_target_copies_with_the_buffer_size_of_the_options(int connections)
+    {
+        var target = new MemoryTarget();
+
+        await RunAsync(new MemorySource(Content(10_000)), target, Options with { MaxConnections = connections, BufferSize = 4_096 });
+
+        Assert.Equal(4_096, target.Session.Request.BufferSize);
+    }
+
     [Fact]
     public async Task The_result_has_the_sessions_location_and_the_session_is_disposed()
     {

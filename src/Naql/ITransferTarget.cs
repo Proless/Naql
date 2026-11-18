@@ -28,12 +28,22 @@ public interface ITransferTarget
 public sealed class TargetOpenRequest
 {
     /// <summary>
+    /// The buffer size targets copy with when no other is asked for, the same as <see cref="TransferOptions.BufferSize"/>'s default.
+    /// </summary>
+    public const int DefaultBufferSize = 81920;
+
+    /// <summary>
     /// Creates a request.
     /// </summary>
-    public TargetOpenRequest(SourceInfo source, string? resumeToken = null)
+    /// <param name="source">The content that will be written</param>
+    /// <param name="resumeToken">The unfinished transfer to continue, or <c>null</c></param>
+    /// <param name="bufferSize">The buffer size to copy with</param>
+    public TargetOpenRequest(SourceInfo source, string? resumeToken = null, int bufferSize = DefaultBufferSize)
     {
         Source = source ?? throw new ArgumentNullException(nameof(source));
         ResumeToken = resumeToken;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bufferSize);
+        BufferSize = bufferSize;
     }
 
     /// <summary>
@@ -45,6 +55,12 @@ public sealed class TargetOpenRequest
     /// Identifies an unfinished transfer to continue, from <see cref="ITargetSession.ResumeToken"/>.
     /// </summary>
     public string? ResumeToken { get; }
+
+    /// <summary>
+    /// The buffer size to copy the content with, from <see cref="TransferOptions.BufferSize"/>. The engine hands over
+    /// at most this many bytes per read, so a bigger buffer wouldn't fill.
+    /// </summary>
+    public int BufferSize { get; }
 }
 
 /// <summary>

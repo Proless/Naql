@@ -135,6 +135,7 @@ public sealed class TargetOpenRequest
 {
     public SourceInfo Source { get; }          // length, name, content type, metadata
     public string? ResumeToken { get; }        // from a checkpoint
+    public int BufferSize { get; }             // from TransferOptions.BufferSize, to copy with
 }
 
 public interface ITargetSession : IAsyncDisposable
@@ -353,7 +354,7 @@ public sealed record TransferOptions               // derive variants with `with
     public RetryPolicy Retry { get; init; } = RetryPolicy.Default;
     public TimeSpan ResponseTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(30);
-    public int BufferSize { get; init; } = 81920;
+    public int BufferSize { get; init; } = 81920;           // per read from the source, and the buffer targets copy with
     public long MinSplitPartSize { get; init; } = 1024 * 1024;   // a preference; a target's MinPartSize is a limit
     public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromMilliseconds(100);
     public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(2);

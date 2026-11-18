@@ -77,7 +77,8 @@ public sealed record TransferOptions
     } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// The most bytes read from the source at once.
+    /// The most bytes read from the source at once, and the buffer size targets copy with
+    /// (<see cref="TargetOpenRequest.BufferSize"/>).
     /// </summary>
     public int BufferSize
     {

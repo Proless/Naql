@@ -126,7 +126,7 @@ public sealed class FileTarget : ITransferTarget
                 }
             }
 
-            return Task.FromResult<ITargetSession>(new FileSession(path, partial, request.Source.Length, Conflict));
+            return Task.FromResult<ITargetSession>(new FileSession(path, partial, request.Source.Length, Conflict, request.BufferSize));
         }
         catch (Exception ex) when (FileErrors.Map(ex, TransferSide.Target) is { } error)
         {
@@ -203,19 +203,19 @@ public sealed class FileTarget : ITransferTarget
 
     private sealed class FileSession : ITargetSession, IVerifiableSession
     {
-        private const int CopyBufferSize = 81920;
-
         private readonly string _path;
         private readonly string _partial;
         private readonly long? _length;
         private readonly FileConflict _conflict;
+        private readonly int _bufferSize;
 
-        public FileSession(string path, string partial, long? length, FileConflict conflict)
+        public FileSession(string path, string partial, long? length, FileConflict conflict, int bufferSize)
         {
             _path = path;
             _partial = partial;
             _length = length;
             _conflict = conflict;
+            _bufferSize = bufferSize;
         }
 
         public string? ResumeToken => _partial;
@@ -224,7 +224,7 @@ public sealed class FileTarget : ITransferTarget
 
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+            var buffer = ArrayPool<byte>.Shared.Rent(_bufferSize);
             try
             {
                 // Positional writes with no buffer of their own: every byte read from the content is in the file before
@@ -292,7 +292,7 @@ public sealed class FileTarget : ITransferTarget
         {
             try
             {
-                using var file = new FileStream(_partial, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, CopyBufferSize, useAsync: true);
+                using var file = new FileStream(_partial, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, _bufferSize, useAsync: true);
                 return await Hashing.HashAsync(file, algorithm, length, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (FileErrors.Map(ex, TransferSide.Target) is { } error)

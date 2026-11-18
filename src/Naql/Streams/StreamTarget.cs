@@ -18,7 +18,6 @@ namespace Naql.Streams;
 /// </remarks>
 public sealed class StreamTarget : ITransferTarget
 {
-    private const int CopyBufferSize = 81920;
 
     private readonly Stream _stream;
     private readonly long _origin;
@@ -58,10 +57,10 @@ public sealed class StreamTarget : ITransferTarget
         {
             throw new TransferException("A stream that can't seek can't start over", TransferErrorKind.Unsupported, side: TransferSide.Target);
         }
-        return Task.FromResult<ITargetSession>(new StreamSession(this));
+        return Task.FromResult<ITargetSession>(new StreamSession(this, request.BufferSize));
     }
 
-    private sealed class StreamSession(StreamTarget target) : ITargetSession, IVerifiableSession
+    private sealed class StreamSession(StreamTarget target, int bufferSize) : ITargetSession, IVerifiableSession
     {
         public string? ResumeToken => null;
 
@@ -76,7 +75,7 @@ public sealed class StreamTarget : ITransferTarget
                 throw new TransferException("A stream that can't seek can only be written in order, once", TransferErrorKind.Unsupported, side: TransferSide.Target);
             }
 
-            var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
             try
             {
                 var position = target._origin + range.Start;
