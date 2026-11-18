@@ -21,6 +21,8 @@ internal sealed class MeteredStream : Stream
     private readonly Stopwatch _clock;
     private long _read;
     private long _lastActivityTicks;
+    private long _endedAtTicks;
+    private int _reachedEnd;
     private int _readPending;
     private int _throttling;
     private Exception? _readFailure;
@@ -53,7 +55,12 @@ internal sealed class MeteredStream : Stream
     /// <summary>
     /// Whether the target read the whole part.
     /// </summary>
-    public bool ReachedEnd { get; private set; }
+    public bool ReachedEnd => Volatile.Read(ref _reachedEnd) == 1;
+
+    /// <summary>
+    /// When the target read the whole part, on the clock; from then on, it's only finishing the part.
+    /// </summary>
+    public TimeSpan EndedAt => TimeSpan.FromTicks(Interlocked.Read(ref _endedAtTicks));
 
     /// <summary>
     /// The error reading from the source failed with, if it did. It tells source failures apart from target failures.
@@ -112,7 +119,7 @@ internal sealed class MeteredStream : Stream
             if (remaining == 0)
             {
                 // Don't read past the part, even when the source has more
-                ReachedEnd = true;
+                MarkEnd();
                 return 0;
             }
             toRead = (int)Math.Min(toRead, remaining);
@@ -143,7 +150,7 @@ internal sealed class MeteredStream : Stream
                 Interlocked.CompareExchange(ref _readFailure, failure, null);
                 throw failure;
             }
-            ReachedEnd = true;
+            MarkEnd();
             return 0;
         }
 
@@ -197,4 +204,13 @@ internal sealed class MeteredStream : Stream
     }
 
     private void Touch() => Interlocked.Exchange(ref _lastActivityTicks, _clock.Elapsed.Ticks);
+
+    private void MarkEnd()
+    {
+        if (!ReachedEnd)
+        {
+            Interlocked.Exchange(ref _endedAtTicks, _clock.Elapsed.Ticks);
+            Volatile.Write(ref _reachedEnd, 1);
+        }
+    }
 }

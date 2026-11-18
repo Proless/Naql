@@ -162,6 +162,7 @@ public sealed record TargetCapabilities
     public bool ParallelParts { get; init; }      // parts can be written at the same time, in any order
     public bool ResumableParts { get; init; }     // bytes consumed from a failed part's stream are kept
     public bool Resumable { get; init; }          // OpenAsync accepts a ResumeToken; a disposed session keeps its data
+    public bool RepeatableWrites { get; init; } = true;  // writing a part again is harmless (files, PUT); false for POST
     public bool RequiresLength { get; init; }     // the total length must be known up front (for example a server that refuses chunked uploads)
     public bool Verifiable { get; init; }         // sessions implement IVerifiableSession
     public long MinPartSize { get; init; }        // S3: 5 MiB except the last part
@@ -174,13 +175,16 @@ Why the target takes a `Stream` instead of byte buffers: a file target writes wh
 
 How existing and planned protocols fit:
 
-| Target | ParallelParts | ResumableParts | Resumable | Commit (`CompleteAsync`) |
-|---|---|---|---|---|
-| File (`Naql.Files`) | yes, writes at offsets | yes | yes, the temp file path | rename `name.naql-part` to `name` |
-| HTTP PUT/POST (`Naql.Http`) | no, one part | no | no | nothing, the request is the commit |
-| tus (`Naql.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | nothing |
-| S3 multipart (`Naql.S3`) | yes | no, a part is redone | yes, the upload id | `CompleteMultipartUpload` |
-| SFTP (`Naql.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | rename |
+| Target | ParallelParts | ResumableParts | Resumable | RepeatableWrites | Commit (`CompleteAsync`) |
+|---|---|---|---|---|---|
+| File (`Naql.Files`) | yes, writes at offsets | yes | yes, the temp file path | yes | rename `name.naql-part` to `name` |
+| HTTP PUT (`Naql.Http`) | no, one part | no | no | yes | nothing, the request is the commit |
+| HTTP POST, forms (`Naql.Http`) | no, one part | no | no | no | nothing, the request is the commit |
+| tus (`Naql.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | yes | nothing |
+| S3 multipart (`Naql.S3`) | yes | no, a part is redone | yes, the upload id | yes | `CompleteMultipartUpload` |
+| SFTP (`Naql.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | yes | rename |
+
+When a target isn't `RepeatableWrites`, the engine only writes a part again if the target failed before reading all of it: a request that never got its whole body can't have been processed, but a `POST` whose answer was lost may have created the upload already. The error stays as it was, transient or not, so a caller who knows the server can take a repeat may try again.
 | FTP (`Naql.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | rename |
 
 ### 4.4 Resources and ownership
@@ -235,7 +239,7 @@ The engine wraps every source stream in an internal `MeteredStream`, a read-only
 - **stops at the end of the part**, even when the source has more, and fails with a transient `Network` error when the source ends before it;
 - **records which side failed**: an exception from reading the source marks a source failure, anything else the target threw is a target failure. Only a source failure lets a `ResumableParts` target continue the part.
 
-A watchdog next to it enforces the **idle timeout**: when no bytes move for `IdleTimeout`, it cancels the attempt and disposes the source stream (which also ends reads that ignore cancellation). The failure is a transient `Timeout` on the side that stalled: the source when the target was waiting for a read, the target otherwise. Time spent waiting for the speed limit doesn't count as idle. `ResponseTimeout` covers `GetInfoAsync` and `OpenReadAsync` the same way, even when the source ignores cancellation.
+A watchdog next to it enforces the **idle timeout**: when no bytes move for `IdleTimeout`, it cancels the attempt and disposes the source stream (which also ends reads that ignore cancellation). The failure is a transient `Timeout` on the side that stalled: the source when the target was waiting for a read, the target otherwise. Time spent waiting for the speed limit doesn't count as idle, and neither does the time after the target has read the whole part: then it's finishing the part, for example waiting for the server's answer to an upload, and `ResponseTimeout` applies instead, as a transient `Timeout` on the target side. `ResponseTimeout` also covers `GetInfoAsync` and `OpenReadAsync` the same way, even when the source ignores cancellation.
 
 Throttling, progress and timeouts are therefore the same for every protocol and both directions, and no protocol contains that code.
 
@@ -550,6 +554,7 @@ Besides the contracts above, these behaviors each have a test:
 8. A checkpoint never counts bytes the target hasn't written, and a stored checkpoint continues the transfer in a later run.
 9. Content that fails its checksum never appears under its real name.
 10. Content without a version is never spliced from separate reads unless a checksum will catch it.
+11. A target that isn't `RepeatableWrites` never gets a part again after it read all of it.
 
 ## 9. Roadmap
 

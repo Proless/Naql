@@ -126,6 +126,48 @@ public sealed class HttpTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task A_post_the_server_received_completely_isnt_sent_again()
+    {
+        var server = new FakeUploadServer
+        {
+            Respond = number => number == 1 ? new HttpResponseMessage(HttpStatusCode.BadGateway) : null
+        };
+
+        // The server may have stored the first upload before failing, so sending it again could store it twice
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(10_000)), Transport(server).Post(FakeUploadServer.Uri)));
+
+        Assert.Equal(HttpStatusCode.BadGateway, Assert.IsType<HttpTransferException>(ex.Error).StatusCode);
+        Assert.True(ex.IsTransient);
+        Assert.Equal(1, server.RequestCount);
+    }
+
+    [Fact]
+    public async Task A_post_is_sent_again_when_the_source_failed_before_the_server_had_all_of_it()
+    {
+        var content = Content(10_000);
+        var server = new FakeUploadServer();
+        var source = new MemorySource(content)
+        {
+            WrapContent = (index, _, stream) => index == 0 ? new FailingStream(stream, 4_000, () => new IOException("Disk read error")) : stream
+        };
+
+        var result = await RunAsync(source, Transport(server).PostForm(FakeUploadServer.Uri));
+
+        Assert.Equal(content, Assert.Single(server.Uploads).Body);
+        Assert.Equal(1, result.Retries);
+    }
+
+    [Fact]
+    public void Only_a_put_can_be_written_again()
+    {
+        var transport = HttpTransport.Default;
+
+        Assert.True(transport.Put(FakeUploadServer.Uri).Capabilities.RepeatableWrites);
+        Assert.False(transport.Post(FakeUploadServer.Uri).Capabilities.RepeatableWrites);
+        Assert.False(transport.PostForm(FakeUploadServer.Uri).Capabilities.RepeatableWrites);
+    }
+
+    [Fact]
     public async Task A_source_failure_during_the_upload_starts_it_over()
     {
         var content = Content(10_000);

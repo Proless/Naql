@@ -54,7 +54,8 @@ public sealed record TransferOptions
     } = RetryPolicy.Default;
 
     /// <summary>
-    /// How long to wait for the source to describe or start sending the content.
+    /// How long to wait for the source to describe or start sending the content, and for the target to finish a part
+    /// once it has read all of it, such as the server's answer to an upload.
     /// </summary>
     public TimeSpan ResponseTimeout
     {
@@ -64,7 +65,8 @@ public sealed record TransferOptions
 
     /// <summary>
     /// How long a part can go without moving any bytes before it fails as stalled. Time spent waiting for the speed
-    /// limit doesn't count.
+    /// limit doesn't count, and neither does the time after the target has read the whole part, which
+    /// <see cref="ResponseTimeout"/> covers.
     /// </summary>
     public TimeSpan IdleTimeout
     {

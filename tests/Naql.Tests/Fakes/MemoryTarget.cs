@@ -16,6 +16,12 @@ public sealed class MemoryTarget : ITransferTarget
     public Func<int, ByteRange, CancellationToken, Task>? OnWrite { get; init; }
 
     /// <summary>
+    /// Runs after a write read its whole part, with the number of the write; throw to fail it, or wait to stall it, like
+    /// a server that has the whole upload but hasn't answered.
+    /// </summary>
+    public Func<int, CancellationToken, Task>? AfterRead { get; init; }
+
+    /// <summary>
     /// The first write fails with an <see cref="IOException"/> after keeping this many bytes, like a full disk.
     /// </summary>
     public long? FailFirstWriteAfter { get; init; }
@@ -153,6 +159,10 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
                 if (read == 0)
                 {
                     Interlocked.Increment(ref _completedWrites);
+                    if (target.AfterRead != null)
+                    {
+                        await target.AfterRead(index, cancellationToken);
+                    }
                     return;
                 }
 

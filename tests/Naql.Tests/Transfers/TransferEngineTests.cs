@@ -400,6 +400,50 @@ public sealed class TransferEngineTests
         Assert.False(target.Session.Completed);
     }
 
+    [Fact]
+    public async Task A_part_is_written_again_after_the_target_failed_once_it_had_all_of_it()
+    {
+        var content = Content(10_000);
+        var target = new MemoryTarget { AfterRead = (write, _) => write == 0 ? throw Broken() : Task.CompletedTask };
+
+        var result = await RunAsync(new MemorySource(content), target);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(2, target.Session.Writes.Count);
+        Assert.Equal(1, result.Retries);
+    }
+
+    [Fact]
+    public async Task A_target_that_cant_take_a_part_twice_doesnt_get_it_again_once_it_had_all_of_it()
+    {
+        var target = new MemoryTarget
+        {
+            Capabilities = new TargetCapabilities { RepeatableWrites = false },
+            AfterRead = (write, _) => write == 0 ? throw Broken() : Task.CompletedTask
+        };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(10_000)), target));
+
+        // The error is still transient, so the caller can decide to send it again
+        Assert.True(ex.IsTransient);
+        Assert.Equal(TransferSide.Target, ex.Side);
+        Assert.Equal(1, Assert.Single(ex.PartFailures).Attempts);
+        Assert.Single(target.Session.Writes);
+    }
+
+    [Fact]
+    public async Task A_target_that_cant_take_a_part_twice_gets_it_again_when_it_failed_before_having_all_of_it()
+    {
+        var content = Content(10_000);
+        var target = new MemoryTarget { Capabilities = new TargetCapabilities { RepeatableWrites = false }, FailFirstWriteAfter = 2_000 };
+
+        var result = await RunAsync(new MemorySource(content), target);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(2, target.Session.Writes.Count);
+        Assert.Equal(1, result.Retries);
+    }
+
     #endregion
 
     #region Source changes
@@ -529,6 +573,32 @@ public sealed class TransferEngineTests
         await RunAsync(new MemorySource(content), target, options);
 
         Assert.Equal(content, target.Session.Data);
+    }
+
+    [Fact]
+    public async Task Finishing_a_part_the_target_has_read_completely_is_not_idle()
+    {
+        var content = Content(1_000);
+        // Like a server that takes a while to answer an upload it has completely
+        var target = new MemoryTarget { AfterRead = (_, ct) => Task.Delay(400, ct) };
+        var options = Options with { IdleTimeout = TimeSpan.FromMilliseconds(100), Retry = RetryPolicy.None };
+
+        await RunAsync(new MemorySource(content), target, options);
+
+        Assert.Equal(content, target.Session.Data);
+    }
+
+    [Fact]
+    public async Task A_target_that_doesnt_finish_a_part_it_has_read_completely_times_out_after_the_response_timeout()
+    {
+        var target = new MemoryTarget { AfterRead = (_, ct) => Task.Delay(Timeout.Infinite, ct) };
+        var options = Options with { ResponseTimeout = TimeSpan.FromMilliseconds(200), Retry = RetryPolicy.None };
+
+        var ex = await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(new MemorySource(Content(1_000)), target, options));
+
+        Assert.Equal(TransferErrorKind.Timeout, ex.Kind);
+        Assert.Equal(TransferSide.Target, ex.Side);
+        Assert.Contains("didn't finish", ex.Message);
     }
 
     #endregion

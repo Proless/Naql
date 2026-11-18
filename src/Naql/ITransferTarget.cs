@@ -121,6 +121,13 @@ public sealed record TargetCapabilities
     public bool Resumable { get; init; }
 
     /// <summary>
+    /// Writing a part again is harmless, so a write that failed after the target had the whole part can be retried.
+    /// True for files and HTTP <c>PUT</c>; false for HTTP <c>POST</c>, where a repeated request can create a second
+    /// upload. When false, a failed write is retried only if the target hadn't received the whole part yet.
+    /// </summary>
+    public bool RepeatableWrites { get; init; } = true;
+
+    /// <summary>
     /// The length of the content must be known before writing starts, for example for a single HTTP PUT.
     /// </summary>
     public bool RequiresLength { get; init; }

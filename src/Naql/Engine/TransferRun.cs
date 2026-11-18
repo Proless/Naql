@@ -545,7 +545,7 @@ internal sealed class TransferRun
                 ResetHash();
             }
 
-            if (!CanRetry(failure.Error, checkRepeatable: true) || attempts > _options.Retry.MaxRetries)
+            if (!failure.Repeatable || !CanRetry(failure.Error, checkRepeatable: true) || attempts > _options.Retry.MaxRetries)
             {
                 var range = part.Range.IsAll && _info?.Length is long length ? new ByteRange(0, length) : part.Range;
                 return new PartFailure(range, failure.Error, failure.Side, attempts);
@@ -600,7 +600,7 @@ internal sealed class TransferRun
             // Disposing the source unblocks a read that ignores cancellation
             var opened = source;
             using var stopReads = attempt.Token.Register(() => opened.Dispose());
-            watchdog = IdleWatchdog.Start(metered, _options.IdleTimeout, attempt, _clock);
+            watchdog = IdleWatchdog.Start(metered, _options.IdleTimeout, _options.ResponseTimeout, attempt, _clock);
 
             await _session.WritePartAsync(range, metered, attempt.Token).ConfigureAwait(false);
             if (!metered.ReachedEnd)
@@ -619,9 +619,12 @@ internal sealed class TransferRun
             if (watchdog?.TimedOut == true)
             {
                 var side = watchdog.StalledSide;
-                var error = new TransferException($"No data moved for {_options.IdleTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout,
-                    isTransient: true, side, innerException: ex);
-                return new AttemptFailure(error, side, resume: side == TransferSide.Source && CanResumePart());
+                var error = watchdog.WhileFinishing
+                    ? new TransferException($"The target didn't finish the part within {_options.ResponseTimeout.TotalSeconds:0.###} seconds of receiving it",
+                        TransferErrorKind.Timeout, isTransient: true, side, innerException: ex)
+                    : new TransferException($"No data moved for {_options.IdleTimeout.TotalSeconds:0.###} seconds", TransferErrorKind.Timeout,
+                        isTransient: true, side, innerException: ex);
+                return new AttemptFailure(error, side, resume: side == TransferSide.Source && CanResumePart(), repeatable: CanRepeat(metered!));
             }
             if (metered?.ReadFailure is Exception readFailure)
             {
@@ -634,7 +637,8 @@ internal sealed class TransferRun
                 return Failed(ex, source == null ? TransferSide.Source : TransferSide.Target, resume: CanResumePart());
             }
             // The target failed on its own, so what it read may not have been kept
-            return Failed(ex, TransferSide.Target, resume: false);
+            var (targetError, observed) = Classify(ex, TransferSide.Target);
+            return new AttemptFailure(targetError, observed, resume: false, repeatable: CanRepeat(metered));
         }
         finally
         {
@@ -784,6 +788,13 @@ internal sealed class TransferRun
     /// </summary>
     private bool CanCombine(SourceInfo info) => info.Version != null || _options.ExpectedChecksum != null;
 
+    /// <summary>
+    /// Whether a part can be written again after the target failed on it. A target without
+    /// <see cref="TargetCapabilities.RepeatableWrites"/> may already have processed a part it read completely, such as
+    /// a <c>POST</c> whose answer was lost, so only a part it hadn't read completely is sent again.
+    /// </summary>
+    private bool CanRepeat(MeteredStream metered) => _capabilities.RepeatableWrites || !metered.ReachedEnd;
+
     private bool CanRetry(TransferException error, bool checkRepeatable)
     {
         return error.IsTransient &&
@@ -923,11 +934,12 @@ internal sealed class TransferRun
 
     private sealed class AttemptFailure
     {
-        public AttemptFailure(TransferException error, TransferSide side, bool resume)
+        public AttemptFailure(TransferException error, TransferSide side, bool resume, bool repeatable = true)
         {
             Error = error;
             Side = side;
             Resume = resume;
+            Repeatable = repeatable;
         }
 
         public TransferException Error { get; }
@@ -937,5 +949,8 @@ internal sealed class TransferRun
 
         /// <summary>Whether the next attempt can continue after the bytes the target kept.</summary>
         public bool Resume { get; }
+
+        /// <summary>Whether another attempt is safe: false when the target can't take a part twice and may already have it.</summary>
+        public bool Repeatable { get; }
     }
 }

@@ -16,9 +16,10 @@ namespace Naql.Http;
 /// <item>The body is streamed, never buffered. It has a <c>Content-Length</c> when the length is known, and is sent in
 /// chunks otherwise.</item>
 /// <item>The <c>Content-Type</c> is the source's, or <c>application/octet-stream</c>.</item>
-/// <item>A failed upload is sent again from the start; HTTP has no standard way to continue one.</item>
-/// <item>The upload is done when the server answers with a success status. The idle timeout also covers the wait for
-/// that answer once the body is sent.</item>
+/// <item>A failed upload is sent again from the start; HTTP has no standard way to continue one. A <c>POST</c> is sent
+/// again only if it failed before the whole body was sent, because the server may have processed a complete one.</item>
+/// <item>The upload is done when the server answers with a success status. Once the body is sent, the response
+/// timeout covers the wait for that answer.</item>
 /// </list>
 /// </remarks>
 public sealed class HttpTarget : ITransferTarget
@@ -37,6 +38,7 @@ public sealed class HttpTarget : ITransferTarget
         Method = method;
         FormField = formField;
         _responseHandler = responseHandler;
+        Capabilities = new TargetCapabilities { RepeatableWrites = method == HttpMethod.Put };
     }
 
     /// <summary>
@@ -90,9 +92,10 @@ public sealed class HttpTarget : ITransferTarget
     public HttpTransport Transport { get; }
 
     /// <summary>
-    /// One request carries the whole content, so the target takes neither parallel nor partial parts.
+    /// One request carries the whole content, so the target takes neither parallel nor partial parts. Writes are
+    /// repeatable for <c>PUT</c>, which replaces what's there, and not for <c>POST</c>.
     /// </summary>
-    public TargetCapabilities Capabilities { get; } = new();
+    public TargetCapabilities Capabilities { get; }
 
     /// <summary>
     /// Returns a target that also passes the server's successful response to <paramref name="handler"/>, for example to
