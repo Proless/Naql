@@ -275,7 +275,7 @@ public static class Scenarios
 
         public void Report(TransferProgress value)
         {
-            if (value.LastError is { } error && error != _lastError)
+            if (value.State == TransferState.Retrying && value.LastError is { } error && error != _lastError)
             {
                 _lastError = error;
                 Console.WriteLine($"  attempt failed ({error.Message}), retrying");

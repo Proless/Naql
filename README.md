@@ -41,7 +41,7 @@ var result = await Transfer
     .To(FileTarget.InDirectory("downloads"))
     .RunAsync();
 
-Console.WriteLine($"{result.Transferred} bytes in {result.Duration}");
+Console.WriteLine($"{result.Transferred} bytes in {result.Duration} to {result.Location}");
 ```
 
 Download over four connections with a speed limit and progress:
