@@ -64,7 +64,8 @@ public sealed class FileTarget : ITransferTarget
 
     /// <summary>
     /// Writes a file in <paramref name="directory"/>, named by <paramref name="nameSelector"/> or else by
-    /// <see cref="SourceInfo.Name"/>. The name is made safe first, so it always stays inside the directory.
+    /// <see cref="SourceInfo.Name"/>. The name is made safe first, so it always stays inside the directory, and the same rules apply on every OS: characters Windows doesn't allow become <c>_</c>, names it
+    /// reserves such as <c>CON</c> get a <c>_</c> in front, and long names are shortened, keeping their extension.
     /// </summary>
     /// <param name="directory">The directory to write the file in; it's created when missing</param>
     /// <param name="nameSelector">Picks the file name; <c>null</c> or a <c>null</c> result uses the source's name</param>

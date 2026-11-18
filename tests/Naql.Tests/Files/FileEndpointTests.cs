@@ -138,11 +138,6 @@ public sealed class FileEndpointTests : IDisposable
     [InlineData(null, "download")]
     public async Task Names_files_safely_inside_the_directory(string? name, string expected)
     {
-        if (!OperatingSystem.IsWindows() && name == "a:b?.bin")
-        {
-            // ':' and '?' are valid in file names outside Windows
-            expected = name;
-        }
         var directory = _temp.File("out");
         var source = new MemorySource([1, 2, 3]);
         var named = new NamedSource(source, name);

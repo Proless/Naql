@@ -14,7 +14,7 @@ The first release: transfers from a source to a target through one shared engine
 - Checkpoints: `GetCheckpoint()`, `ResumeFrom(checkpoint)`, and `WithCheckpoints(ICheckpointStore)` to continue unfinished transfers by themselves, with `FileCheckpointStore`. A checkpoint only continues the same content, by `SourceInfo.Identity` and version, and keeps a fingerprint of the identity rather than the URL.
 - Checksum verification with `WithChecksum(Checksum.Sha256("…"))`, hashed while streaming or by reading the target back.
 - Traces and metrics through `ActivitySource` and `Meter`, named in `NaqlDiagnostics`.
-- `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`.
+- `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`. `FileTarget.InDirectory` makes names from sources safe on every OS, including names Windows reserves and names too long for the file system.
 - The contracts for new protocols: `ITransferSource`, `ITransferTarget`, `ITargetSession` and `IVerifiableSession`.
 
 ### Naql.Http
