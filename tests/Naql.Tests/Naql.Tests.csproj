@@ -17,9 +17,17 @@
 		<Using Include="Xunit" />
 	</ItemGroup>
 
-	<ItemGroup>
+	<!--
+		The tests use the libraries' net8.0 build, which any current runtime picks. To test the netstandard2.1 build
+		instead, run with -p:NaqlTarget=netstandard2.1: the references then ask for that build explicitly.
+	-->
+	<ItemGroup Condition="'$(NaqlTarget)' == ''">
 		<ProjectReference Include="..\..\src\Naql\Naql.csproj" />
 		<ProjectReference Include="..\..\src\Naql.Http\Naql.Http.csproj" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(NaqlTarget)' != ''">
+		<ProjectReference Include="..\..\src\Naql\Naql.csproj" SetTargetFramework="TargetFramework=$(NaqlTarget)" />
+		<ProjectReference Include="..\..\src\Naql.Http\Naql.Http.csproj" SetTargetFramework="TargetFramework=$(NaqlTarget)" />
 	</ItemGroup>
 
 </Project>
