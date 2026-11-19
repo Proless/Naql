@@ -22,7 +22,11 @@ public sealed class FakeHttpServer : HttpMessageHandler
     /// <summary>When set, the server sends a Content-Disposition header with this file name</summary>
     public string? FileName { get; set; }
 
-    public string ETag { get; set; } = "\"v1\"";
+    /// <summary>The ETag the server sends, or <see langword="null"/> for none; a weak one such as W/"v1" can't be used to resume</summary>
+    public string? ETag { get; set; } = "\"v1\"";
+
+    /// <summary>When set, the server sends this Last-Modified date and accepts it in If-Range</summary>
+    public DateTimeOffset? LastModified { get; set; }
 
     /// <summary>Extra response headers, such as Repr-Digest</summary>
     public Dictionary<string, string> Headers { get; } = new();
@@ -84,7 +88,7 @@ public sealed class FakeHttpServer : HttpMessageHandler
 
         // With If-Range, a changed file is answered with the whole new content instead of the range
         var ifRange = request.Headers.IfRange;
-        var rangeStillValid = ifRange == null || ifRange.EntityTag?.ToString() == ETag;
+        var rangeStillValid = ifRange == null || (ifRange.EntityTag is { } tag ? !tag.IsWeak && tag.ToString() == ETag : ifRange.Date == LastModified);
 
         if (SupportsRanges && rangeStillValid && request.Headers.Range is { } range)
         {
@@ -122,7 +126,11 @@ public sealed class FakeHttpServer : HttpMessageHandler
     {
         var response = new HttpResponseMessage(status) { Content = new StreamContent(body) };
         response.Content.Headers.ContentLength = to - from + 1;
-        response.Headers.ETag = EntityTagHeaderValue.Parse(ETag);
+        if (ETag != null)
+        {
+            response.Headers.ETag = EntityTagHeaderValue.Parse(ETag);
+        }
+        response.Content.Headers.LastModified = LastModified;
 
         if (SupportsRanges)
         {

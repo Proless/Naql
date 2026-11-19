@@ -47,7 +47,7 @@ public sealed class HttpSourceTests : IDisposable
         var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) };
         response.Content.Headers.ContentLength = server.Content.Length;
         response.Headers.AcceptRanges.Add("bytes");
-        response.Headers.ETag = EntityTagHeaderValue.Parse(server.ETag);
+        response.Headers.ETag = EntityTagHeaderValue.Parse(server.ETag!);
         return response;
     }
 
