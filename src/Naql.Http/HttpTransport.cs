@@ -13,7 +13,9 @@ namespace Naql.Http;
 /// </summary>
 /// <remarks>
 /// Timeouts and retries belong to the transfer, so the client should have <see cref="HttpClient.Timeout"/> set to
-/// <see cref="Timeout.InfiniteTimeSpan"/>; <see cref="Default"/> does.
+/// <see cref="Timeout.InfiniteTimeSpan"/>; <see cref="Default"/> does. On .NET Framework, a client allows two connections
+/// per server unless its handler's <see cref="HttpClientHandler.MaxConnectionsPerServer"/> says otherwise, so give it at
+/// least <see cref="TransferOptions.MaxConnections"/>; <see cref="Default"/> has no limit.
 /// </remarks>
 public sealed class HttpTransport : IDisposable
 {
@@ -22,10 +24,28 @@ public sealed class HttpTransport : IDisposable
     private static readonly Lazy<HttpTransport> SharedTransport = new(() => new HttpTransport(
         new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }));
 #else
-    // netstandard2.1 can't name SocketsHttpHandler, so pooled connections live until they idle out; an app that must
-    // notice DNS changes on .NET 5 to 7 passes its own client
+    // The netstandard builds can't name SocketsHttpHandler, so pooled connections live until they idle out; an app that
+    // must notice DNS changes passes its own client
     private static readonly Lazy<HttpTransport> SharedTransport = new(() => new HttpTransport(
-        new HttpClient(new HttpClientHandler()) { Timeout = Timeout.InfiniteTimeSpan }));
+        new HttpClient(CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan }));
+
+    /// <summary>
+    /// A handler without a limit on connections per server, like .NET Core's. .NET Framework allows two by default,
+    /// so parallel parts beyond that would wait for a connection until the response timeout fails them.
+    /// </summary>
+    private static HttpClientHandler CreateHandler()
+    {
+        var handler = new HttpClientHandler();
+        try
+        {
+            handler.MaxConnectionsPerServer = int.MaxValue;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            // .NET Framework before 4.7.1; there ServicePointManager.DefaultConnectionLimit decides
+        }
+        return handler;
+    }
 #endif
 
     private readonly bool _disposeClient;
