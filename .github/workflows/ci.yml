@@ -1,4 +1,5 @@
-# Builds and tests every push and pull request on Linux and Windows, and packs the NuGet packages.
+# Builds and tests every push and pull request on Linux and Windows, for every target framework, and packs the NuGet
+# packages.
 # Pushing a tag such as v0.1.0-preview.1 also publishes them to nuget.org; that needs a NUGET_API_KEY secret.
 name: CI
 
@@ -29,8 +30,14 @@ jobs:
       - name: Build
         run: dotnet build Naql.slnx --configuration Release
 
+      # On Windows this also runs the tests on .NET Framework 4.8, against the netstandard2.0 build
       - name: Test
         run: dotnet test --solution Naql.slnx --configuration Release --no-build
+
+      # No current runtime picks the netstandard2.1 build by itself, so the tests ask for it
+      - name: Test the netstandard2.1 build
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet test --project tests/Naql.Tests/Naql.Tests.csproj --configuration Release --framework net10.0 -p:NaqlTarget=netstandard2.1
 
       - name: Pack
         if: matrix.os == 'ubuntu-latest'
