@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Runs transfers against real servers for a while and checks every result; see Program.cs. It isn't part of CI.
+		It builds for .NET 10 and, on Windows, .NET Framework 4.8, which uses the libraries' netstandard2.0 build. It's
+		written in C# 9 on both, the oldest language version the libraries support, to prove that it is enough.
+	-->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net48</TargetFrameworks>
+		<LangVersion>9.0</LangVersion>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Naql.Http\Naql.Http.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<Reference Include="System.Net.Http" />
+	</ItemGroup>
+
+</Project>
