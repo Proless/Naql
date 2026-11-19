@@ -6,6 +6,8 @@ All notable changes to the Naql packages. The packages are released together and
 
 The first release: transfers from a source to a target through one shared engine, for files, streams and HTTP. The API may still change before 1.0.
 
+Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .NET Core 3.x, Mono, Unity) and netstandard2.0 (.NET Framework 4.6.2 and later), with the same API. They need C# 9 or later.
+
 ### Naql
 
 - `Transfer.From(source).To(target)`, `TransferClient` and `TransferOperation` to run transfers, with immutable `TransferOptions` and `RetryPolicy`.

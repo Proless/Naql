@@ -19,7 +19,9 @@ Naql (نقل, "transfer") is a .NET library that moves data from a **source** to
 | `Naql` | The engine, file sources and targets (`Naql.Files`), and stream sources and targets (`Naql.Streams`) |
 | `Naql.Http` | HTTP and HTTPS downloads (with ranges and `If-Range`) and uploads (PUT, POST, multipart forms) |
 
-The packages target .NET 8 or later. The first release is a preview, so install it with `--prerelease`:
+The packages run on .NET 8 and later, .NET 5 to 7, .NET Core 3.x, Mono, Unity and .NET Framework 4.6.2 and later. The .NET 8 build has no dependencies; the netstandard builds bring a few Microsoft packages such as `System.Diagnostics.DiagnosticSource`. The API uses records and `init` setters, so it needs C# 9 or later: in a .NET Framework project, set `<LangVersion>9.0</LangVersion>` or later.
+
+The first release is a preview, so install it with `--prerelease`:
 
 ```bash
 dotnet add package Naql.Http --prerelease

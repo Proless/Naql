@@ -11,7 +11,7 @@ This document describes how Naql works and why. In Naql, any transfer — a down
 3. **Many protocols as separate packages.** `Naql` is the core, and each protocol ships as `Naql.<Protocol>` (`Naql.Http` first; `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.Tus` later). A third party can add a protocol using only the public API.
 4. **Idiomatic modern .NET.** `async` all the way, `CancellationToken` everywhere, `IProgress<T>` instead of events, a returned result, exceptions for failures, and options fixed before the transfer starts.
 5. **Testable without a network.** In-memory sources and targets (`MemorySource` and `MemoryTarget` in the tests) drive every engine test.
-6. **net8.0.** The packages target net8.0, with no dependencies beyond the base library. netstandard2.0 isn't a target: its consumers default to C# 7.3, which can't use the `init` setters and records the API is built on.
+6. **Every supported .NET, one API.** The packages build for net8.0, netstandard2.1 and netstandard2.0 with the same public API (see [7.2](#72-target-frameworks)). The net8.0 build has no dependencies beyond the base library. The API uses `init` setters, records and `with`, so it needs C# 9 or later, also on .NET Framework.
 
 ### Non-goals
 
@@ -524,7 +524,7 @@ There's no `ILogger` in the core: it would add a package dependency, which secti
 
 | Package | Contents | Dependencies |
 |---|---|---|
-| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none |
+| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
 | `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
 | Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
 
@@ -550,6 +550,25 @@ How the file, stream and HTTP endpoints behave:
 - **`HttpTarget`** uploads the whole content in one streamed request: `Put(uri)` or `Post(uri)` send it as the body, `PostForm(uri, field)` as a file field of a `multipart/form-data` form named after `SourceInfo.Name`. The body has a `Content-Length` when the length is known (a form too) and is chunked otherwise; its `Content-Type` is the source's, or `application/octet-stream`. It takes no parallel or partial parts, so a failed upload is sent again from the start, and an accepted one can't be aborted. Rejections map like downloads, plus 413 and 507 to `InsufficientStorage`. `WithResponseHandler` passes the successful answer to the caller, for example to read the id of the uploaded file.
 
 Authentication isn't part of the core: each protocol configures it in its own way, through `HttpClient` handlers or a request configurator for HTTP, credentials on the connection for FTP and SFTP, the SDK's credentials for S3.
+
+### 7.2 Target frameworks
+
+| Build | Used by | Dependencies |
+|---|---|---|
+| net8.0 | .NET 8 and later | none |
+| netstandard2.1 | .NET 5 to 7, .NET Core 3.x, Mono, Unity | `System.Diagnostics.DiagnosticSource` |
+| netstandard2.0 | .NET Framework 4.6.2 and later | `System.Diagnostics.DiagnosticSource`, `System.Memory`, `System.Threading.Tasks.Extensions`, `Microsoft.Bcl.AsyncInterfaces`, `Microsoft.Bcl.HashCode` |
+
+- **One public API.** Package validation checks that the builds expose the same types and members.
+- **C# 9 or later.** Options, policies and source descriptions are records with `init` setters. .NET Framework projects default to C# 7.3; they need `<LangVersion>9.0</LangVersion>` or later, which works with any .NET Framework.
+- **DiagnosticSource 8.0** is the newest version that supports .NET 6 and 7 without warnings, and it has `ActivitySource`, `Meter` and the instruments the engine uses.
+- **Fallbacks, not features.** The netstandard builds get the newer APIs the code calls from `src/Compat`: internal polyfills, mostly as C# 14 extension members, so the code reads the same on every target. PolySharp adds the compiler-only types (`IsExternalInit`, the nullable attributes) at build time and isn't a dependency.
+- **Where the builds differ:**
+  - Without `RandomAccess`, `FileTarget` writes each part through its own unbuffered `FileStream`, which keeps the guarantee that every byte read is on disk before the next read.
+  - `HttpTransport.Default` can't use `SocketsHttpHandler` with a pooled connection lifetime on the netstandard builds, so it doesn't notice DNS changes. Pass your own `HttpClient` when that matters.
+  - An `HttpRequestException` carries no status code there.
+  - .NET Framework allows two connections per server by default, which would make parallel parts beyond two wait until the response timeout fails them. `HttpTransport.Default` sets `MaxConnectionsPerServer` to unlimited, like .NET Core; an `HttpClient` of your own needs at least `MaxConnections`. A real 100 MB download in four throttled parts on .NET Framework 4.8 caught this, which the tests with fake servers couldn't.
+- **Tests run against every build:** net10.0 tests the net8.0 build; net48 (on Windows) tests the netstandard2.0 build; and a run with `-p:NaqlTarget=netstandard2.1` makes the net10.0 tests use the netstandard2.1 build, which no current runtime picks by itself. CI runs all three.
 
 ## 8. Guarantees the tests pin down
 
