@@ -117,10 +117,22 @@ dotnet build
 dotnet test
 ```
 
-Tests run on Microsoft.Testing.Platform. To collect code coverage:
+Tests run on Microsoft.Testing.Platform, on .NET 10 against the net8.0 build and, on Windows, on .NET Framework 4.8 against the netstandard2.0 build. Besides examples, they include property-based tests (with CsCheck) that generate transfers with random faults and cancellations; a failure prints the seed to replay it. To test the netstandard2.1 build, which no current runtime picks by itself:
+
+```bash
+dotnet test --project tests/Naql.Tests -f net10.0 -p:NaqlTarget=netstandard2.1
+```
+
+To collect code coverage:
 
 ```bash
 dotnet test --coverage --coverage-output-format cobertura
+```
+
+`tests/Naql.Soak` runs transfers against real servers for a while (parallel, throttled, canceled and resumed, checksum-verified, uploaded) and checks every result; it builds for .NET 10 and .NET Framework 4.8, in C# 9:
+
+```bash
+dotnet run --project tests/Naql.Soak -c Release -f net10.0 -- --minutes 10
 ```
 
 ## Samples

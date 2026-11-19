@@ -587,6 +587,8 @@ Besides the contracts above, these behaviors each have a test:
 11. A target that isn't `RepeatableWrites` never gets a part again after it read all of it.
 12. A checkpoint only continues the same content: a different identity, version or length starts over, and so does a resume token that doesn't belong to the target.
 
+Property-based tests (with CsCheck) check the engine's guarantees on generated cases rather than examples: transfers with random content, connections, capabilities, retry budgets and faults on any attempt either commit exactly the content or fail only because of an injected fault and commit nothing; a target that isn't `RepeatableWrites` never gets a part twice; checkpoints count only kept bytes and continue to exactly the content; and transfers canceled at random moments end promptly and dispose every stream and session. Bugs planted in the engine make these properties fail, which shows they test something. Damaged checkpoint text, file names from servers and the part planner are fuzzed the same way. `tests/Naql.Soak` runs the library against real servers on .NET 10 and .NET Framework 4.8, which catches what no fake server shows, such as .NET Framework limiting a client to two connections per server (see [7.2](#72-target-frameworks)).
+
 ## 9. Roadmap
 
 After the first release:
