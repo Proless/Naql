@@ -1,0 +1,51 @@
+#nullable enable
+Naql.Http.HttpSource
+Naql.Http.HttpSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
+Naql.Http.HttpSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
+Naql.Http.HttpSource.Transport.get -> Naql.Http.HttpTransport!
+Naql.Http.HttpSource.Uri.get -> System.Uri!
+Naql.Http.HttpTarget
+Naql.Http.HttpTarget.Capabilities.get -> Naql.TargetCapabilities!
+Naql.Http.HttpTarget.FormField.get -> string?
+Naql.Http.HttpTarget.Method.get -> System.Net.Http.HttpMethod!
+Naql.Http.HttpTarget.OpenAsync(Naql.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.ITargetSession!>!
+Naql.Http.HttpTarget.Transport.get -> Naql.Http.HttpTransport!
+Naql.Http.HttpTarget.Uri.get -> System.Uri!
+Naql.Http.HttpTarget.WithResponseHandler(System.Func<System.Net.Http.HttpResponseMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransferException
+Naql.Http.HttpTransferException.HttpTransferException(string! message, Naql.TransferErrorKind kind, bool isTransient, Naql.TransferSide side, System.Net.Http.HttpMethod! method, System.Uri! requestUri, System.Net.HttpStatusCode? statusCode = null, string? reasonPhrase = null, System.TimeSpan? retryDelay = null, System.Exception? innerException = null) -> void
+Naql.Http.HttpTransferException.Method.get -> System.Net.Http.HttpMethod!
+Naql.Http.HttpTransferException.ReasonPhrase.get -> string?
+Naql.Http.HttpTransferException.RequestUri.get -> System.Uri!
+Naql.Http.HttpTransferException.StatusCode.get -> System.Net.HttpStatusCode?
+Naql.Http.HttpTransport
+Naql.Http.HttpTransport.Client.get -> System.Net.Http.HttpClient!
+Naql.Http.HttpTransport.ConfigureRequest.get -> System.Func<System.Net.Http.HttpRequestMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Naql.Http.HttpTransport.ConfigureRequest.init -> void
+Naql.Http.HttpTransport.Dispose() -> void
+Naql.Http.HttpTransport.Get(string! uri) -> Naql.Http.HttpSource!
+Naql.Http.HttpTransport.Get(System.Uri! uri) -> Naql.Http.HttpSource!
+Naql.Http.HttpTransport.HttpTransport(System.Net.Http.HttpClient! client, bool disposeClient = false) -> void
+Naql.Http.HttpTransport.Post(string! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.Post(System.Uri! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.PostForm(string! uri, string! fieldName) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.PostForm(string! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.PostForm(System.Uri! uri, string! fieldName) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.PostForm(System.Uri! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.Put(string! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.UserAgent.get -> string?
+Naql.Http.HttpTransport.UserAgent.init -> void
+static Naql.Http.HttpSource.Get(string! uri) -> Naql.Http.HttpSource!
+static Naql.Http.HttpSource.Get(System.Uri! uri) -> Naql.Http.HttpSource!
+static Naql.Http.HttpTarget.Post(string! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.Post(System.Uri! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.PostForm(string! uri, string! fieldName) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.PostForm(string! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.PostForm(System.Uri! uri, string! fieldName) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.PostForm(System.Uri! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.Put(string! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTarget.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTransport.BasicAuthentication(string! userName, string! password) -> System.Func<System.Net.Http.HttpRequestMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>!
+static Naql.Http.HttpTransport.Default.get -> Naql.Http.HttpTransport!
+static Naql.Http.HttpTransport.DefaultUserAgent.get -> string!

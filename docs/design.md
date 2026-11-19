@@ -559,7 +559,7 @@ Authentication isn't part of the core: each protocol configures it in its own wa
 | netstandard2.1 | .NET 5 to 7, .NET Core 3.x, Mono, Unity | `System.Diagnostics.DiagnosticSource` |
 | netstandard2.0 | .NET Framework 4.6.2 and later | `System.Diagnostics.DiagnosticSource`, `System.Memory`, `System.Threading.Tasks.Extensions`, `Microsoft.Bcl.AsyncInterfaces`, `Microsoft.Bcl.HashCode` |
 
-- **One public API.** Package validation checks that the builds expose the same types and members.
+- **One public API.** Package validation checks that the builds expose the same types and members, and each project lists its API in `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`: a change to the API fails the build until the list records it. New members go to Unshipped; once a version is published, they move to Shipped.
 - **C# 9 or later.** Options, policies and source descriptions are records with `init` setters. .NET Framework projects default to C# 7.3; they need `<LangVersion>9.0</LangVersion>` or later, which works with any .NET Framework.
 - **DiagnosticSource 8.0** is the newest version that supports .NET 6 and 7 without warnings, and it has `ActivitySource`, `Meter` and the instruments the engine uses.
 - **Fallbacks, not features.** The netstandard builds get the newer APIs the code calls from `src/Compat`: internal polyfills, mostly as C# 14 extension members, so the code reads the same on every target. PolySharp adds the compiler-only types (`IsExternalInit`, the nullable attributes) at build time and isn't a dependency.

@@ -19,6 +19,8 @@ namespace Naql.Http;
 /// </remarks>
 public sealed class HttpTransport : IDisposable
 {
+    private const string DefaultFormField = "file";
+
 #if NET8_0_OR_GREATER
     // A long-lived client that still notices DNS changes, because pooled connections are replaced every few minutes
     private static readonly Lazy<HttpTransport> SharedTransport = new(() => new HttpTransport(
@@ -138,18 +140,30 @@ public sealed class HttpTransport : IDisposable
     public HttpTarget Post(string uri) => Post(ToUri(uri));
 
     /// <summary>
-    /// A target that uploads the content as a file field of a <c>multipart/form-data</c> <c>POST</c>, like an HTML form.
+    /// A target that uploads the content as the <c>file</c> field of a <c>multipart/form-data</c> <c>POST</c>, like an HTML form.
     /// </summary>
     /// <param name="uri">Where to post the form</param>
-    /// <param name="fieldName">The name of the form field that holds the file</param>
-    public HttpTarget PostForm(Uri uri, string fieldName = "file") => new(this, uri, HttpMethod.Post, fieldName ?? throw new ArgumentNullException(nameof(fieldName)));
+    public HttpTarget PostForm(Uri uri) => PostForm(uri, DefaultFormField);
 
     /// <summary>
     /// A target that uploads the content as a file field of a <c>multipart/form-data</c> <c>POST</c>, like an HTML form.
     /// </summary>
     /// <param name="uri">Where to post the form</param>
     /// <param name="fieldName">The name of the form field that holds the file</param>
-    public HttpTarget PostForm(string uri, string fieldName = "file") => PostForm(ToUri(uri), fieldName);
+    public HttpTarget PostForm(Uri uri, string fieldName) => new(this, uri, HttpMethod.Post, fieldName ?? throw new ArgumentNullException(nameof(fieldName)));
+
+    /// <summary>
+    /// A target that uploads the content as the <c>file</c> field of a <c>multipart/form-data</c> <c>POST</c>, like an HTML form.
+    /// </summary>
+    /// <param name="uri">Where to post the form</param>
+    public HttpTarget PostForm(string uri) => PostForm(ToUri(uri), DefaultFormField);
+
+    /// <summary>
+    /// A target that uploads the content as a file field of a <c>multipart/form-data</c> <c>POST</c>, like an HTML form.
+    /// </summary>
+    /// <param name="uri">Where to post the form</param>
+    /// <param name="fieldName">The name of the form field that holds the file</param>
+    public HttpTarget PostForm(string uri, string fieldName) => PostForm(ToUri(uri), fieldName);
 
     private static Uri ToUri(string uri) => new(uri ?? throw new ArgumentNullException(nameof(uri)));
 

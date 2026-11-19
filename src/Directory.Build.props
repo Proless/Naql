@@ -29,6 +29,16 @@
 		<AnalysisMode>Recommended</AnalysisMode>
 	</PropertyGroup>
 
+	<!--
+		The public API is listed in PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt next to each project, so a change to it
+		fails the build until the list says so. New members go to Unshipped; once a version is published, they move to Shipped.
+	-->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+		<AdditionalFiles Include="PublicAPI.Shipped.txt" />
+		<AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+	</ItemGroup>
+
 	<!-- IntelliSense for consumers: every public member is documented, and a missing comment fails the build -->
 	<PropertyGroup>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>

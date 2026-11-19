@@ -61,14 +61,24 @@ public sealed class HttpTarget : ITransferTarget
     public static HttpTarget Post(string uri) => HttpTransport.Default.Post(uri);
 
     /// <summary>
-    /// Uploads to <paramref name="uri"/> as a <c>multipart/form-data</c> file field, using <see cref="HttpTransport.Default"/>.
+    /// Uploads to <paramref name="uri"/> as the <c>file</c> field of a <c>multipart/form-data</c> form, using <see cref="HttpTransport.Default"/>.
     /// </summary>
-    public static HttpTarget PostForm(Uri uri, string fieldName = "file") => HttpTransport.Default.PostForm(uri, fieldName);
+    public static HttpTarget PostForm(Uri uri) => HttpTransport.Default.PostForm(uri);
 
     /// <summary>
-    /// Uploads to <paramref name="uri"/> as a <c>multipart/form-data</c> file field, using <see cref="HttpTransport.Default"/>.
+    /// Uploads to <paramref name="uri"/> as the <paramref name="fieldName"/> field of a <c>multipart/form-data</c> form, using <see cref="HttpTransport.Default"/>.
     /// </summary>
-    public static HttpTarget PostForm(string uri, string fieldName = "file") => HttpTransport.Default.PostForm(uri, fieldName);
+    public static HttpTarget PostForm(Uri uri, string fieldName) => HttpTransport.Default.PostForm(uri, fieldName);
+
+    /// <summary>
+    /// Uploads to <paramref name="uri"/> as the <c>file</c> field of a <c>multipart/form-data</c> form, using <see cref="HttpTransport.Default"/>.
+    /// </summary>
+    public static HttpTarget PostForm(string uri) => HttpTransport.Default.PostForm(uri);
+
+    /// <summary>
+    /// Uploads to <paramref name="uri"/> as the <paramref name="fieldName"/> field of a <c>multipart/form-data</c> form, using <see cref="HttpTransport.Default"/>.
+    /// </summary>
+    public static HttpTarget PostForm(string uri, string fieldName) => HttpTransport.Default.PostForm(uri, fieldName);
 
     /// <summary>
     /// The URL to upload to.
