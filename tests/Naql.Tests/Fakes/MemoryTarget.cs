@@ -111,6 +111,22 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
     /// </summary>
     public int CompletedWrites => Volatile.Read(ref _completedWrites);
 
+    /// <summary>
+    /// The ranges of the writes that read their part to the end, in order.
+    /// </summary>
+    public IReadOnlyList<ByteRange> CompletedRanges
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _completedRanges.ToArray();
+            }
+        }
+    }
+
+    private readonly List<ByteRange> _completedRanges = [];
+
     internal void CopyFrom(MemorySession earlier)
     {
         lock (_lock)
@@ -184,6 +200,10 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
                 if (read == 0)
                 {
                     Interlocked.Increment(ref _completedWrites);
+                    lock (_lock)
+                    {
+                        _completedRanges.Add(range);
+                    }
                     if (target.AfterRead != null)
                     {
                         await target.AfterRead(index, cancellationToken);

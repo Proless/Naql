@@ -22,6 +22,17 @@
 		<Using Include="Xunit" />
 	</ItemGroup>
 
+	<!--
+		Property-based tests generate inputs and fault schedules, and shrink a failure to a small case. CsCheck only runs on
+		.NET 8 and later, so they are left out of the net48 run.
+	-->
+	<ItemGroup Condition="'$(TargetFramework)' != 'net48'">
+		<PackageReference Include="CsCheck" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<Compile Remove="PropertyTests\**" />
+	</ItemGroup>
+
 	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
 		<Reference Include="System.Net.Http" />
 		<Using Include="System.Net.Http" />
