@@ -136,13 +136,16 @@ public sealed class HttpTarget : ITransferTarget
     {
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
         {
-            return SerializeToStreamAsync(stream, context, CancellationToken.None);
+            return body.CopyToAsync(stream, bufferSize, CancellationToken.None);
         }
 
+#if NET8_0_OR_GREATER
+        // netstandard2.1 has no overload with a token; there, canceling the request ends the copy by failing its reads
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
         {
             return body.CopyToAsync(stream, bufferSize, cancellationToken);
         }
+#endif
 
         protected override bool TryComputeLength(out long result)
         {
@@ -192,6 +195,6 @@ public sealed class HttpTarget : ITransferTarget
         // An upload the server accepted can't be taken back
         public Task AbortAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => default;
     }
 }

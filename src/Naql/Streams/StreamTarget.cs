@@ -133,7 +133,7 @@ public sealed class StreamTarget : ITransferTarget
         public ValueTask DisposeAsync()
         {
             // The caller owns the stream
-            return ValueTask.CompletedTask;
+            return default;
         }
     }
 }

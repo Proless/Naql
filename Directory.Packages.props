@@ -5,6 +5,11 @@
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 	</PropertyGroup>
 
+	<ItemGroup Label="netstandard2.1">
+		<PackageVersion Include="PolySharp" Version="1.15.0" />
+		<PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
+	</ItemGroup>
+
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
 		<PackageVersion Include="xunit.v3" Version="4.0.3" />

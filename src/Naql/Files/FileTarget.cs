@@ -229,6 +229,7 @@ public sealed class FileTarget : ITransferTarget
             {
                 // Positional writes with no buffer of their own: every byte read from the content is in the file before
                 // the next read, which lets a failed part continue where it stopped, and parallel parts share no position
+#if NET8_0_OR_GREATER
                 using var file = File.OpenHandle(_partial, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete, FileOptions.Asynchronous);
                 var position = range.Start;
                 int read;
@@ -237,6 +238,17 @@ public sealed class FileTarget : ITransferTarget
                     await RandomAccess.WriteAsync(file, buffer.AsMemory(0, read), position, cancellationToken).ConfigureAwait(false);
                     position += read;
                 }
+#else
+                // Without RandomAccess, each part has its own unbuffered stream (a buffer size of 1 turns buffering
+                // off), so its position is its own and every write goes straight to the file
+                using var file = new FileStream(_partial, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete, bufferSize: 1, useAsync: true);
+                file.Seek(range.Start, SeekOrigin.Begin);
+                int read;
+                while ((read = await content.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    await file.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
+                }
+#endif
             }
             catch (Exception ex) when (FileErrors.Map(ex, TransferSide.Target) is { } error)
             {
@@ -304,7 +316,7 @@ public sealed class FileTarget : ITransferTarget
         public ValueTask DisposeAsync()
         {
             // Each part opens and closes the file itself, so there is nothing left open
-            return ValueTask.CompletedTask;
+            return default;
         }
     }
 }

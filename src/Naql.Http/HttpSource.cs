@@ -125,7 +125,12 @@ public sealed class HttpSource : ITransferSource
                 throw StatusError(response);
             }
 
+#if NET8_0_OR_GREATER
             var content = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+            // The headers have arrived, so this returns the response stream right away
+            var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
             return new SourceStream(new ResponseStream(content, response), info);
         }
         catch

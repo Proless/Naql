@@ -42,7 +42,7 @@ internal sealed class StreamSlice : Stream
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        ValidateBufferArguments(buffer, offset, count);
+        Stream.ValidateBufferArguments(buffer, offset, count);
         return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
@@ -77,7 +77,7 @@ internal sealed class StreamSlice : Stream
 
     public override int Read(byte[] buffer, int offset, int count)
     {
-        ValidateBufferArguments(buffer, offset, count);
+        Stream.ValidateBufferArguments(buffer, offset, count);
         return Read(buffer.AsSpan(offset, count));
     }
 

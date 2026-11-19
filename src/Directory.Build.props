@@ -5,7 +5,8 @@
 
 	<!-- Package metadata shared by every library; all packages are released together with the same version -->
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
+		<!-- netstandard2.1 serves .NET 5 to 7, .NET Core 3.x, Mono and Unity; net8.0 serves .NET 8 and later with no dependencies -->
+		<TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
 		<!-- The suffix marks a prerelease; CI can override it, for example with -p:VersionSuffix= for a stable release -->
 		<VersionPrefix>0.1.0</VersionPrefix>
 		<VersionSuffix>preview.1</VersionSuffix>
@@ -40,6 +41,21 @@
 	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
 		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
 	</PropertyGroup>
+
+	<!--
+		What netstandard2.1 lacks: PolySharp adds the types newer C# features need (records, init, nullable attributes) at
+		build time only, and DiagnosticSource brings ActivitySource and Meter. Its 8.0 version is the newest that still
+		supports .NET 6 and 7, which use this build, without warnings.
+	-->
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+		<PackageReference Include="PolySharp" PrivateAssets="all" />
+		<PackageReference Include="System.Diagnostics.DiagnosticSource" />
+	</ItemGroup>
+
+	<!-- The newer .NET APIs the libraries use, as internal fallbacks each library compiles for itself on netstandard2.1 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+		<Compile Include="$(MSBuildThisFileDirectory)Compat\*.cs" Link="Compat\%(Filename)%(Extension)" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />

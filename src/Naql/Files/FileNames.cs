@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Text;
 
 namespace Naql.Files;
@@ -20,7 +19,7 @@ internal static class FileNames
     public const int MaxBytes = 255 - 10 - 8;
 
     // Not allowed on Windows; '/' and '\' are treated as separators before this applies
-    private static readonly SearchValues<char> Invalid = SearchValues.Create("\"<>|:*?\\/" + ControlCharacters());
+    private static readonly char[] Invalid = ("\"<>|:*?\\/" + ControlCharacters()).ToCharArray();
 
     // Device names Windows reserves, with or without an extension
     private static readonly string[] Reserved =
@@ -44,15 +43,17 @@ internal static class FileNames
         // Treat both separators as directories on every OS, so a name can never leave the target directory
         name = name.Trim().Trim('"').Replace('\\', '/');
         name = name[(name.LastIndexOf('/') + 1)..];
-        if (name.AsSpan().ContainsAny(Invalid))
+        if (name.IndexOfAny(Invalid) >= 0)
         {
-            name = string.Create(name.Length, name, static (chars, source) =>
+            var chars = name.ToCharArray();
+            for (var i = 0; i < chars.Length; i++)
             {
-                for (var i = 0; i < source.Length; i++)
+                if (Array.IndexOf(Invalid, chars[i]) >= 0)
                 {
-                    chars[i] = Invalid.Contains(source[i]) ? '_' : source[i];
+                    chars[i] = '_';
                 }
-            });
+            }
+            name = new string(chars);
         }
 
         // Windows drops trailing dots and spaces, so "file." and "file" would be the same file there
@@ -91,19 +92,23 @@ internal static class FileNames
         var extension = dot > 0 && name.Length - dot <= 16 ? name[dot..] : "";
         var budget = MaxBytes - Encoding.UTF8.GetByteCount(extension);
 
-        var stem = new StringBuilder();
+        // Counts whole characters: a surrogate pair is one character of 4 bytes, and is never split
+        var stemLength = name.Length - extension.Length;
+        var end = 0;
         var used = 0;
-        foreach (var rune in name.AsSpan(0, name.Length - extension.Length).EnumerateRunes())
+        while (end < stemLength)
         {
-            used += rune.Utf8SequenceLength;
+            var c = name[end];
+            var pair = char.IsHighSurrogate(c) && end + 1 < stemLength && char.IsLowSurrogate(name[end + 1]);
+            used += pair ? 4 : c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
             if (used > budget)
             {
                 break;
             }
-            stem.Append(rune.ToString());
+            end += pair ? 2 : 1;
         }
 
-        return stem.ToString().TrimEnd('.', ' ') + extension;
+        return name.Substring(0, end).TrimEnd('.', ' ') + extension;
     }
 
     private static string ControlCharacters()

@@ -17,9 +17,16 @@ namespace Naql.Http;
 /// </remarks>
 public sealed class HttpTransport : IDisposable
 {
+#if NET8_0_OR_GREATER
     // A long-lived client that still notices DNS changes, because pooled connections are replaced every few minutes
     private static readonly Lazy<HttpTransport> SharedTransport = new(() => new HttpTransport(
         new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }));
+#else
+    // netstandard2.1 can't name SocketsHttpHandler, so pooled connections live until they idle out; an app that must
+    // notice DNS changes on .NET 5 to 7 passes its own client
+    private static readonly Lazy<HttpTransport> SharedTransport = new(() => new HttpTransport(
+        new HttpClient(new HttpClientHandler()) { Timeout = Timeout.InfiniteTimeSpan }));
+#endif
 
     private readonly bool _disposeClient;
 
@@ -169,7 +176,14 @@ public sealed class HttpTransport : IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new HttpTransferException(ex.Message, TransferErrorKind.Network, isTransient: true, side, request.Method, request.RequestUri!, statusCode: ex.StatusCode, innerException: ex);
+            throw new HttpTransferException(ex.Message, TransferErrorKind.Network, isTransient: true, side, request.Method, request.RequestUri!, statusCode: StatusOf(ex), innerException: ex);
         }
     }
+
+    // HttpRequestException carries a status from .NET 5 on, which netstandard2.1 can't read
+#if NET8_0_OR_GREATER
+    private static System.Net.HttpStatusCode? StatusOf(HttpRequestException ex) => ex.StatusCode;
+#else
+    private static System.Net.HttpStatusCode? StatusOf(HttpRequestException ex) => null;
+#endif
 }

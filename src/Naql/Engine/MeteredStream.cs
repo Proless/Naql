@@ -94,7 +94,7 @@ internal sealed class MeteredStream : Stream
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        ValidateBufferArguments(buffer, offset, count);
+        Stream.ValidateBufferArguments(buffer, offset, count);
         return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
@@ -180,7 +180,7 @@ internal sealed class MeteredStream : Stream
     public override int Read(byte[] buffer, int offset, int count)
     {
         // Throttling and timing are asynchronous, so a synchronous read waits for the asynchronous one
-        ValidateBufferArguments(buffer, offset, count);
+        Stream.ValidateBufferArguments(buffer, offset, count);
         return ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
     }
 
