@@ -240,10 +240,10 @@ public sealed class FileEndpointTests : IDisposable
     {
         public async Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken) => (await inner.GetInfoAsync(cancellationToken)) with { Name = name };
 
-        public async Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
+        public async Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
         {
             var stream = await inner.OpenReadAsync(request, cancellationToken);
-            return new SourceStream(stream.Content, stream.Info with { Name = name });
+            return new SourceRead(stream.Content, stream.Info with { Name = name });
         }
     }
 }

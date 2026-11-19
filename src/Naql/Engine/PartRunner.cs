@@ -263,7 +263,7 @@ internal sealed class PartRunner
     {
         var range = part.Range.Skip(part.Consumed);
         using var attempt = CancellationTokenSource.CreateLinkedTokenSource(token);
-        SourceStream? source = null;
+        SourceRead? source = null;
         MeteredStream? metered = null;
         IdleWatchdog? watchdog = null;
         try

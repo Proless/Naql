@@ -273,10 +273,10 @@ public sealed class HttpTargetTests : IDisposable
     {
         public async Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken) => (await inner.GetInfoAsync(cancellationToken)) with { ContentType = contentType };
 
-        public async Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
+        public async Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
         {
             var stream = await inner.OpenReadAsync(request, cancellationToken);
-            return new SourceStream(stream.Content, stream.Info with { ContentType = contentType });
+            return new SourceRead(stream.Content, stream.Info with { ContentType = contentType });
         }
     }
 }

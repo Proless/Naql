@@ -9,7 +9,7 @@ namespace Naql.Engine;
 /// <summary>
 /// Reports progress on a timer, away from the transfer's own work, so the caller's code never runs inside a read.
 /// </summary>
-internal sealed class ProgressReporter
+internal sealed class ProgressReporter : IDisposable
 {
     private readonly IProgress<TransferProgress> _progress;
     private readonly PeriodicTimer _timer;
@@ -54,6 +54,11 @@ internal sealed class ProgressReporter
         _timer.Dispose();
         await _loop.ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Stops the timer, if <see cref="StopAsync"/> hasn't.
+    /// </summary>
+    public void Dispose() => _timer.Dispose();
 
     /// <summary>
     /// Reports once more, after <see cref="StopAsync"/>. An exception from the caller's handler surfaces unchanged.

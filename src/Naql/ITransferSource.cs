@@ -20,7 +20,7 @@ public interface ITransferSource
     /// </summary>
     /// <remarks>
     /// The engine only calls this when it needs to plan parallel parts. A single-connection transfer reads the info from
-    /// <see cref="SourceStream.Info"/> instead, so it costs one request.
+    /// <see cref="SourceRead.Info"/> instead, so it costs one request.
     /// </remarks>
     Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken);
 
@@ -35,7 +35,7 @@ public interface ITransferSource
     /// with <see cref="TransferErrorKind.SourceChanged"/> instead of returning different bytes.</item>
     /// </list>
     /// </remarks>
-    Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken);
+    Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -67,12 +67,12 @@ public sealed class ReadRequest
 /// <summary>
 /// The content of an opened read, and what the source learned about it while opening it.
 /// </summary>
-public sealed class SourceStream : IDisposable
+public sealed class SourceRead : IDisposable
 {
     /// <summary>
-    /// Creates a source stream.
+    /// Creates the result of a read.
     /// </summary>
-    public SourceStream(Stream content, SourceInfo info)
+    public SourceRead(Stream content, SourceInfo info)
     {
         Content = content ?? throw new ArgumentNullException(nameof(content));
         Info = info ?? throw new ArgumentNullException(nameof(info));

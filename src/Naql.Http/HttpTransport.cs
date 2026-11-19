@@ -166,10 +166,7 @@ public sealed class HttpTransport : IDisposable
 
     internal static void EnsureHttpScheme(Uri uri)
     {
-        if (uri == null)
-        {
-            throw new ArgumentNullException(nameof(uri));
-        }
+        ArgumentNullException.ThrowIfNull(uri);
         if (!uri.IsAbsoluteUri || !(uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
             throw new ArgumentException($"'{uri}' isn't an absolute http or https URL", nameof(uri));

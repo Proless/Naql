@@ -24,6 +24,11 @@
 		<PackageReleaseNotes>https://github.com/Proless/Naql/blob/main/CHANGELOG.md</PackageReleaseNotes>
 	</PropertyGroup>
 
+	<!-- The recommended .NET analyzer rules for the libraries; like every warning, they fail the build -->
+	<PropertyGroup>
+		<AnalysisMode>Recommended</AnalysisMode>
+	</PropertyGroup>
+
 	<!-- IntelliSense for consumers: every public member is documented, and a missing comment fails the build -->
 	<PropertyGroup>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>

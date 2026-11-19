@@ -13,7 +13,7 @@ namespace Naql.Engine;
 /// otherwise fine. A checkpoint that can't be loaded means starting over; one that can't be saved means a later run
 /// may have to start over. The last failure is kept for diagnostics.
 /// </remarks>
-internal sealed class CheckpointKeeper
+internal sealed class CheckpointKeeper : IDisposable
 {
     private readonly ICheckpointStore _store;
     private readonly PeriodicTimer _timer;
@@ -120,6 +120,15 @@ internal sealed class CheckpointKeeper
         {
             throw new TimeoutException($"The checkpoint store didn't respond within {_timeout.TotalSeconds:0.###} seconds", ex);
         }
+    }
+
+    /// <summary>
+    /// Stops the timer, if <see cref="FinishAsync"/> hasn't, and releases the lock around saving.
+    /// </summary>
+    public void Dispose()
+    {
+        _timer.Dispose();
+        _saving.Dispose();
     }
 
     private async Task SaveAsync(TransferCheckpoint checkpoint)

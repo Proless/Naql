@@ -80,12 +80,9 @@ public sealed class HttpSource : ITransferSource
     }
 
     /// <inheritdoc />
-    public async Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
+    public async Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
     {
-        if (request == null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
 
         var range = request.Range;
         var rangeHeader = range.IsAll ? null : new RangeHeaderValue(range.Start, range.End);
@@ -131,7 +128,7 @@ public sealed class HttpSource : ITransferSource
             // The headers have arrived, so this returns the response stream right away
             var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
 #endif
-            return new SourceStream(new ResponseStream(content, response), info);
+            return new SourceRead(new ResponseStream(content, response), info);
         }
         catch
         {
@@ -285,7 +282,7 @@ public sealed class HttpSource : ITransferSource
         return string.IsNullOrEmpty(name) ? null : name;
     }
 
-    private static TransferException StatusError(HttpResponseMessage response) => HttpErrors.FromStatus(response, TransferSide.Source);
+    private static HttpTransferException StatusError(HttpResponseMessage response) => HttpErrors.FromStatus(response, TransferSide.Source);
 
     /// <summary>
     /// The response body; disposing it also disposes the response.

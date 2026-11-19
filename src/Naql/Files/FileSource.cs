@@ -42,7 +42,7 @@ public sealed class FileSource : ITransferSource
     }
 
     /// <inheritdoc />
-    public Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
+    public Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
     {
         FileStream? file = null;
         try
@@ -56,7 +56,7 @@ public sealed class FileSource : ITransferSource
 
             file.Seek(request.Range.Start, SeekOrigin.Begin);
             var stream = new StreamSlice(file, request.Range.Length, ownsInner: true);
-            return Task.FromResult(new SourceStream(stream, info));
+            return Task.FromResult(new SourceRead(stream, info));
         }
         catch (Exception ex)
         {

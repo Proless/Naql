@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
@@ -16,6 +17,7 @@ namespace Naql.Streams;
 /// written in order from its current position; a part can continue where it stopped, but nothing can be written twice.
 /// Nothing written can be undone, so the target isn't resumable and aborting leaves the stream as it is.
 /// </remarks>
+[SuppressMessage("Design", "CA1001", Justification = "The gate never creates a wait handle, so it holds nothing to release, and an endpoint is a description that isn't disposed")]
 public sealed class StreamTarget : ITransferTarget
 {
 

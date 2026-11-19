@@ -70,7 +70,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
         return Info;
     }
 
-    public async Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
+    public async Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken)
     {
         int index;
         lock (_lock)
@@ -101,6 +101,6 @@ public sealed class MemorySource(byte[] content) : ITransferSource
         {
             stream = WrapContent(index, request, stream);
         }
-        return new SourceStream(stream, info);
+        return new SourceRead(stream, info);
     }
 }

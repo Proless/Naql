@@ -108,6 +108,7 @@ internal sealed class TransferRun
                         ["exception.message"] = storeError.Message
                     }));
                 }
+                keeper.Dispose();
             }
             RecordOutcome(activity, outcome, error);
         }
@@ -166,7 +167,7 @@ internal sealed class TransferRun
     private async Task<TransferResult> RunCoreAsync(CancellationToken cancellationToken)
     {
         using var transfer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var reporter = _progress == null ? null : new ProgressReporter(_progress, _options.ProgressInterval, _state.Snapshot);
+        using var reporter = _progress == null ? null : new ProgressReporter(_progress, _options.ProgressInterval, _state.Snapshot);
 
         _state.Clock.Start();
         reporter?.Start(ex =>

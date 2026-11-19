@@ -81,7 +81,7 @@ public interface ITransferSource
     Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken);
 
     /// Opens the content for a range. The returned info describes what this response revealed.
-    Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken);
+    Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class ReadRequest
@@ -90,7 +90,7 @@ public sealed class ReadRequest
     public string? IfVersion { get; }     // fail with SourceChanged if the content is no longer this version
 }
 
-public sealed class SourceStream : IDisposable
+public sealed class SourceRead : IDisposable
 {
     public Stream Content { get; }
     public SourceInfo Info { get; }
@@ -118,7 +118,7 @@ Rules a source must follow:
 - `OpenReadAsync` returns when the content is ready to read (HTTP: when the response headers have arrived). The engine applies the response timeout around it.
 - The source maps its own errors to `TransferException` (see [errors](#62-errors)).
 
-The engine doesn't call `GetInfoAsync` when it doesn't need to plan: a single-connection transfer opens `ByteRange.All` straight away and reads the info from the `SourceStream`. A simple download therefore costs one request.
+The engine doesn't call `GetInfoAsync` when it doesn't need to plan: a single-connection transfer opens `ByteRange.All` straight away and reads the info from the `SourceRead`. A simple download therefore costs one request.
 
 ### 4.3 `ITransferTarget` and `ITargetSession`
 
@@ -195,7 +195,7 @@ When a target isn't `RepeatableWrites`, the engine only writes a part again if t
 ### 4.4 Resources and ownership
 
 - Sources and targets are lightweight descriptions, with no state from a run: what a run produced, such as where the file ended up, comes back in the `TransferResult` (`Location`), so one `FileTarget` can serve many transfers. Stream endpoints are the exception by nature: they wrap one stream the caller owns, so each belongs to one transfer. Expensive resources (an `HttpClient`, an SFTP connection pool) belong to a protocol object the caller creates and disposes, such as `HttpTransport`. Shortcuts like `HttpSource.Get(uri)` use a shared `HttpClient`, so there is nothing to dispose.
-- The engine disposes what it opens: every `SourceStream`, and every `ITargetSession` with `DisposeAsync`, since releasing a remote target can involve I/O. Disposing waits at most the response timeout.
+- The engine disposes what it opens: every `SourceRead`, and every `ITargetSession` with `DisposeAsync`, since releasing a remote target can involve I/O. Disposing waits at most the response timeout.
 - A target that says it's `Verifiable` must return sessions that implement `IVerifiableSession`; otherwise the transfer fails as `Unsupported` as soon as the session opens, instead of skipping the checksum.
 - Disposing a session without calling `CompleteAsync` or `AbortAsync` leaves the partial data in place, so the transfer can be resumed.
 
@@ -489,12 +489,12 @@ public sealed class MemorySource(byte[] content) : ITransferSource
 
     public Task<SourceInfo> GetInfoAsync(CancellationToken ct) => Task.FromResult(Info);
 
-    public Task<SourceStream> OpenReadAsync(ReadRequest request, CancellationToken ct)
+    public Task<SourceRead> OpenReadAsync(ReadRequest request, CancellationToken ct)
     {
         var range = request.Range;
         var length = range.Length ?? content.Length - range.Start;
         var stream = new MemoryStream(content, (int)range.Start, (int)length, writable: false);
-        return Task.FromResult(new SourceStream(stream, Info));
+        return Task.FromResult(new SourceRead(stream, Info));
     }
 }
 ```
