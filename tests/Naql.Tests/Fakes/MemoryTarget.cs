@@ -245,7 +245,7 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
     public ValueTask DisposeAsync()
     {
         Disposed = true;
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     private void Store(long position, byte[] buffer, int count)

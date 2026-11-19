@@ -89,7 +89,7 @@ public sealed class StreamEndpointTests
     {
         var content = Content(10_000);
         var output = new MemoryStream();
-        output.Write([7, 7]);
+        output.Write([7, 7], 0, 2);
 
         await RunAsync(new MemorySource(content), StreamTarget.To(output), Parallel);
 

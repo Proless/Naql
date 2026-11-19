@@ -49,7 +49,7 @@ public sealed class ChecksumTests : IDisposable
     [Fact]
     public void A_checksum_reads_hexadecimal_and_base64()
     {
-        var hash = SHA256.HashData("hello"u8);
+        var hash = SHA256.HashData("hello"u8.ToArray());
 
         var fromHex = Checksum.Sha256(Convert.ToHexString(hash));
         var fromBase64 = Checksum.FromBase64(HashAlgorithmName.SHA256, Convert.ToBase64String(hash));
@@ -58,7 +58,7 @@ public sealed class ChecksumTests : IDisposable
         Assert.Equal(fromHex.GetHashCode(), fromBase64.GetHashCode());
         Assert.True(fromHex.Matches(hash));
         Assert.Equal($"SHA256:{Convert.ToHexString(hash).ToLowerInvariant()}", fromHex.ToString());
-        Assert.NotEqual(fromHex, new Checksum(HashAlgorithmName.SHA512, SHA512.HashData("hello"u8)));
+        Assert.NotEqual(fromHex, new Checksum(HashAlgorithmName.SHA512, SHA512.HashData("hello"u8.ToArray())));
     }
 
     [Fact]

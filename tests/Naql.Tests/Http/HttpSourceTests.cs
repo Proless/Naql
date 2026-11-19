@@ -82,7 +82,7 @@ public sealed class HttpSourceTests : IDisposable
         // The first request only asks for one byte, to learn the length and whether ranges work
         Assert.Equal(5, server.RequestCount);
         Assert.Equal(0, server.RequestedRanges[0]!.Ranges.Single().To);
-        Assert.Equal([0L, 25_000L, 50_000L, 75_000L], server.RequestedRanges.Skip(1).Select(RangeStart).Order());
+        Assert.Equal([0L, 25_000L, 50_000L, 75_000L], server.RequestedRanges.Skip(1).Select(RangeStart).OrderBy(start => start));
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class HttpSourceTests : IDisposable
         await read.Content.CopyToAsync(copy, Token);
 
         var end = length is long count ? start + count : server.Content.Length;
-        Assert.Equal(server.Content[(int)start..(int)end], copy.ToArray());
+        Assert.Equal(server.Content.Skip((int)start).Take((int)(end - start)).ToArray(), copy.ToArray());
         // The info describes the whole content, not the range
         Assert.Equal(server.Content.Length, read.Info.Length);
     }
@@ -350,7 +350,7 @@ public sealed class HttpSourceTests : IDisposable
     [InlineData(HttpStatusCode.Unauthorized, TransferErrorKind.AccessDenied, false)]
     [InlineData(HttpStatusCode.Forbidden, TransferErrorKind.AccessDenied, false)]
     [InlineData(HttpStatusCode.RequestTimeout, TransferErrorKind.Timeout, true)]
-    [InlineData(HttpStatusCode.TooManyRequests, TransferErrorKind.Network, true)]
+    [InlineData((HttpStatusCode)429, TransferErrorKind.Network, true)]
     [InlineData(HttpStatusCode.InternalServerError, TransferErrorKind.Network, true)]
     [InlineData(HttpStatusCode.ServiceUnavailable, TransferErrorKind.Network, true)]
     [InlineData(HttpStatusCode.NotImplemented, TransferErrorKind.Protocol, false)]

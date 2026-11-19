@@ -32,8 +32,8 @@ public sealed class FailingStream(Stream inner, long failAfter, Func<Exception> 
 /// </summary>
 public sealed class StallingStream(Stream inner, long stallAfter, bool honorCancellation) : ReadOnlyStream
 {
-    private readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly TaskCompletionSource _stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _read;
 
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class StallingStream(Stream inner, long stallAfter, bool honorCanc
     {
         if (_read >= stallAfter)
         {
-            _stalled.TrySetResult();
+            _stalled.TrySetResult(true);
             var canceled = honorCancellation ? Task.Delay(Timeout.Infinite, cancellationToken) : Task.Delay(Timeout.Infinite, CancellationToken.None);
             await Task.WhenAny(_disposed.Task, canceled);
             cancellationToken.ThrowIfCancellationRequested();
@@ -59,7 +59,7 @@ public sealed class StallingStream(Stream inner, long stallAfter, bool honorCanc
 
     protected override void Dispose(bool disposing)
     {
-        _disposed.TrySetResult();
+        _disposed.TrySetResult(true);
         inner.Dispose();
         base.Dispose(disposing);
     }

@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+	<!--
+		net10.0 tests the libraries' net8.0 build. net48 tests their netstandard2.0 build on .NET Framework, which only
+		runs on Windows. On net48 the tests use the polyfills compiled into Naql, which they can see as its friend.
+	-->
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net48</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<IsPackable>false</IsPackable>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -17,9 +22,15 @@
 		<Using Include="Xunit" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<Reference Include="System.Net.Http" />
+		<Using Include="System.Net.Http" />
+	</ItemGroup>
+
 	<!--
-		The tests use the libraries' net8.0 build, which any current runtime picks. To test the netstandard2.1 build
-		instead, run with -p:NaqlTarget=netstandard2.1: the references then ask for that build explicitly.
+		On net10.0 the tests use the libraries' net8.0 build, which any current runtime picks. To test the netstandard2.1
+		build instead, run with -f net10.0 -p:NaqlTarget=netstandard2.1: the references then ask for that build explicitly.
+		Its one dependency ships with .NET, so this works; the netstandard2.0 build is tested on net48 instead.
 	-->
 	<ItemGroup Condition="'$(NaqlTarget)' == ''">
 		<ProjectReference Include="..\..\src\Naql\Naql.csproj" />

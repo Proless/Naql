@@ -188,7 +188,7 @@ public sealed class HttpTargetTests : IDisposable
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, TransferErrorKind.AccessDenied)]
     [InlineData(HttpStatusCode.RequestEntityTooLarge, TransferErrorKind.InsufficientStorage)]
-    [InlineData(HttpStatusCode.InsufficientStorage, TransferErrorKind.InsufficientStorage)]
+    [InlineData((HttpStatusCode)507, TransferErrorKind.InsufficientStorage)]
     [InlineData(HttpStatusCode.Conflict, TransferErrorKind.Protocol)]
     public async Task Rejected_uploads_fail_without_retrying(HttpStatusCode status, TransferErrorKind kind)
     {

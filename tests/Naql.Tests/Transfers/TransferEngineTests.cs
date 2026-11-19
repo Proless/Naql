@@ -66,14 +66,14 @@ public sealed class TransferEngineTests
         var content = Content(10_000);
         var source = new MemorySource(content);
         var started = 0;
-        var allStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var target = new MemoryTarget
         {
             OnWrite = async (_, _, ct) =>
             {
                 if (Interlocked.Increment(ref started) == 4)
                 {
-                    allStarted.TrySetResult();
+                    allStarted.TrySetResult(true);
                 }
                 // Only completes when all four parts are being written at once
                 await allStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
