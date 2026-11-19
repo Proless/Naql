@@ -172,7 +172,12 @@ public sealed class HttpTransport : IDisposable
 
         try
         {
-            return await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+#if NETSTANDARD
+            // On .NET Framework a response without a body has no Content, where .NET Core gives an empty one
+            response.Content ??= new ByteArrayContent([]);
+#endif
+            return response;
         }
         catch (HttpRequestException ex)
         {

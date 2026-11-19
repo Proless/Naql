@@ -98,7 +98,12 @@ internal sealed class MeteredStream : Stream
         return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
+#if NETSTANDARD2_0
+    // netstandard2.0's Stream has no Memory overloads; the array overloads call this one
+    public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+#else
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+#endif
     {
         if (buffer.IsEmpty)
         {

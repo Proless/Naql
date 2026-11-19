@@ -485,7 +485,7 @@ internal sealed class TransferRun
         var failure = Volatile.Read(ref _callerFailure);
         if (failure != null)
         {
-            ExceptionDispatchInfo.Throw(failure);
+            ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 }

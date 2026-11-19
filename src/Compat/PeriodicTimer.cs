@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace System.Threading;
 
 /// <summary>
-/// The part of .NET 6's <c>PeriodicTimer</c> the engine uses, for netstandard2.1. It waits a full period after each
+/// The part of .NET 6's <c>PeriodicTimer</c> the engine uses, for the netstandard builds. It waits a full period after each
 /// wait instead of keeping a fixed rate, which only matters when the work between ticks is slow.
 /// </summary>
 internal sealed class PeriodicTimer : IDisposable

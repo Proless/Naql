@@ -46,7 +46,12 @@ internal sealed class StreamSlice : Stream
         return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
+#if NETSTANDARD2_0
+    // netstandard2.0's Stream has no Memory overloads; the array overloads call this one
+    public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+#else
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+#endif
     {
         buffer = Limit(buffer);
         if (buffer.IsEmpty)
@@ -81,7 +86,11 @@ internal sealed class StreamSlice : Stream
         return Read(buffer.AsSpan(offset, count));
     }
 
+#if NETSTANDARD2_0
+    public int Read(Span<byte> buffer)
+#else
     public override int Read(Span<byte> buffer)
+#endif
     {
         buffer = _remaining is long remaining && remaining < buffer.Length ? buffer[..(int)remaining] : buffer;
         if (buffer.IsEmpty)

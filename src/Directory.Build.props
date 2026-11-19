@@ -5,8 +5,12 @@
 
 	<!-- Package metadata shared by every library; all packages are released together with the same version -->
 	<PropertyGroup>
-		<!-- netstandard2.1 serves .NET 5 to 7, .NET Core 3.x, Mono and Unity; net8.0 serves .NET 8 and later with no dependencies -->
-		<TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+		<!--
+			netstandard2.0 serves .NET Framework 4.6.2 and later; netstandard2.1 serves .NET 5 to 7, .NET Core 3.x, Mono and
+			Unity; net8.0 serves .NET 8 and later with no dependencies
+		-->
+		<TargetFrameworks>netstandard2.0;netstandard2.1;net8.0</TargetFrameworks>
+		<IsNetStandard>$([MSBuild]::GetTargetFrameworkIdentifier('$(TargetFramework)').Equals('.NETStandard'))</IsNetStandard>
 		<!-- The suffix marks a prerelease; CI can override it, for example with -p:VersionSuffix= for a stable release -->
 		<VersionPrefix>0.1.0</VersionPrefix>
 		<VersionSuffix>preview.1</VersionSuffix>
@@ -43,17 +47,25 @@
 	</PropertyGroup>
 
 	<!--
-		What netstandard2.1 lacks: PolySharp adds the types newer C# features need (records, init, nullable attributes) at
-		build time only, and DiagnosticSource brings ActivitySource and Meter. Its 8.0 version is the newest that still
-		supports .NET 6 and 7, which use this build, without warnings.
+		What the netstandard builds lack: PolySharp adds the types newer C# features need (records, init, nullable
+		attributes) at build time only, and DiagnosticSource brings ActivitySource and Meter. Its 8.0 version is the newest
+		that still supports .NET 6 and 7, which use the netstandard2.1 build, without warnings.
 	-->
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+	<ItemGroup Condition="'$(IsNetStandard)' == 'true'">
 		<PackageReference Include="PolySharp" PrivateAssets="all" />
 		<PackageReference Include="System.Diagnostics.DiagnosticSource" />
 	</ItemGroup>
 
-	<!-- The newer .NET APIs the libraries use, as internal fallbacks each library compiles for itself on netstandard2.1 -->
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+	<!-- netstandard2.0 also needs Span and Memory, ValueTask, IAsyncDisposable and HashCode from packages -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="System.Memory" />
+		<PackageReference Include="System.Threading.Tasks.Extensions" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+		<PackageReference Include="Microsoft.Bcl.HashCode" />
+	</ItemGroup>
+
+	<!-- The newer .NET APIs the libraries use, as internal fallbacks each library compiles for itself on netstandard -->
+	<ItemGroup Condition="'$(IsNetStandard)' == 'true'">
 		<Compile Include="$(MSBuildThisFileDirectory)Compat\*.cs" Link="Compat\%(Filename)%(Extension)" />
 	</ItemGroup>
 

@@ -5,9 +5,16 @@
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 	</PropertyGroup>
 
-	<ItemGroup Label="netstandard2.1">
+	<ItemGroup Label="netstandard">
 		<PackageVersion Include="PolySharp" Version="1.15.0" />
 		<PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
+	</ItemGroup>
+
+	<ItemGroup Label="netstandard2.0">
+		<PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
+		<PackageVersion Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
+		<PackageVersion Include="System.Memory" Version="4.6.3" />
+		<PackageVersion Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
 	</ItemGroup>
 
 	<ItemGroup Label="Testing">

@@ -307,14 +307,17 @@ public sealed class HttpSource : ITransferSource
             return content.ReadAsync(buffer, offset, count, cancellationToken);
         }
 
+        public override int Read(byte[] buffer, int offset, int count) => content.Read(buffer, offset, count);
+
+#if !NETSTANDARD2_0
+        // netstandard2.0's Stream has no Memory overloads, so there the array overloads above do all reads
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             return content.ReadAsync(buffer, cancellationToken);
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => content.Read(buffer, offset, count);
-
         public override int Read(Span<byte> buffer) => content.Read(buffer);
+#endif
 
         public override void Flush()
         {

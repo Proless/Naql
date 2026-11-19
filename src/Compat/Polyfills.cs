@@ -1,4 +1,5 @@
-#if NETSTANDARD2_1
+#if NETSTANDARD
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -12,7 +13,7 @@ using System.Threading.Tasks;
 namespace System;
 
 /// <summary>
-/// The newer .NET APIs the library uses, for netstandard2.1, written as extension members so the code calls them the
+/// The newer .NET APIs the library uses, for the netstandard builds, written as extension members so the code calls them the
 /// same way on every target. Each behaves like the API it stands in for, as far as the library relies on it.
 /// </summary>
 internal static class Polyfills
@@ -118,10 +119,30 @@ internal static class Polyfills
         public static string TrimEndingDirectorySeparator(string path)
         {
             var root = Path.GetPathRoot(path);
-            return path.Length > (root?.Length ?? 0) && (path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar))
+            var last = path.Length > 0 ? path[path.Length - 1] : '\0';
+            return path.Length > (root?.Length ?? 0) && (last == Path.DirectorySeparatorChar || last == Path.AltDirectorySeparatorChar)
                 ? path.Substring(0, path.Length - 1)
                 : path;
         }
+
+#if NETSTANDARD2_0
+        /// <summary>
+        /// Whether <paramref name="path"/> names one location whatever the current directory and drive: a drive and a
+        /// separator or a UNC share on Windows, a leading separator elsewhere.
+        /// </summary>
+        public static bool IsPathFullyQualified(string path)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return path.Length > 0 && path[0] == '/';
+            }
+            if (path.Length >= 2 && IsSeparator(path[0]) && IsSeparator(path[1]))
+            {
+                return true;
+            }
+            return path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && IsSeparator(path[2]);
+        }
+#endif
     }
 
     extension(File)
@@ -189,8 +210,127 @@ internal static class Polyfills
         }
     }
 
+#if NETSTANDARD2_0
+    extension(Math)
+    {
+        public static long Clamp(long value, long min, long max) => value < min ? min : value > max ? max : value;
+    }
+
+    extension(Task task)
+    {
+        public bool IsCompletedSuccessfully => task.Status == TaskStatus.RanToCompletion;
+    }
+
+    extension(string text)
+    {
+        public bool StartsWith(char value) => text.Length > 0 && text[0] == value;
+
+        public bool EndsWith(char value) => text.Length > 0 && text[text.Length - 1] == value;
+    }
+
+    extension(IncrementalHash hash)
+    {
+        public void AppendData(ReadOnlySpan<byte> data)
+        {
+            var rented = ArrayPool<byte>.Shared.Rent(data.Length);
+            try
+            {
+                data.CopyTo(rented);
+                hash.AppendData(rented, 0, data.Length);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+    }
+
+    extension(File)
+    {
+        public static async Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+            using var reader = new StreamReader(stream);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await reader.ReadToEndAsync().ConfigureAwait(false);
+        }
+
+        public static async Task WriteAllTextAsync(string path, string? contents, CancellationToken cancellationToken = default)
+        {
+            using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true);
+            using var writer = new StreamWriter(stream);
+            cancellationToken.ThrowIfCancellationRequested();
+            await writer.WriteAsync(contents).ConfigureAwait(false);
+            await writer.FlushAsync().ConfigureAwait(false);
+        }
+    }
+
+    extension(Stream stream)
+    {
+        /// <summary>
+        /// Reads into <paramref name="buffer"/> through its array, or through a rented one when it has none.
+        /// </summary>
+        public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (MemoryMarshal.TryGetArray<byte>(buffer, out var segment))
+            {
+                return await stream.ReadAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken).ConfigureAwait(false);
+            }
+
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            try
+            {
+                var read = await stream.ReadAsync(rented, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+                rented.AsSpan(0, read).CopyTo(buffer.Span);
+                return read;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
+        public int Read(Span<byte> buffer)
+        {
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            try
+            {
+                var read = stream.Read(rented, 0, buffer.Length);
+                rented.AsSpan(0, read).CopyTo(buffer);
+                return read;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
+        public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (MemoryMarshal.TryGetArray(buffer, out var segment))
+            {
+                await stream.WriteAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            try
+            {
+                buffer.Span.CopyTo(rented);
+                await stream.WriteAsync(rented, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+    }
+#endif
+
     [ThreadStatic]
     private static Random? s_random;
+
+    private static bool IsSeparator(char c) => c == '\\' || c == '/';
 
     private static char HexDigit(int value) => (char)(value < 10 ? '0' + value : 'A' + value - 10);
 
