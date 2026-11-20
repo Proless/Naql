@@ -24,6 +24,10 @@ Naql.Checksum.Equals(Naql.Checksum? other) -> bool
 Naql.Checksum.Matches(System.ReadOnlySpan<byte> hash) -> bool
 Naql.Checksum.ToHex() -> string!
 Naql.Checksum.Value.get -> System.ReadOnlyMemory<byte>
+Naql.ConcatenatedSource
+Naql.ConcatenatedSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
+Naql.ConcatenatedSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
+Naql.ConcatenatedSource.Pieces.get -> System.Collections.Generic.IReadOnlyList<Naql.ITransferSource!>!
 Naql.Files.FileCheckpointStore
 Naql.Files.FileCheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 const Naql.Files.FileCheckpointStore.Extension = ".naql-checkpoint" -> string!
@@ -340,6 +344,7 @@ static Naql.Checksum.FromBase64(System.Security.Cryptography.HashAlgorithmName a
 static Naql.Checksum.FromHex(System.Security.Cryptography.HashAlgorithmName algorithm, string! hex) -> Naql.Checksum!
 static Naql.Checksum.Sha256(string! hex) -> Naql.Checksum!
 static Naql.Checksum.Sha512(string! hex) -> Naql.Checksum!
+static Naql.ConcatenatedSource.From(System.Collections.Generic.IEnumerable<Naql.ITransferSource!>! pieces, string? name = null, string? identity = null) -> Naql.ConcatenatedSource!
 static Naql.Files.FileCheckpointStore.For(string! path) -> Naql.Files.FileCheckpointStore!
 static Naql.Files.FileSource.At(string! path) -> Naql.Files.FileSource!
 static Naql.Files.FileTarget.At(string! path, Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> Naql.Files.FileTarget!
