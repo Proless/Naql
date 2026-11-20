@@ -51,4 +51,38 @@ public sealed class HttpTransferException : TransferException
     /// The response's reason phrase, such as <c>Not Found</c>, when there was a response.
     /// </summary>
     public string? ReasonPhrase { get; }
+
+    /// <summary>
+    /// The error for an unsuccessful response, as Naql's own sources and targets map it: 404 and 410 are
+    /// <see cref="TransferErrorKind.NotFound"/>, 401 and 407 <see cref="TransferErrorKind.Unauthorized"/>, 403
+    /// <see cref="TransferErrorKind.AccessDenied"/>, 429 a transient <see cref="TransferErrorKind.RateLimited"/>, 408
+    /// and 5xx transient, 413 and 507 <see cref="TransferErrorKind.InsufficientStorage"/>, the rest
+    /// <see cref="TransferErrorKind.Protocol"/>. <see cref="TransferException.RetryDelay"/> comes from
+    /// <c>Retry-After</c>.
+    /// </summary>
+    /// <remarks>
+    /// A package that knows its service's error details, such as a quota that ran out behind a 403, builds a more
+    /// precise error with <see cref="FromResponse(HttpResponseMessage, string, TransferErrorKind, bool, TransferSide)"/>.
+    /// </remarks>
+    public static HttpTransferException FromResponse(HttpResponseMessage response, TransferSide side)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        return HttpErrors.FromStatus(response, side);
+    }
+
+    /// <summary>
+    /// An error about <paramref name="response"/> of the kind the caller says, with its status, reason, request and
+    /// <c>Retry-After</c>.
+    /// </summary>
+    /// <param name="response">The response the error is about; its request must still be attached</param>
+    /// <param name="message">What went wrong</param>
+    /// <param name="kind">What kind of error it is</param>
+    /// <param name="isTransient">Whether trying again can succeed</param>
+    /// <param name="side">Which side of the transfer made the request</param>
+    public static HttpTransferException FromResponse(HttpResponseMessage response, string message, TransferErrorKind kind, bool isTransient, TransferSide side)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        ArgumentNullException.ThrowIfNull(message);
+        return HttpErrors.FromResponse(response, message, kind, isTransient, side);
+    }
 }

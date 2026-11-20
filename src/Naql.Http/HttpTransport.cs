@@ -188,10 +188,22 @@ public sealed class HttpTransport : IDisposable
     }
 
     /// <summary>
-    /// Applies the settings and sends the request, returning once the response headers have arrived.
+    /// Sends a request the way Naql's own sources and targets do: with <see cref="UserAgent"/> and
+    /// <see cref="ConfigureRequest"/> applied, returning once the response headers have arrived, and with a failure
+    /// to get a response turned into a transient <see cref="HttpTransferException"/>. Packages for particular services
+    /// use it for their own API calls, such as listing a folder or starting an upload session.
     /// </summary>
-    internal async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TransferSide side, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Any status comes back as a response; <see cref="HttpTransferException.FromResponse(HttpResponseMessage, TransferSide)"/>
+    /// turns an unsuccessful one into an error. The caller disposes the response, which also ends reading its body.
+    /// </remarks>
+    /// <param name="request">The request to send</param>
+    /// <param name="side">The side of the transfer the request is for, for errors</param>
+    /// <param name="cancellationToken">Stops the request</param>
+    /// <exception cref="HttpTransferException">No response arrived, such as after a DNS failure or a reset connection</exception>
+    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TransferSide side, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (UserAgent != null)
         {
             request.Headers.UserAgent.TryParseAdd(UserAgent);

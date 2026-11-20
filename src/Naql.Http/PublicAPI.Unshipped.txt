@@ -34,6 +34,7 @@ Naql.Http.HttpTransport.PostForm(System.Uri! uri, string! fieldName) -> Naql.Htt
 Naql.Http.HttpTransport.PostForm(System.Uri! uri) -> Naql.Http.HttpTarget!
 Naql.Http.HttpTransport.Put(string! uri) -> Naql.Http.HttpTarget!
 Naql.Http.HttpTransport.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTransport.SendAsync(System.Net.Http.HttpRequestMessage! request, Naql.TransferSide side, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage!>!
 Naql.Http.HttpTransport.UserAgent.get -> string?
 Naql.Http.HttpTransport.UserAgent.init -> void
 static Naql.Http.HttpSource.Get(string! uri) -> Naql.Http.HttpSource!
@@ -46,6 +47,8 @@ static Naql.Http.HttpTarget.PostForm(System.Uri! uri, string! fieldName) -> Naql
 static Naql.Http.HttpTarget.PostForm(System.Uri! uri) -> Naql.Http.HttpTarget!
 static Naql.Http.HttpTarget.Put(string! uri) -> Naql.Http.HttpTarget!
 static Naql.Http.HttpTarget.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
+static Naql.Http.HttpTransferException.FromResponse(System.Net.Http.HttpResponseMessage! response, Naql.TransferSide side) -> Naql.Http.HttpTransferException!
+static Naql.Http.HttpTransferException.FromResponse(System.Net.Http.HttpResponseMessage! response, string! message, Naql.TransferErrorKind kind, bool isTransient, Naql.TransferSide side) -> Naql.Http.HttpTransferException!
 static Naql.Http.HttpTransport.BasicAuthentication(string! userName, string! password) -> System.Func<System.Net.Http.HttpRequestMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>!
 static Naql.Http.HttpTransport.Default.get -> Naql.Http.HttpTransport!
 static Naql.Http.HttpTransport.DefaultUserAgent.get -> string!
