@@ -2,8 +2,19 @@
 Naql.Http.HttpSource
 Naql.Http.HttpSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
 Naql.Http.HttpSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
+Naql.Http.HttpSource.Options.get -> Naql.Http.HttpSourceOptions!
 Naql.Http.HttpSource.Transport.get -> Naql.Http.HttpTransport!
 Naql.Http.HttpSource.Uri.get -> System.Uri!
+Naql.Http.HttpSourceOptions
+Naql.Http.HttpSourceOptions.<Clone>$() -> Naql.Http.HttpSourceOptions!
+Naql.Http.HttpSourceOptions.Equals(Naql.Http.HttpSourceOptions? other) -> bool
+Naql.Http.HttpSourceOptions.HttpSourceOptions() -> void
+Naql.Http.HttpSourceOptions.Identity.get -> string?
+Naql.Http.HttpSourceOptions.Identity.init -> void
+Naql.Http.HttpSourceOptions.Name.get -> string?
+Naql.Http.HttpSourceOptions.Name.init -> void
+Naql.Http.HttpSourceOptions.Refresh.get -> System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Uri!>!>?
+Naql.Http.HttpSourceOptions.Refresh.init -> void
 Naql.Http.HttpTarget
 Naql.Http.HttpTarget.Capabilities.get -> Naql.TargetCapabilities!
 Naql.Http.HttpTarget.FormField.get -> string?
@@ -24,6 +35,7 @@ Naql.Http.HttpTransport.ConfigureRequest.get -> System.Func<System.Net.Http.Http
 Naql.Http.HttpTransport.ConfigureRequest.init -> void
 Naql.Http.HttpTransport.Dispose() -> void
 Naql.Http.HttpTransport.Get(string! uri) -> Naql.Http.HttpSource!
+Naql.Http.HttpTransport.Get(System.Uri! uri, Naql.Http.HttpSourceOptions! options) -> Naql.Http.HttpSource!
 Naql.Http.HttpTransport.Get(System.Uri! uri) -> Naql.Http.HttpSource!
 Naql.Http.HttpTransport.HttpTransport(System.Net.Http.HttpClient! client, bool disposeClient = false) -> void
 Naql.Http.HttpTransport.Post(string! uri) -> Naql.Http.HttpTarget!
@@ -37,8 +49,13 @@ Naql.Http.HttpTransport.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
 Naql.Http.HttpTransport.SendAsync(System.Net.Http.HttpRequestMessage! request, Naql.TransferSide side, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage!>!
 Naql.Http.HttpTransport.UserAgent.get -> string?
 Naql.Http.HttpTransport.UserAgent.init -> void
+override Naql.Http.HttpSourceOptions.Equals(object? obj) -> bool
+override Naql.Http.HttpSourceOptions.GetHashCode() -> int
+override Naql.Http.HttpSourceOptions.ToString() -> string!
 static Naql.Http.HttpSource.Get(string! uri) -> Naql.Http.HttpSource!
 static Naql.Http.HttpSource.Get(System.Uri! uri) -> Naql.Http.HttpSource!
+static Naql.Http.HttpSourceOptions.operator !=(Naql.Http.HttpSourceOptions? left, Naql.Http.HttpSourceOptions? right) -> bool
+static Naql.Http.HttpSourceOptions.operator ==(Naql.Http.HttpSourceOptions? left, Naql.Http.HttpSourceOptions? right) -> bool
 static Naql.Http.HttpTarget.Post(string! uri) -> Naql.Http.HttpTarget!
 static Naql.Http.HttpTarget.Post(System.Uri! uri) -> Naql.Http.HttpTarget!
 static Naql.Http.HttpTarget.PostForm(string! uri, string! fieldName) -> Naql.Http.HttpTarget!

@@ -26,6 +26,7 @@ Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .
 ### Naql.Http
 
 - `HttpTransferException` with the status code, reason phrase, method and URL of a failed request.
+- `HttpSourceOptions` for packages whose services hand out their own links: a stable `Identity`, so a checkpoint fits a new signed link; a `Name`; and `Refresh`, called for a new URL when a link expired (401, 403 or 410), shared by parts that find it expired at the same time.
 - `HttpSource`: downloads with range requests, `If-Range` when resuming, a one-byte probe to learn the length and range support, the file name from `Content-Disposition`, and the checksum from `Repr-Digest` or `Digest`. It asks for content unencoded and refuses a response the server compressed anyway, whose bytes, length and ranges wouldn't be the content's.
 - `HttpTarget`: uploads with `PUT`, `POST` or a `multipart/form-data` form, and `WithResponseHandler` for the server's answer. A `POST` the server received completely is never sent again.
 - `HttpTransport` for the `HttpClient`, the User-Agent and request settings such as `BasicAuthentication`.

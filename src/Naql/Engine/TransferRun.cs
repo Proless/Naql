@@ -361,8 +361,9 @@ internal sealed class TransferRun
         {
             await OpenSessionAsync(new TargetOpenRequest(info, checkpoint.ResumeToken, _options.BufferSize), token).ConfigureAwait(false);
         }
-        catch (TransferException ex) when (ex.Kind == TransferErrorKind.NotFound)
+        catch (TransferException ex) when (ex.Kind is TransferErrorKind.NotFound or TransferErrorKind.Expired)
         {
+            // The partial data is gone, or the session that held it expired, such as an upload session the server forgot
             return null;
         }
         return _state.ContinueFrom(checkpoint);

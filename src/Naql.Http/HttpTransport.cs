@@ -120,6 +120,12 @@ public sealed class HttpTransport : IDisposable
     public HttpSource Get(string uri) => Get(ToUri(uri));
 
     /// <summary>
+    /// A source that downloads <paramref name="uri"/> with this transport, and describes and finds the content as
+    /// <paramref name="options"/> say, such as with a stable identity and a way to refresh an expired link.
+    /// </summary>
+    public HttpSource Get(Uri uri, HttpSourceOptions options) => new(this, uri, options ?? throw new ArgumentNullException(nameof(options)));
+
+    /// <summary>
     /// A target that uploads the content as the body of a <c>PUT</c> request to <paramref name="uri"/>.
     /// </summary>
     public HttpTarget Put(Uri uri) => new(this, uri, HttpMethod.Put, formField: null);

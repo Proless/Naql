@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -24,13 +25,20 @@ namespace Naql.Http;
 /// decompression: it would decode the bytes without saying so.</item>
 /// </list>
 /// </remarks>
+[SuppressMessage("Design", "CA1001", Justification = "The lock never creates a wait handle, so it holds nothing to release, and a source is a description that isn't disposed")]
 public sealed class HttpSource : ITransferSource
 {
-    internal HttpSource(HttpTransport transport, Uri uri)
+    private readonly SemaphoreSlim _refreshing = new(1, 1);
+    private volatile Uri _current;
+    private int _generation;
+
+    internal HttpSource(HttpTransport transport, Uri uri, HttpSourceOptions? options = null)
     {
         HttpTransport.EnsureHttpScheme(uri);
         Transport = transport ?? throw new ArgumentNullException(nameof(transport));
         Uri = uri;
+        Options = options ?? new HttpSourceOptions();
+        _current = uri;
     }
 
     /// <summary>
@@ -54,13 +62,17 @@ public sealed class HttpSource : ITransferSource
     public HttpTransport Transport { get; }
 
     /// <summary>
+    /// How the source describes and finds its content.
+    /// </summary>
+    public HttpSourceOptions Options { get; }
+
+    /// <summary>
     /// Asks for the first byte only: the answer tells the length and whether the server supports ranges, which a
     /// <c>HEAD</c> request often doesn't.
     /// </summary>
     public async Task<SourceInfo> GetInfoAsync(CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(new RangeHeaderValue(0, 0), ifVersion: null);
-        using var response = await Transport.SendAsync(request, TransferSide.Source, cancellationToken).ConfigureAwait(false);
+        using var response = await SendAsync(uri => CreateRequest(uri, new RangeHeaderValue(0, 0), ifVersion: null), cancellationToken).ConfigureAwait(false);
         EnsureNotEncoded(response);
 
         var contentRange = response.Content.Headers.ContentRange;
@@ -91,8 +103,7 @@ public sealed class HttpSource : ITransferSource
             throw new ArgumentException("Can't request an empty range", nameof(request));
         }
 
-        using var httpRequest = CreateRequest(rangeHeader, request.IfVersion);
-        var response = await Transport.SendAsync(httpRequest, TransferSide.Source, cancellationToken).ConfigureAwait(false);
+        var response = await SendAsync(uri => CreateRequest(uri, rangeHeader, request.IfVersion), cancellationToken).ConfigureAwait(false);
         try
         {
             EnsureNotEncoded(response);
@@ -137,9 +148,50 @@ public sealed class HttpSource : ITransferSource
         }
     }
 
-    private HttpRequestMessage CreateRequest(RangeHeaderValue? range, string? ifVersion)
+    /// <summary>
+    /// Sends a request for the current URL. When the answer says the URL expired and <see cref="HttpSourceOptions.Refresh"/>
+    /// is set, gets a new URL, unless a request that ran at the same time already did, and sends the request again.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendAsync(Func<Uri, HttpRequestMessage> create, CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, Uri);
+        var generation = Volatile.Read(ref _generation);
+        var request = create(_current);
+        var response = await Transport.SendAsync(request, TransferSide.Source, cancellationToken).ConfigureAwait(false);
+        if (Options.Refresh == null || response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Gone))
+        {
+            return response;
+        }
+
+        response.Dispose();
+        request.Dispose();
+        await RefreshAsync(generation, cancellationToken).ConfigureAwait(false);
+        return await Transport.SendAsync(create(_current), TransferSide.Source, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RefreshAsync(int generation, CancellationToken cancellationToken)
+    {
+        await _refreshing.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (Volatile.Read(ref _generation) != generation)
+            {
+                // Another request refreshed the URL after this one was sent
+                return;
+            }
+            var next = await Options.Refresh!(cancellationToken).ConfigureAwait(false);
+            HttpTransport.EnsureHttpScheme(next);
+            _current = next;
+            Interlocked.Increment(ref _generation);
+        }
+        finally
+        {
+            _refreshing.Release();
+        }
+    }
+
+    private static HttpRequestMessage CreateRequest(Uri uri, RangeHeaderValue? range, string? ifVersion)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Range = range;
         // Ranges, lengths and checksums describe the bytes as sent, so ask for them as they are, not compressed
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
@@ -199,9 +251,9 @@ public sealed class HttpSource : ITransferSource
             Length = length,
             SupportsRanges = supportsRanges,
             IsRepeatable = true,
-            Identity = Uri.AbsoluteUri,
+            Identity = Options.Identity ?? Uri.AbsoluteUri,
             Version = version,
-            Name = GetName(response),
+            Name = Options.Name ?? GetName(response),
             ContentType = headers.ContentType?.ToString(),
             LastModified = headers.LastModified,
             Checksum = GetChecksum(response)
