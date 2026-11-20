@@ -41,6 +41,7 @@ public sealed class FakeUploadServer : HttpMessageHandler
         var upload = new ReceivedUpload
         {
             Method = request.Method,
+            Url = request.RequestUri,
             ContentLength = content.Headers.ContentLength,
             ContentType = content.Headers.ContentType?.MediaType,
             UserAgent = request.Headers.UserAgent.ToString()
@@ -73,6 +74,7 @@ public sealed class FakeUploadServer : HttpMessageHandler
 public sealed class ReceivedUpload
 {
     public required HttpMethod Method { get; init; }
+    public Uri? Url { get; init; }
     public long? ContentLength { get; init; }
     public string? ContentType { get; init; }
     public string? UserAgent { get; init; }

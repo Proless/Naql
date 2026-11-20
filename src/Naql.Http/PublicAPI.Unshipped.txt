@@ -34,6 +34,12 @@ Naql.Http.HttpSourceOptions.Name.get -> string?
 Naql.Http.HttpSourceOptions.Name.init -> void
 Naql.Http.HttpSourceOptions.Refresh.get -> System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Uri!>!>?
 Naql.Http.HttpSourceOptions.Refresh.init -> void
+Naql.Http.HttpSourceResolver
+Naql.Http.HttpSourceResolver.CanResolve(System.Uri! reference) -> bool
+Naql.Http.HttpSourceResolver.Describe.get -> bool
+Naql.Http.HttpSourceResolver.HttpSourceResolver(Naql.Http.HttpTransport? transport = null, bool describe = true) -> void
+Naql.Http.HttpSourceResolver.ResolveAsync(System.Uri! reference, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.Resolved!>!
+Naql.Http.HttpSourceResolver.Transport.get -> Naql.Http.HttpTransport!
 Naql.Http.HttpTarget
 Naql.Http.HttpTarget.Capabilities.get -> Naql.TargetCapabilities!
 Naql.Http.HttpTarget.FormField.get -> string?
@@ -42,6 +48,11 @@ Naql.Http.HttpTarget.OpenAsync(Naql.TargetOpenRequest! request, System.Threading
 Naql.Http.HttpTarget.Transport.get -> Naql.Http.HttpTransport!
 Naql.Http.HttpTarget.Uri.get -> System.Uri!
 Naql.Http.HttpTarget.WithResponseHandler(System.Func<System.Net.Http.HttpResponseMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> Naql.Http.HttpTarget!
+Naql.Http.HttpTargetResolver
+Naql.Http.HttpTargetResolver.CanResolve(System.Uri! destination) -> bool
+Naql.Http.HttpTargetResolver.HttpTargetResolver(Naql.Http.HttpTransport? transport = null) -> void
+Naql.Http.HttpTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+Naql.Http.HttpTargetResolver.Transport.get -> Naql.Http.HttpTransport!
 Naql.Http.HttpTransferException
 Naql.Http.HttpTransferException.HttpTransferException(string! message, Naql.TransferErrorKind kind, bool isTransient, Naql.TransferSide side, System.Net.Http.HttpMethod! method, System.Uri! requestUri, System.Net.HttpStatusCode? statusCode = null, string? reasonPhrase = null, System.TimeSpan? retryDelay = null, System.Exception? innerException = null) -> void
 Naql.Http.HttpTransferException.Method.get -> System.Net.Http.HttpMethod!

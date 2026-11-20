@@ -576,6 +576,40 @@ public sealed class MemorySource(byte[] content) : ITransferSource
 
 It gets retries, parallel parts, throttling, progress, checkpoints and checksum verification without any more code.
 
+**A package for a service on HTTP**, such as Dropbox, Google Drive or a file host, builds on `Naql.Http` instead of starting over. A sketch of an upload through Dropbox's upload sessions:
+
+```csharp
+// Tokens come from the package's sign-in; the handler adds them and refreshes them on a 401
+var client = new HttpClient(new BearerTokenHandler(account.GetTokenAsync)) { Timeout = Timeout.InfiniteTimeSpan };
+var transport = new HttpTransport(client);
+
+public sealed class DropboxTarget(HttpTransport transport, string path) : ChunkedUploadTarget(transport, chunkSize: 8 * 1024 * 1024)
+{
+    protected override async Task StartAsync(ChunkedUpload upload, CancellationToken ct)
+        => upload.Token = await PostJsonAsync("upload_session/start", ct);            // the session id is the resume token
+
+    protected override async Task<long> SendChunkAsync(ChunkedUpload upload, UploadChunk chunk, CancellationToken ct)
+    {
+        await AppendAsync(upload.Token!, chunk.Offset, chunk.Content, ct);           // upload_session/append_v2
+        return chunk.Offset + chunk.Count;
+    }
+
+    protected override Task<long> QueryAsync(ChunkedUpload upload, CancellationToken ct)
+        => OffsetFromErrorAsync(upload.Token!, ct);                                  // Dropbox reports the offset in an error
+
+    protected override async Task CompleteAsync(ChunkedUpload upload, CancellationToken ct)
+        => upload.Metadata["id"] = await FinishAsync(upload.Token!, path, ct);       // upload_session/finish
+}
+```
+
+The pieces it uses:
+
+- **`HttpTransport.SendAsync`** sends the package's own API calls with the transport's settings, and **`HttpTransferException.FromResponse`** turns an unsuccessful answer into an error the engine understands, or into the kind the package knows its service means, such as `QuotaExceeded` behind a 403.
+- **`HttpSourceOptions`** gives a download a stable `Identity` (such as `dropbox:id:abc`, so a checkpoint fits a later, different signed link), a `Name`, and a `Refresh` that gets a new link when one expired.
+- **`BearerTokenHandler`** adds OAuth tokens and refreshes them once on a 401: a request without a body is sent again at once, and an upload fails as a transient `Unauthorized`, so the transfer's retry sends it with the fresh token.
+- **`ChunkedUploadTarget`** sends the content in chunks, in order, and sends again what the server didn't take. It's an `IAcknowledgingSession`, so a failed transfer, or a later one from a checkpoint, continues from what the server acknowledged; a session the service forgot starts the upload over.
+- **Resolvers.** The package's `ISourceResolver` turns its share links into sources, or into further references; `HttpSourceResolver` resolves plain links, and goes last. `HttpTargetResolver` uploads into WebDAV-like folder URLs.
+
 ### 6.5 Checksums
 
 A transfer can be verified against a `Checksum` (MD5, SHA-1 or SHA-2): the caller's (`TransferOptions.ExpectedChecksum`, `WithExpectedChecksum(Checksum.Sha256("…"))`), or else the source's (`SourceInfo.Checksum`; `HttpSource` reads `Repr-Digest` from RFC 9530 and the older `Digest`, preferring SHA-512 over SHA-256).
@@ -600,7 +634,7 @@ There's no `ILogger` in the core: it would add a package dependency, which secti
 | Package | Contents | Dependencies |
 |---|---|---|
 | `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
-| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
+| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication), and for packages for particular services `HttpSourceOptions`, `BearerTokenHandler`, `ChunkedUploadTarget`, `HttpSourceResolver` and `HttpTargetResolver` | `Naql` |
 | Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
 
 ### 7.1 Which endpoints belong in the core
