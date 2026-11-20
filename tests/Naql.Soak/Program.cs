@@ -17,8 +17,8 @@ namespace Naql.Soak
     /// <summary>
     /// Runs transfers against real servers for a set time and checks every result against a reference:
     /// <code>Naql.Soak [--minutes 10] [--url http://...] [--upload https://...] [--out dir]</code>
-    /// It downloads in parallel, throttled, canceled and resumed from a checkpoint, and verified by checksum, and
-    /// uploads with PUT. A failed transfer is counted, since public servers fail now and then; a transfer that
+    /// It downloads in parallel, throttled, canceled and resumed from a checkpoint, verified by checksum, and with its
+    /// speed limit and connections changed while it runs, and uploads with PUT. A failed transfer is counted, since public servers fail now and then; a transfer that
     /// succeeds with wrong bytes, or fails in an unexpected way, makes the exit code 1.
     /// </summary>
     public static class Program
@@ -50,6 +50,7 @@ namespace Naql.Soak
                 ("throttled", ThrottledAsync),
                 ("resumed", ResumedAsync),
                 ("checksum", ChecksumAsync),
+                ("live", LiveAsync),
                 ("upload", UploadAsync)
             };
             var results = scenarios.ToDictionary(scenario => scenario.Name, _ => new Tally());
@@ -157,6 +158,26 @@ namespace Naql.Soak
                 throw new CorruptException("the checksum wasn't verified");
             }
             return $"verified in {result.Parts} parts";
+        }
+
+        private static async Task<string> LiveAsync(Uri url, Uri uploadUrl, string directory, string expected)
+        {
+            // Starts slow on one connection; once a megabyte arrived, the limit is lifted and the running part is split
+            // for three more connections
+            var path = Path.Combine(directory, "live.bin");
+            var operation = Transfer.From(HttpSource.Get(url)).To(FileTarget.At(path)).WithMaxBytesPerSecond(1024 * 1024).Build();
+            var changed = 0;
+            var progress = new Progress<TransferProgress>(p =>
+            {
+                if (p.Transferred > 1024 * 1024 && Interlocked.Exchange(ref changed, 1) == 0)
+                {
+                    operation.SetMaxBytesPerSecond(0);
+                    operation.SetMaxConnections(4);
+                }
+            });
+            var result = await operation.RunAsync(progress);
+            Check(path, expected);
+            return changed == 1 ? $"{result.Parts} parts after raising the connections, {result.Retries} retries" : "finished before the change";
         }
 
         private static async Task<string> UploadAsync(Uri url, Uri uploadUrl, string directory, string expected)

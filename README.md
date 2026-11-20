@@ -4,11 +4,11 @@
 
 Naql (نقل, "transfer") is a .NET library that moves data from a **source** to a **target**: a download, an upload, or a copy between two servers is the same operation. The engine does what every transfer needs, for every protocol:
 
-- parallel parts over several connections, when the source supports ranges
+- parallel parts over several connections, when the source supports ranges, with connections that free up taking over the end of slower parts
 - retries with backoff, continuing a part where it stopped when both sides allow it
 - response and idle timeouts, even for streams that ignore cancellation
-- a speed limit for one transfer or shared by many
-- progress reports, and errors that say what went wrong, on which side, and whether retrying can help
+- a speed limit for one transfer or shared by many, and a speed limit and connection count that can change while a transfer runs
+- progress reports, down to every part's range, bytes and state, and errors that say what went wrong, on which side, and whether retrying can help
 - traces and metrics through .NET's `ActivitySource` and `Meter` (named `"Naql"`), ready for OpenTelemetry or `dotnet-counters`
 - checkpoints that continue an unfinished transfer later, even after a restart
 - checksums (SHA-2, SHA-1, MD5, or the server's `Repr-Digest`) verified before the result becomes visible
