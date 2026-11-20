@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
@@ -79,6 +80,13 @@ public interface ITargetSession : IAsyncDisposable
     /// <see cref="TransferResult.Location"/>.
     /// </summary>
     string? Location { get; }
+
+    /// <summary>
+    /// What the target created, once the session completed, such as a file id, a revision or a share link; empty when
+    /// there is nothing to tell. The engine reads it after <see cref="CompleteAsync"/> and returns it as
+    /// <see cref="TransferResult.TargetMetadata"/>. Keys are up to the target; a package documents the ones it sets.
+    /// </summary>
+    IReadOnlyDictionary<string, string> Metadata { get; }
 
     /// <summary>
     /// Identifies this unfinished transfer so it can be continued later (a temporary file, an upload id), or <c>null</c>

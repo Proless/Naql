@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -25,6 +26,7 @@ internal sealed class TransferRun
     private TransferCheckpoint? _resumeFrom;
     private ITargetSession? _session;
     private string? _location;
+    private IReadOnlyDictionary<string, string> _metadata = ReadOnlyDictionary<string, string>.Empty;
     private Exception? _callerFailure;
 
     public TransferRun(ITransferSource source, ITransferTarget target, TransferOptions options, BandwidthLimiter[] limiters,
@@ -196,7 +198,7 @@ internal sealed class TransferRun
             // The final report of a successful transfer is the caller's to fail, like any other report
             reporter?.ReportNow();
             return new TransferResult(_state.Info!, _state.Transferred, _state.Resumed, _state.Clock.Elapsed, _state.TotalParts, _state.Retries, _state.Verified,
-                _location, _state.SingleConnectionReason);
+                _location, _metadata, _state.SingleConnectionReason);
         }
         catch (Exception) when (Volatile.Read(ref _callerFailure) != null)
         {
@@ -330,6 +332,7 @@ internal sealed class TransferRun
         _state.State = TransferState.Completing;
         await _runner.RetryAsync(TransferSide.Target, t => _runner.WithResponseTimeoutAsync(TransferSide.Target, _session!.CompleteAsync, t), token).ConfigureAwait(false);
         _location = _session!.Location;
+        _metadata = _session!.Metadata ?? ReadOnlyDictionary<string, string>.Empty;
         _state.Completed = true;
         _state.State = TransferState.Completed;
     }

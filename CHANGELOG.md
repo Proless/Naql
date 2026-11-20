@@ -12,7 +12,7 @@ Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .
 
 - `Transfer.From(source).To(target)`, `TransferClient` and `TransferOperation` to run transfers, with immutable `TransferOptions` and `RetryPolicy`.
 - The engine: parallel parts, retries with backoff that continue a part where it stopped, response and idle timeouts (including the wait for an upload's answer), a speed limit per transfer or shared through `BandwidthLimiter`, progress through `IProgress<TransferProgress>`, and one restart when the content changes.
-- `TransferResult.Location` says where the content ended up: the file's path, or the uploaded URL.
+- `TransferResult.Location` says where the content ended up: the file's path, or the uploaded URL. `TransferResult.TargetMetadata` says what the target created, such as an upload's ETag.
 - Progress through `IProgress<TransferProgress>` ends with a final report however a transfer ends (`Completed`, `Failed` or `Canceled`), and `TransferResult.SingleConnectionReason` says why a transfer used one connection.
 - `TransferFailedException` for every failed transfer, with the error kind, the side that failed, whether it's transient, the failure itself and every failed part; protocol packages derive their own exceptions from `TransferException`.
 - Checkpoints: `GetCheckpoint()`, `ResumeFrom(checkpoint)`, and `WithCheckpointStore(ICheckpointStore)` to continue unfinished transfers by themselves, with `FileCheckpointStore`. A checkpoint only continues the same content, by `SourceInfo.Identity` and version, and keeps a fingerprint of the identity rather than the URL.

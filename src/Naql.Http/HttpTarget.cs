@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -180,6 +181,11 @@ public sealed class HttpTarget : ITransferTarget
         // The server's Location for what it created, or else the URL the content went to
         public string? Location { get; private set; }
 
+        // "etag": the ETag the server gave what it stored, when it gave one
+        public IReadOnlyDictionary<string, string> Metadata => _metadata;
+
+        private readonly Dictionary<string, string> _metadata = new();
+
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
             if (!range.IsAll)
@@ -194,6 +200,10 @@ public sealed class HttpTarget : ITransferTarget
                 throw HttpErrors.FromStatus(response, TransferSide.Target);
             }
             Location = (response.Headers.Location is { } location ? new Uri(target.Uri, location) : target.Uri).AbsoluteUri;
+            if (response.Headers.ETag is { } etag)
+            {
+                _metadata["etag"] = etag.ToString();
+            }
             if (target._responseHandler != null)
             {
                 await target._responseHandler(response, cancellationToken).ConfigureAwait(false);

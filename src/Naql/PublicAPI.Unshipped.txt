@@ -80,6 +80,7 @@ Naql.ITargetSession
 Naql.ITargetSession.AbortAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ITargetSession.CompleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ITargetSession.Location.get -> string?
+Naql.ITargetSession.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
 Naql.ITargetSession.ResumeToken.get -> string?
 Naql.ITargetSession.WritePartAsync(Naql.ByteRange range, System.IO.Stream! content, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ITransferSource
@@ -321,6 +322,7 @@ Naql.TransferResult.Resumed.get -> long
 Naql.TransferResult.Retries.get -> int
 Naql.TransferResult.SingleConnectionReason.get -> Naql.SingleConnectionReason
 Naql.TransferResult.Source.get -> Naql.SourceInfo!
+Naql.TransferResult.TargetMetadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
 Naql.TransferResult.Transferred.get -> long
 Naql.TransferResult.VerifiedChecksum.get -> Naql.Checksum?
 Naql.TransferSide

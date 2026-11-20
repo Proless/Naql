@@ -106,6 +106,8 @@ public sealed class MemorySession(MemoryTarget target, TargetOpenRequest request
 
     public string? Location => "memory://" + ResumeToken;
 
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string> { ["id"] = "memory" };
+
     /// <summary>
     /// The writes that read their part to the end.
     /// </summary>

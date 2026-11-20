@@ -144,6 +144,9 @@ public interface ITargetSession : IAsyncDisposable
     /// Where the content is once completed: a file's full path, an upload's URL; null for a stream. Becomes TransferResult.Location.
     string? Location { get; }
 
+    /// What the target created, such as a file id, a revision or a share link. Becomes TransferResult.TargetMetadata.
+    IReadOnlyDictionary<string, string> Metadata { get; }
+
     /// Identifies the unfinished transfer so it can be continued later (a temp file path, an S3 upload id, a tus URL).
     string? ResumeToken { get; }
 

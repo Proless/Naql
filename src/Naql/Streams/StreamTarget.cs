@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography;
@@ -68,6 +69,8 @@ public sealed class StreamTarget : ITransferTarget
 
         // The caller has the stream, so there is no other place to point at
         public string? Location => null;
+
+        public IReadOnlyDictionary<string, string> Metadata { get; } = new Dictionary<string, string>();
 
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {

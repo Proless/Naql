@@ -1,6 +1,7 @@
 using Naql.Streams;
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
@@ -221,6 +222,8 @@ public sealed class FileTarget : ITransferTarget
         public string? ResumeToken => _partial;
 
         public string? Location => _path;
+
+        public IReadOnlyDictionary<string, string> Metadata { get; } = new Dictionary<string, string>();
 
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {

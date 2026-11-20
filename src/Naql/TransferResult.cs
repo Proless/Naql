@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Naql;
 
@@ -8,8 +9,9 @@ namespace Naql;
 public sealed class TransferResult
 {
     internal TransferResult(SourceInfo source, long transferred, long resumed, TimeSpan duration, int parts, int retries, Checksum? verifiedChecksum,
-        string? location, SingleConnectionReason singleConnectionReason)
+        string? location, IReadOnlyDictionary<string, string> targetMetadata, SingleConnectionReason singleConnectionReason)
     {
+        TargetMetadata = targetMetadata;
         SingleConnectionReason = singleConnectionReason;
         Source = source;
         Location = location;
@@ -31,6 +33,12 @@ public sealed class TransferResult
     /// point at, such as a stream. It comes from <see cref="ITargetSession.Location"/>.
     /// </summary>
     public string? Location { get; }
+
+    /// <summary>
+    /// What the target created, such as a file id or a share link, from <see cref="ITargetSession.Metadata"/>; empty when
+    /// it has nothing to tell.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> TargetMetadata { get; }
 
     /// <summary>
     /// The number of bytes the target holds, including those an earlier run had written.

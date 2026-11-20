@@ -850,6 +850,7 @@ public sealed class TransferEngineTests
         var result = await RunAsync(new MemorySource(Content(1_000)), target);
 
         Assert.Equal("memory://memory-0", result.Location);
+        Assert.Equal("memory", result.TargetMetadata["id"]);
         Assert.True(target.Session.Disposed);
     }
 
@@ -868,6 +869,7 @@ public sealed class TransferEngineTests
         private sealed class PlainSession(ITargetSession session) : ITargetSession
         {
             public string? Location => session.Location;
+            public IReadOnlyDictionary<string, string> Metadata => session.Metadata;
             public string? ResumeToken => session.ResumeToken;
             public Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken) => session.WritePartAsync(range, content, cancellationToken);
             public Task CompleteAsync(CancellationToken cancellationToken) => session.CompleteAsync(cancellationToken);

@@ -112,6 +112,8 @@ public sealed class SynchronousReadTests
         {
             public string? Location => null;
 
+            public IReadOnlyDictionary<string, string> Metadata { get; } = new Dictionary<string, string>();
+
             public string? ResumeToken => null;
 
             public Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)

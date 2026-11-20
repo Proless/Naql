@@ -234,6 +234,19 @@ public sealed class HttpTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task The_result_has_the_etag_the_server_gave_the_upload()
+    {
+        var server = new FakeUploadServer
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.Created) { Headers = { ETag = new EntityTagHeaderValue("\"rev-7\"") } }
+        };
+
+        var result = await RunAsync(new MemorySource(Content(100)), Transport(server).Put(FakeUploadServer.Uri));
+
+        Assert.Equal("\"rev-7\"", result.TargetMetadata["etag"]);
+    }
+
+    [Fact]
     public async Task Without_a_location_the_result_points_at_the_upload_url()
     {
         var result = await RunAsync(new MemorySource(Content(100)), Transport(new FakeUploadServer()).Put(FakeUploadServer.Uri));
