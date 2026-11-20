@@ -26,6 +26,7 @@ public interface ITargetResolver
     /// <param name="destination">Where content goes, such as a folder</param>
     /// <param name="relativePath">Where this content goes inside it, empty for the destination itself; see <see cref="RelativePath"/></param>
     /// <param name="info">What's known about the content, such as its name and length, if anything</param>
+    /// <param name="context">The choices for this resolution, such as options of the resolver's own type</param>
     /// <param name="cancellationToken">Stops resolving</param>
-    ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, CancellationToken cancellationToken);
+    ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, ResolveContext context, CancellationToken cancellationToken);
 }

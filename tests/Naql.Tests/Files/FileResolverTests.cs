@@ -94,7 +94,7 @@ public sealed class FileResolverTests : IDisposable
         var destination = Folder(_temp.File("out"));
         var source = new MemoryContent([1, 2, 3]);
 
-        var target = await new FileTargetResolver().ResolveAsync(destination, "CON/a:b?.txt", null, Token);
+        var target = await new FileTargetResolver().ResolveAsync(destination, "CON/a:b?.txt", null, ResolveContext.Default, Token);
         var result = await Transfer.From(source).To(target).RunAsync(cancellationToken: Token);
 
         Assert.Equal(Path.Combine(_temp.File("out"), "_CON", "a_b_.txt"), result.Location);
@@ -106,7 +106,7 @@ public sealed class FileResolverTests : IDisposable
     {
         var destination = Folder(_temp.File("out"));
 
-        var target = await new FileTargetResolver().ResolveAsync(destination, "", null, Token);
+        var target = await new FileTargetResolver().ResolveAsync(destination, "", null, ResolveContext.Default, Token);
         var result = await Transfer.From(new MemoryContent([7])).To(target).RunAsync(cancellationToken: Token);
 
         Assert.Equal(Path.Combine(_temp.File("out"), "memory.bin"), result.Location);
@@ -117,7 +117,7 @@ public sealed class FileResolverTests : IDisposable
     {
         var destination = new Uri(_temp.File("exact.bin"));
 
-        var target = await new FileTargetResolver().ResolveAsync(destination, "", null, Token);
+        var target = await new FileTargetResolver().ResolveAsync(destination, "", null, ResolveContext.Default, Token);
         var result = await Transfer.From(new MemoryContent([7])).To(target).RunAsync(cancellationToken: Token);
 
         Assert.Equal(_temp.File("exact.bin"), result.Location);
@@ -128,7 +128,7 @@ public sealed class FileResolverTests : IDisposable
     {
         var file = Create("existing.bin", 1);
 
-        var ex = await Assert.ThrowsAsync<TransferException>(async () => await new FileTargetResolver().ResolveAsync(new Uri(file), "a/b.txt", null, Token));
+        var ex = await Assert.ThrowsAsync<TransferException>(async () => await new FileTargetResolver().ResolveAsync(new Uri(file), "a/b.txt", null, ResolveContext.Default, Token));
 
         Assert.Equal(TransferErrorKind.AlreadyExists, ex.Kind);
     }
@@ -136,7 +136,7 @@ public sealed class FileResolverTests : IDisposable
     [Fact]
     public async Task A_path_that_would_leave_the_destination_is_refused()
     {
-        await Assert.ThrowsAsync<ArgumentException>(async () => await new FileTargetResolver().ResolveAsync(Folder(_temp.File("out")), "../escape.txt", null, Token));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await new FileTargetResolver().ResolveAsync(Folder(_temp.File("out")), "../escape.txt", null, ResolveContext.Default, Token));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class FileResolverTests : IDisposable
 
         await foreach (var item in Resolve.SourcesAsync(Folder(_temp.File("in")), [new FileSourceResolver()], cancellationToken: Token))
         {
-            var target = await Resolve.TargetAsync(destination, item.Path, item.Info, targets, Token);
+            var target = await Resolve.TargetAsync(destination, item.Path, item.Info, targets, cancellationToken: Token);
             await Transfer.From(item.Source).To(target).RunAsync(cancellationToken: Token);
         }
 

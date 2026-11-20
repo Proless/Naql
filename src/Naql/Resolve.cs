@@ -26,28 +26,36 @@ public static class Resolve
     /// </summary>
     /// <param name="reference">What to resolve</param>
     /// <param name="resolvers">The resolvers to use, in order of preference</param>
+    /// <param name="context">The choices for this resolution, passed to every resolver; its <see cref="ResolveContext.Filter"/>
+    /// applies to each source once its path is final. <see cref="ResolveContext.Default"/> when <c>null</c>.</param>
     /// <param name="maxDepth">How many references to follow from the first one</param>
     /// <param name="cancellationToken">Stops resolving</param>
     /// <exception cref="TransferException">No resolver handles a reference
     /// (<see cref="TransferErrorKind.Unsupported"/>), references lead in a loop or too deep
     /// (<see cref="TransferErrorKind.Protocol"/>), or a resolver failed</exception>
-    public static IAsyncEnumerable<ResolvedSource> SourcesAsync(Uri reference, IReadOnlyList<ISourceResolver> resolvers, int maxDepth = DefaultMaxDepth,
-        CancellationToken cancellationToken = default)
+    public static IAsyncEnumerable<ResolvedSource> SourcesAsync(Uri reference, IReadOnlyList<ISourceResolver> resolvers, ResolveContext? context = null,
+        int maxDepth = DefaultMaxDepth, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(resolvers);
         ArgumentOutOfRangeException.ThrowIfNegative(maxDepth);
-        return FollowAsync(reference, resolvers, "", maxDepth, Array.Empty<string>(), cancellationToken);
+        return FollowAsync(reference, resolvers, context ?? ResolveContext.Default, "", maxDepth, Array.Empty<string>(), cancellationToken);
     }
 
     /// <summary>
     /// The target for <paramref name="relativePath"/> inside <paramref name="destination"/>, from the first of
     /// <paramref name="resolvers"/> that handles the destination.
     /// </summary>
+    /// <param name="destination">Where content goes, such as a folder</param>
+    /// <param name="relativePath">Where this content goes inside it, empty for the destination itself</param>
+    /// <param name="info">What's known about the content, if anything</param>
+    /// <param name="resolvers">The resolvers to use, in order of preference</param>
+    /// <param name="context">The choices for this resolution; <see cref="ResolveContext.Default"/> when <c>null</c></param>
+    /// <param name="cancellationToken">Stops resolving</param>
     /// <exception cref="TransferException">No resolver handles the destination (<see cref="TransferErrorKind.Unsupported"/>),
     /// or the resolver failed</exception>
     public static ValueTask<ITransferTarget> TargetAsync(Uri destination, string relativePath, SourceInfo? info, IReadOnlyList<ITargetResolver> resolvers,
-        CancellationToken cancellationToken = default)
+        ResolveContext? context = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(destination);
         ArgumentNullException.ThrowIfNull(resolvers);
@@ -55,10 +63,10 @@ public static class Resolve
 
         var resolver = resolvers.FirstOrDefault(candidate => candidate.CanResolve(destination))
             ?? throw new TransferException($"No resolver handles the destination {Describe(destination)}", TransferErrorKind.Unsupported, side: TransferSide.Target);
-        return resolver.ResolveAsync(destination, relativePath, info, cancellationToken);
+        return resolver.ResolveAsync(destination, relativePath, info, context ?? ResolveContext.Default, cancellationToken);
     }
 
-    private static async IAsyncEnumerable<ResolvedSource> FollowAsync(Uri reference, IReadOnlyList<ISourceResolver> resolvers, string path, int depthLeft,
+    private static async IAsyncEnumerable<ResolvedSource> FollowAsync(Uri reference, IReadOnlyList<ISourceResolver> resolvers, ResolveContext context, string path, int depthLeft,
         IReadOnlyList<string> visited, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var key = reference.AbsoluteUri;
@@ -71,13 +79,17 @@ public static class Resolve
             ?? throw new TransferException($"No resolver handles {Describe(reference)}", TransferErrorKind.Unsupported, side: TransferSide.Source);
         var trail = visited.Append(key).ToArray();
 
-        await foreach (var resolved in resolver.ResolveAsync(reference, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false))
+        await foreach (var resolved in resolver.ResolveAsync(reference, context, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             var placed = RelativePath.Combine(path, resolved.Path);
             switch (resolved)
             {
                 case ResolvedSource source:
-                    yield return source.Path == placed ? source : new ResolvedSource(source.Source, placed, source.Info);
+                    var final = source.Path == placed ? source : new ResolvedSource(source.Source, placed, source.Info);
+                    if (context.Filter?.Invoke(final) != false)
+                    {
+                        yield return final;
+                    }
                     break;
 
                 case ResolvedReference further:
@@ -85,7 +97,7 @@ public static class Resolve
                     {
                         throw new TransferException($"{Describe(reference)} leads to more than the allowed references", TransferErrorKind.Protocol, side: TransferSide.Source);
                     }
-                    await foreach (var found in FollowAsync(further.Next, resolvers, placed, depthLeft - 1, trail, cancellationToken).ConfigureAwait(false))
+                    await foreach (var found in FollowAsync(further.Next, resolvers, context, placed, depthLeft - 1, trail, cancellationToken).ConfigureAwait(false))
                     {
                         yield return found;
                     }

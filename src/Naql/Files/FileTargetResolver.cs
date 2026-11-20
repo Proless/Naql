@@ -36,16 +36,18 @@ public sealed class FileTargetResolver : ITargetResolver
     public bool CanResolve(Uri destination) => destination is { IsAbsoluteUri: true, IsFile: true };
 
     /// <inheritdoc />
-    public ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, CancellationToken cancellationToken)
+    public ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, ResolveContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(context);
+        var conflict = context.Get<FileResolveOptions>()?.Conflict ?? Conflict;
         var segments = RelativePath.Split(relativePath);
         var path = destination.LocalPath;
         var isFolder = destination.AbsolutePath.EndsWith('/') || Directory.Exists(path);
 
         if (segments.Count == 0)
         {
-            return new ValueTask<ITransferTarget>(isFolder ? FileTarget.InDirectory(path, conflict: Conflict) : FileTarget.At(path, Conflict));
+            return new ValueTask<ITransferTarget>(isFolder ? FileTarget.InDirectory(path, conflict: conflict) : FileTarget.At(path, conflict));
         }
         if (!isFolder && File.Exists(path))
         {
@@ -57,6 +59,6 @@ public sealed class FileTargetResolver : ITargetResolver
         {
             full = Path.Combine(full, FileNames.ToSafeName(segment) ?? "_");
         }
-        return new ValueTask<ITransferTarget>(FileTarget.At(full, Conflict));
+        return new ValueTask<ITransferTarget>(FileTarget.At(full, conflict));
     }
 }

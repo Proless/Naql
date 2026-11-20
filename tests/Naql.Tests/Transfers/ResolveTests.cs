@@ -22,7 +22,7 @@ public sealed class ResolveTests
 
         public bool CanResolve(Uri reference) => reference.Scheme == scheme;
 
-        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             Resolved.Add(reference);
             foreach (var item in resolve(reference))
@@ -80,7 +80,7 @@ public sealed class ResolveTests
     {
         public bool CanResolve(Uri reference) => true;
 
-        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             yield return new ResolvedSource(Song1, "first.bin");
             await more.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
@@ -154,7 +154,7 @@ public sealed class ResolveTests
         var target = new MemoryTarget();
         var resolver = new FakeTargetResolver("box", target);
 
-        var resolved = await Resolve.TargetAsync(new Uri("box:/backup"), "photos/a.jpg", new SourceInfo { Length = 3 }, [new FakeTargetResolver("other", new MemoryTarget()), resolver], Token);
+        var resolved = await Resolve.TargetAsync(new Uri("box:/backup"), "photos/a.jpg", new SourceInfo { Length = 3 }, [new FakeTargetResolver("other", new MemoryTarget()), resolver], cancellationToken: Token);
 
         Assert.Same(target, resolved);
         Assert.Equal(("box:/backup", "photos/a.jpg", 3L), (resolver.Destination!.AbsoluteUri, resolver.Path, resolver.Info!.Length!.Value));
@@ -163,7 +163,7 @@ public sealed class ResolveTests
     [Fact]
     public async Task A_destination_no_resolver_handles_is_unsupported_on_the_target_side()
     {
-        var ex = await Assert.ThrowsAsync<TransferException>(async () => await Resolve.TargetAsync(new Uri("nowhere:/x"), "", null, [new FakeTargetResolver("box", new MemoryTarget())], Token));
+        var ex = await Assert.ThrowsAsync<TransferException>(async () => await Resolve.TargetAsync(new Uri("nowhere:/x"), "", null, [new FakeTargetResolver("box", new MemoryTarget())], cancellationToken: Token));
 
         Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
         Assert.Equal(TransferSide.Target, ex.Side);
@@ -177,7 +177,7 @@ public sealed class ResolveTests
 
         public bool CanResolve(Uri destination) => destination.Scheme == scheme;
 
-        public ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, CancellationToken cancellationToken)
+        public ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, ResolveContext context, CancellationToken cancellationToken)
         {
             (Destination, Path, Info) = (destination, relativePath, info);
             return new ValueTask<ITransferTarget>(target);

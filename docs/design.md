@@ -208,7 +208,7 @@ A reference that arrives as text, from a user, a file or configuration, isn't al
 public interface ISourceResolver
 {
     bool CanResolve(Uri reference);                                    // a quick look: scheme or host
-    IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, CancellationToken cancellationToken);
+    IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, CancellationToken cancellationToken);
 }
 
 public abstract class Resolved                                        // what a reference resolved to: one of the two below
@@ -232,7 +232,8 @@ public sealed class ResolvedReference : Resolved                      // a refer
 public interface ITargetResolver
 {
     bool CanResolve(Uri destination);
-    ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, CancellationToken cancellationToken);
+    ValueTask<ITransferTarget> ResolveAsync(Uri destination, string relativePath, SourceInfo? info, ResolveContext context,
+        CancellationToken cancellationToken);
 }
 ```
 
@@ -243,6 +244,15 @@ public interface ITargetResolver
 - **No registry.** `Resolve.SourcesAsync(reference, resolvers)` resolves with the first resolver in the caller's list that handles each reference, follows references through the same list up to `Resolve.DefaultMaxDepth` steps, and fails on a loop. `Resolve.TargetAsync` picks a target resolver the same way. Which resolvers exist, and in what order, is always the caller's choice; registering them is left to an application or a dependency-injection package. Errors name a reference without its user name, password or query, which can hold credentials.
 - **Files.** `FileSourceResolver` resolves a `file:` reference to a file into its source, and a folder into all its files with their paths, leaving out unfinished transfers and checkpoints. `FileTargetResolver` writes a relative path inside a `file:` destination folder, making each segment safe like `FileTarget.InDirectory`; a destination that isn't a folder is the file a single item goes to.
 - **Not for typed inputs.** A package whose SDK already returns typed objects, such as a file's metadata, offers direct factories for them; resolving is for references that arrive as text.
+- **Choices per resolution.** A `ResolveContext` goes to every resolver along the way. It carries typed options, each package defining its own options class and reading it with `context.Get<T>()`, such as a video's quality, which account to use, or `FileResolveOptions` for the file resolvers; a resolver ignores options it doesn't know. Its `Filter` keeps only some sources, and `Resolve.SourcesAsync` applies it once each path is final, so a filter on `art/` sees `art/cover.jpg`, not the `cover.jpg` its resolver gave. A context never changes: `With<T>` and `WithFilter` return copies.
+
+**Pitfalls for resolver authors.** References are `Uri`s, and `Uri` treats some of them in ways a package has to plan for. Tests check each of these on every runtime:
+
+- **Use schemes of two or more letters.** On Windows, a one-letter scheme is read as a drive letter: `x:1` doesn't parse, and `x:/1` is a file.
+- **Keep case-sensitive identifiers out of the host.** `Uri` lowercases the scheme and the host: `gdrive://AbcXyz` has the host `abcxyz`. An opaque reference such as `gdrive:AbcXyz`, or a path such as `dropbox:/Folder/AbcXyz`, keeps its case.
+- **Unescape what you read.** `AbsolutePath` comes back escaped: `dropbox:/My Photos/a.jpg` gives `/My%20Photos/a.jpg`. Split the path at `/` first, then unescape each segment with `Uri.UnescapeDataString`.
+- **Build file references from paths.** `new Uri(path)` for a local path keeps characters such as `#`, `%` and spaces in the file name, and `LocalPath` gives the path back.
+- **References are compared as `Uri` normalizes them.** `Resolve` finds loops by `AbsoluteUri`, so references that differ only in the case of their scheme or host count as the same reference.
 
 ## 5. The engine
 

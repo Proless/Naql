@@ -39,6 +39,14 @@ Naql.Files.FileConflict
 Naql.Files.FileConflict.Fail = 1 -> Naql.Files.FileConflict
 Naql.Files.FileConflict.KeepBoth = 2 -> Naql.Files.FileConflict
 Naql.Files.FileConflict.Overwrite = 0 -> Naql.Files.FileConflict
+Naql.Files.FileResolveOptions
+Naql.Files.FileResolveOptions.<Clone>$() -> Naql.Files.FileResolveOptions!
+Naql.Files.FileResolveOptions.Conflict.get -> Naql.Files.FileConflict?
+Naql.Files.FileResolveOptions.Conflict.init -> void
+Naql.Files.FileResolveOptions.Equals(Naql.Files.FileResolveOptions? other) -> bool
+Naql.Files.FileResolveOptions.FileResolveOptions() -> void
+Naql.Files.FileResolveOptions.Recursive.get -> bool?
+Naql.Files.FileResolveOptions.Recursive.init -> void
 Naql.Files.FileSource
 Naql.Files.FileSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
 Naql.Files.FileSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
@@ -47,7 +55,7 @@ Naql.Files.FileSourceResolver
 Naql.Files.FileSourceResolver.CanResolve(System.Uri! reference) -> bool
 Naql.Files.FileSourceResolver.FileSourceResolver(bool recursive = true) -> void
 Naql.Files.FileSourceResolver.Recursive.get -> bool
-Naql.Files.FileSourceResolver.ResolveAsync(System.Uri! reference, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.Resolved!>!
+Naql.Files.FileSourceResolver.ResolveAsync(System.Uri! reference, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.Resolved!>!
 Naql.Files.FileTarget
 Naql.Files.FileTarget.Capabilities.get -> Naql.TargetCapabilities!
 Naql.Files.FileTarget.Conflict.get -> Naql.Files.FileConflict
@@ -57,17 +65,17 @@ Naql.Files.FileTargetResolver
 Naql.Files.FileTargetResolver.CanResolve(System.Uri! destination) -> bool
 Naql.Files.FileTargetResolver.Conflict.get -> Naql.Files.FileConflict
 Naql.Files.FileTargetResolver.FileTargetResolver(Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> void
-Naql.Files.FileTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+Naql.Files.FileTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
 Naql.ICheckpointStore
 Naql.ICheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ICheckpointStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.TransferCheckpoint?>!
 Naql.ICheckpointStore.SaveAsync(Naql.TransferCheckpoint! checkpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ISourceResolver
 Naql.ISourceResolver.CanResolve(System.Uri! reference) -> bool
-Naql.ISourceResolver.ResolveAsync(System.Uri! reference, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.Resolved!>!
+Naql.ISourceResolver.ResolveAsync(System.Uri! reference, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.Resolved!>!
 Naql.ITargetResolver
 Naql.ITargetResolver.CanResolve(System.Uri! destination) -> bool
-Naql.ITargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+Naql.ITargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
 Naql.ITargetSession
 Naql.ITargetSession.AbortAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ITargetSession.CompleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -98,6 +106,12 @@ Naql.ReadRequest.ReadRequest(Naql.ByteRange range, string? ifVersion = null) -> 
 Naql.RelativePath
 Naql.Resolve
 const Naql.Resolve.DefaultMaxDepth = 8 -> int
+Naql.ResolveContext
+Naql.ResolveContext.Filter.get -> System.Func<Naql.ResolvedSource!, bool>?
+Naql.ResolveContext.Get<T>() -> T?
+Naql.ResolveContext.ResolveContext(System.Func<Naql.ResolvedSource!, bool>? filter = null) -> void
+Naql.ResolveContext.With<T>(T! options) -> Naql.ResolveContext!
+Naql.ResolveContext.WithFilter(System.Func<Naql.ResolvedSource!, bool>? filter) -> Naql.ResolveContext!
 Naql.Resolved
 Naql.Resolved.Path.get -> string!
 Naql.ResolvedReference
@@ -328,6 +342,9 @@ override Naql.ByteRange.ToString() -> string!
 override Naql.Checksum.Equals(object? obj) -> bool
 override Naql.Checksum.GetHashCode() -> int
 override Naql.Checksum.ToString() -> string!
+override Naql.Files.FileResolveOptions.Equals(object? obj) -> bool
+override Naql.Files.FileResolveOptions.GetHashCode() -> int
+override Naql.Files.FileResolveOptions.ToString() -> string!
 override Naql.RetryPolicy.Equals(object? obj) -> bool
 override Naql.RetryPolicy.GetHashCode() -> int
 override Naql.RetryPolicy.ToString() -> string!
@@ -350,14 +367,17 @@ static Naql.Checksum.Sha256(string! hex) -> Naql.Checksum!
 static Naql.Checksum.Sha512(string! hex) -> Naql.Checksum!
 static Naql.ConcatenatedSource.From(System.Collections.Generic.IEnumerable<Naql.ITransferSource!>! pieces, string? name = null, string? identity = null) -> Naql.ConcatenatedSource!
 static Naql.Files.FileCheckpointStore.For(string! path) -> Naql.Files.FileCheckpointStore!
+static Naql.Files.FileResolveOptions.operator !=(Naql.Files.FileResolveOptions? left, Naql.Files.FileResolveOptions? right) -> bool
+static Naql.Files.FileResolveOptions.operator ==(Naql.Files.FileResolveOptions? left, Naql.Files.FileResolveOptions? right) -> bool
 static Naql.Files.FileSource.At(string! path) -> Naql.Files.FileSource!
 static Naql.Files.FileTarget.At(string! path, Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> Naql.Files.FileTarget!
 static Naql.Files.FileTarget.InDirectory(string! directory, System.Func<Naql.SourceInfo!, string?>? nameSelector = null, Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> Naql.Files.FileTarget!
 static Naql.RelativePath.Combine(string! parent, string! child) -> string!
 static Naql.RelativePath.IsValid(string? path) -> bool
 static Naql.RelativePath.Split(string! path) -> System.Collections.Generic.IReadOnlyList<string!>!
-static Naql.Resolve.SourcesAsync(System.Uri! reference, System.Collections.Generic.IReadOnlyList<Naql.ISourceResolver!>! resolvers, int maxDepth = 8, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Naql.ResolvedSource!>!
-static Naql.Resolve.TargetAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, System.Collections.Generic.IReadOnlyList<Naql.ITargetResolver!>! resolvers, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+static Naql.Resolve.SourcesAsync(System.Uri! reference, System.Collections.Generic.IReadOnlyList<Naql.ISourceResolver!>! resolvers, Naql.ResolveContext? context = null, int maxDepth = 8, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Naql.ResolvedSource!>!
+static Naql.Resolve.TargetAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, System.Collections.Generic.IReadOnlyList<Naql.ITargetResolver!>! resolvers, Naql.ResolveContext? context = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+static Naql.ResolveContext.Default.get -> Naql.ResolveContext!
 static Naql.RetryPolicy.Default.get -> Naql.RetryPolicy!
 static Naql.RetryPolicy.None.get -> Naql.RetryPolicy!
 static Naql.RetryPolicy.operator !=(Naql.RetryPolicy? left, Naql.RetryPolicy? right) -> bool

@@ -16,6 +16,11 @@ namespace Naql;
 /// reference to resolve further, as they are found, so a large folder starts transferring before it's fully listed.</item>
 /// <item>Fail with a <see cref="TransferException"/> whose <see cref="TransferException.Kind"/> says why, such as
 /// <see cref="TransferErrorKind.NotFound"/> or <see cref="TransferErrorKind.Unauthorized"/>.</item>
+/// <item>Choices for one resolution, such as a quality or an account, come in <c>context</c>: read your own options
+/// type with <see cref="ResolveContext.Get{T}"/>, and ignore the rest.</item>
+/// <item>Mind how <see cref="Uri"/> treats references: use schemes of two or more letters (one letter is a drive
+/// letter on Windows), keep case-sensitive identifiers out of the host (it's lowercased), and unescape each segment
+/// of <see cref="Uri.AbsolutePath"/> with <see cref="Uri.UnescapeDataString"/>.</item>
 /// <item>Anything that needs the user, such as signing in, belongs to the caller; a resolver gets what it needs, such
 /// as credentials, when it's created.</item>
 /// </list>
@@ -31,5 +36,8 @@ public interface ISourceResolver
     /// <summary>
     /// Resolves <paramref name="reference"/> into sources, or into further references.
     /// </summary>
-    IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, CancellationToken cancellationToken);
+    /// <param name="reference">What to resolve</param>
+    /// <param name="context">The choices for this resolution, such as options of the resolver's own type</param>
+    /// <param name="cancellationToken">Stops resolving</param>
+    IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, CancellationToken cancellationToken);
 }

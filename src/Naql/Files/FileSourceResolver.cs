@@ -35,9 +35,11 @@ public sealed class FileSourceResolver : ISourceResolver
     public bool CanResolve(Uri reference) => reference is { IsAbsoluteUri: true, IsFile: true };
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reference);
+        ArgumentNullException.ThrowIfNull(context);
+        var recursive = context.Get<FileResolveOptions>()?.Recursive ?? Recursive;
         var path = reference.LocalPath;
         if (File.Exists(path))
         {
@@ -52,7 +54,7 @@ public sealed class FileSourceResolver : ISourceResolver
 
         var root = new DirectoryInfo(path);
         var rootLength = root.FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Length + 1;
-        using var files = Enumerate(root).GetEnumerator();
+        using var files = root.EnumerateFiles("*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly).GetEnumerator();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -80,11 +82,6 @@ public sealed class FileSourceResolver : ISourceResolver
             // Listing is synchronous; let the caller work on what came out so far
             await Task.Yield();
         }
-    }
-
-    private IEnumerable<FileInfo> Enumerate(DirectoryInfo root)
-    {
-        return root.EnumerateFiles("*", Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
     }
 
     private static SourceInfo Describe(FileInfo file) => new()
