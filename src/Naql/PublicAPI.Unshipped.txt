@@ -193,13 +193,17 @@ Naql.TransferClient.TransferClient(Naql.TransferOptions? defaultOptions = null, 
 Naql.TransferErrorKind
 Naql.TransferErrorKind.AccessDenied = 2 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.AlreadyExists = 9 -> Naql.TransferErrorKind
+Naql.TransferErrorKind.Expired = 14 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.InsufficientStorage = 8 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Integrity = 7 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Network = 3 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.NotFound = 1 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Protocol = 5 -> Naql.TransferErrorKind
+Naql.TransferErrorKind.QuotaExceeded = 13 -> Naql.TransferErrorKind
+Naql.TransferErrorKind.RateLimited = 12 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.SourceChanged = 6 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Timeout = 4 -> Naql.TransferErrorKind
+Naql.TransferErrorKind.Unauthorized = 11 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Unknown = 0 -> Naql.TransferErrorKind
 Naql.TransferErrorKind.Unsupported = 10 -> Naql.TransferErrorKind
 Naql.TransferException

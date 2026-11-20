@@ -14,7 +14,10 @@ public enum TransferErrorKind
     /// <summary>The content or its location doesn't exist.</summary>
     NotFound,
 
-    /// <summary>The credentials are missing, wrong, or don't allow the operation.</summary>
+    /// <summary>
+    /// The credentials don't allow the operation. Unlike <see cref="Unauthorized"/>, other credentials for the same
+    /// account wouldn't help.
+    /// </summary>
     AccessDenied,
 
     /// <summary>The connection failed or broke off.</summary>
@@ -39,7 +42,30 @@ public enum TransferErrorKind
     AlreadyExists,
 
     /// <summary>The source and target can't do what the transfer needs.</summary>
-    Unsupported
+    Unsupported,
+
+    /// <summary>
+    /// The credentials are missing, wrong or expired, such as an HTTP 401: signing in again or refreshing a token can
+    /// help.
+    /// </summary>
+    Unauthorized,
+
+    /// <summary>
+    /// The other side asks to slow down, such as an HTTP 429. It's transient; <see cref="TransferException.RetryDelay"/>
+    /// says how long to wait when the other side said so.
+    /// </summary>
+    RateLimited,
+
+    /// <summary>
+    /// A quota or traffic limit is used up, such as a daily download limit. Trying again only helps once it resets.
+    /// </summary>
+    QuotaExceeded,
+
+    /// <summary>
+    /// A link, token or session has run out, such as a signed URL past its time or an upload session the server
+    /// forgot. Resolving the reference again gives a fresh one.
+    /// </summary>
+    Expired
 }
 
 /// <summary>

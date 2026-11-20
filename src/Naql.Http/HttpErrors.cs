@@ -14,10 +14,11 @@ internal static class HttpErrors
         var (kind, transient) = code switch
         {
             404 or 410 => (TransferErrorKind.NotFound, false),
-            401 or 403 or 407 => (TransferErrorKind.AccessDenied, false),
+            401 or 407 => (TransferErrorKind.Unauthorized, false),
+            403 => (TransferErrorKind.AccessDenied, false),
             408 => (TransferErrorKind.Timeout, true),
             413 or 507 => (TransferErrorKind.InsufficientStorage, false),
-            429 => (TransferErrorKind.Network, true),
+            429 => (TransferErrorKind.RateLimited, true),
             501 or 505 => (TransferErrorKind.Protocol, false),
             >= 500 => (TransferErrorKind.Network, true),
             _ => (TransferErrorKind.Protocol, false)

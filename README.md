@@ -97,7 +97,7 @@ try
 }
 catch (TransferFailedException ex)
 {
-    // ex.Kind: NotFound, AccessDenied, Network, Timeout, SourceChanged, AlreadyExists, ...
+    // ex.Kind: NotFound, Unauthorized, AccessDenied, Network, Timeout, RateLimited, SourceChanged, AlreadyExists, ...
     // ex.Side: Source or Target; ex.IsTransient: whether a later attempt could succeed
     // ex.Error: the failure itself, such as an HttpTransferException with its StatusCode
     // ex.PartFailures: every part that failed, with its range and number of attempts

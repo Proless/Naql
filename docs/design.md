@@ -410,11 +410,16 @@ public sealed class PartFailure
 public enum TransferErrorKind
 {
     Unknown, NotFound, AccessDenied, Network, Timeout, Protocol,
-    SourceChanged, Integrity, InsufficientStorage, AlreadyExists, Unsupported
+    SourceChanged, Integrity, InsufficientStorage, AlreadyExists, Unsupported,
+    Unauthorized,    // sign in again or refresh a token
+    RateLimited,     // transient: slow down, for RetryDelay when known
+    QuotaExceeded,   // a quota or traffic limit is used up until it resets
+    Expired          // a link, token or session ran out: resolve the reference again
 }
 ```
 
-- **Protocol details live in the protocol package.** `Naql.Http` throws `HttpTransferException`, with the `StatusCode` (`null` when no response arrived), `ReasonPhrase`, `Method` and `RequestUri`, and fills `RetryDelay` from `Retry-After`. It maps 404 and 410 to `NotFound`, 401, 403 and 407 to `AccessDenied`, 408, 429 and 5xx to transient errors, 413 and 507 to `InsufficientStorage`, and other unexpected statuses to `Protocol`.
+- **Protocol details live in the protocol package.** `Naql.Http` throws `HttpTransferException`, with the `StatusCode` (`null` when no response arrived), `ReasonPhrase`, `Method` and `RequestUri`, and fills `RetryDelay` from `Retry-After`. It maps 404 and 410 to `NotFound`, 401 and 407 to `Unauthorized`, 403 to `AccessDenied`, 429 to a transient `RateLimited`, 408 and 5xx to transient errors, 413 and 507 to `InsufficientStorage`, and other unexpected statuses to `Protocol`.
+- **Kinds that need the site to tell.** `QuotaExceeded` and `Expired` can't be read from a status code alone: a 403 can mean "no access", "quota used up" or "signed link expired", depending on the service. Packages for a particular service map them from its error details.
 - **Nothing is changed after it's thrown.** The engine records what it knows about a failure, the part and the side it was calling, in `PartFailure` and `TransferFailedException.Side`, and leaves the protocol's exception as it was. A source's own exception therefore reaches the caller unchanged as `Error`.
 - **One type to catch.** `RunAsync` throws `TransferFailedException` for every failure, `OperationCanceledException` for cancellation, and exceptions from the caller's own code (such as a progress handler) unchanged. Protocol details are one pattern away:
 
