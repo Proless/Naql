@@ -1,4 +1,7 @@
 #nullable enable
+Naql.Http.BearerTokenHandler
+Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken, System.Net.Http.HttpMessageHandler! innerHandler) -> void
+Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken) -> void
 Naql.Http.HttpSource
 Naql.Http.HttpSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
 Naql.Http.HttpSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
