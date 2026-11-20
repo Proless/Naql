@@ -20,7 +20,7 @@ Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .
 - Traces and metrics through `ActivitySource` and `Meter`, named in `NaqlDiagnostics`.
 - `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`. `FileSourceResolver` and `FileTargetResolver` resolve `file:` references, so whole folders copy through resolvers.
 - `ConcatenatedSource` joins ordered pieces, such as stream segments or archive volumes, into one content that can still be split into parallel parts and resumed. `FileTarget.InDirectory` makes names from sources safe on every OS, including names Windows reserves and names too long for the file system.
-- The contracts for new protocols: `ITransferSource`, `ITransferTarget`, `ITargetSession` and `IVerifiableSession`.
+- The contracts for new protocols: `ITransferSource`, `ITransferTarget`, `ITargetSession` and `IVerifiableSession`. `IAcknowledgingSession` is for targets that keep only what their server acknowledged, such as chunked upload sessions: parts continue from the last acknowledged byte, and checkpoints count only those. `TargetCapabilities.PartSizeMultiple` aligns part sizes to what a target requires.
 - Resolving references into sources and destinations into targets, for any protocol: `ISourceResolver`, `ITargetResolver`, `ResolvedSource` and `ResolvedReference`, `RelativePath`, and `Resolve` to follow references across resolvers the caller chooses. A `ResolveContext` carries per-call options for every resolver along the way and a filter on the sources found.
 
 ### Naql.Http

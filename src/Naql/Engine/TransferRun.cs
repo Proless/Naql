@@ -250,12 +250,21 @@ internal sealed class TransferRun
                 await RunOnceAsync(restarted ? null : _resumeFrom, token).ConfigureAwait(false);
                 return;
             }
-            catch (TransferException ex) when (ex.Kind == TransferErrorKind.SourceChanged && !restarted && !token.IsCancellationRequested)
+            catch (TransferException ex) when (!restarted && !token.IsCancellationRequested &&
+                (ex.Kind == TransferErrorKind.SourceChanged || ex is TransferFailedException { Error: StartOverException }))
             {
-                // What was written belongs to the old content: discard it and start over, once
+                // What was written belongs to the old content, or the session can't take again what it acknowledged:
+                // discard it and start over with a new one, once
                 Activity.Current?.AddEvent(new ActivityEvent("naql.restart", tags: new ActivityTagsCollection { ["exception.message"] = ex.Message }));
                 await DiscardSessionAsync().ConfigureAwait(false);
                 _state.Restart();
+            }
+            catch (TransferFailedException ex) when (ex.Error is StartOverException)
+            {
+                // Already started over once: fail with what made the part need a new session
+                static TransferException Cause(TransferException error) => error is StartOverException start ? (TransferException)start.InnerException! : error;
+                var parts = ex.PartFailures.Select(part => new PartFailure(part.Part, Cause(part.Error), part.Side, part.Attempts)).ToArray();
+                throw new TransferFailedException(Cause(ex.Error), ex.Side, parts);
             }
         }
     }
@@ -416,6 +425,7 @@ internal sealed class TransferRun
                 TransferErrorKind.Unsupported, side: TransferSide.Target);
             throw new TransferFailedException(error, TransferSide.Target);
         }
+        _state.Acknowledging = session as IAcknowledgingSession;
         _session = session;
         _state.ResumeToken = _session.ResumeToken;
         _state.Discarded = false;

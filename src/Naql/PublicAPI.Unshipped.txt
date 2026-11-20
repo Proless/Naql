@@ -66,6 +66,8 @@ Naql.Files.FileTargetResolver.CanResolve(System.Uri! destination) -> bool
 Naql.Files.FileTargetResolver.Conflict.get -> Naql.Files.FileConflict
 Naql.Files.FileTargetResolver.FileTargetResolver(Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> void
 Naql.Files.FileTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, Naql.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
+Naql.IAcknowledgingSession
+Naql.IAcknowledgingSession.Kept(long position) -> long
 Naql.ICheckpointStore
 Naql.ICheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ICheckpointStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.TransferCheckpoint?>!

@@ -121,6 +121,35 @@ public interface ITargetSession : IAsyncDisposable
 }
 
 /// <summary>
+/// A session that keeps only what its other side acknowledged, such as an upload session whose server stores a chunk
+/// once it confirmed it, so bytes it read from a part aren't kept until then.
+/// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item>The engine asks it how much was kept instead of counting what the session read: a failed part continues from
+/// there, even when the session itself failed, and checkpoints count only acknowledged bytes. The target declares
+/// <see cref="TargetCapabilities.ResumableParts"/> for that.</item>
+/// <item>A session opened with a <see cref="TargetOpenRequest.ResumeToken"/> asks its server where it stands before
+/// <see cref="ITransferTarget.OpenAsync"/> returns, so parts continue from what the server really has, not from what a
+/// possibly older checkpoint says.</item>
+/// <item>A <see cref="ITargetSession.WritePartAsync"/> that returns has had its whole part acknowledged.</item>
+/// </list>
+/// </remarks>
+public interface IAcknowledgingSession
+{
+    /// <summary>
+    /// How many bytes from <paramref name="position"/> of the content on the session has kept for good, without a gap;
+    /// 0 when nothing there is acknowledged yet.
+    /// </summary>
+    /// <remarks>
+    /// The engine calls it while writes run and from other threads, for checkpoints, and once more after the session is
+    /// disposed, for the last checkpoint. It must be safe to call at any of those times and answer at once, from what
+    /// the session already knows, without asking the server.
+    /// </remarks>
+    long Kept(long position);
+}
+
+/// <summary>
 /// A session that can read back what it wrote, so the engine can verify a checksum of content that arrived in parallel
 /// parts or was resumed. Sessions of targets with <see cref="TargetCapabilities.Verifiable"/> must implement it; the
 /// engine fails the transfer as <see cref="TransferErrorKind.Unsupported"/> when one doesn't.
@@ -144,7 +173,8 @@ public sealed record TargetCapabilities
     public bool ParallelParts { get; init; }
 
     /// <summary>
-    /// The bytes a failed part read from its content are kept, so the part can continue where it stopped.
+    /// A failed part can continue where it stopped: every byte the session read from the part is kept, or, for a session
+    /// that implements <see cref="IAcknowledgingSession"/>, every byte it acknowledged.
     /// </summary>
     public bool ResumableParts { get; init; }
 

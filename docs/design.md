@@ -160,6 +160,12 @@ public interface ITargetSession : IAsyncDisposable
     Task AbortAsync(CancellationToken cancellationToken);
 }
 
+public interface IAcknowledgingSession
+{
+    /// Bytes kept for good, without a gap, from this position of the content on: what the server acknowledged.
+    long Kept(long position);
+}
+
 public interface IVerifiableSession
 {
     /// Hashes the first length bytes written so far, to verify a checksum before completing.
@@ -513,6 +519,11 @@ await Transfer.From(source).To(target).ResumeFrom(checkpoint).RunAsync();
 How checkpoints behave:
 
 - **Only kept bytes count.** A part counts the bytes the target has handled: the target asks for more only after it wrote what it read before. A checkpoint can therefore lag by one read, which a resume sends again; it never claims bytes the target doesn't have. A target without `ResumableParts` only counts finished parts.
+- **Acknowledged bytes, for upload sessions.** A session that keeps only what its server acknowledged, such as a chunked upload to Drive or OneDrive, implements `IAcknowledgingSession`. The engine then asks it what it kept instead of counting what it read:
+  - A failed part continues from the last acknowledged byte, even when the session itself failed, so a dropped connection costs one chunk.
+  - Checkpoints count only acknowledged bytes.
+  - A session reopened from a checkpoint asks its server where it stands before `OpenAsync` returns, so parts continue from what the server really has, whether it got further after the checkpoint was saved or lost some of it.
+  - A part that has to go back behind what the session acknowledged, because the checksum is hashed as the bytes pass or because the part can't continue, needs a new session, since the server won't take those bytes again. The engine then starts the transfer over with one, once, as it does when the content changes.
 - **Available while running.** `GetCheckpoint` is safe to call during the transfer, for example from the progress handler, so an app can save it regularly in case the process ends without a chance to save it.
 - **`null` when nothing can be continued:** before the transfer starts, after it completes, when the target isn't `Resumable` or discarded its partial data, and when the source has no version or doesn't support ranges.
 - **Resuming checks first.** It always asks the source for its info. When the identity, version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now.

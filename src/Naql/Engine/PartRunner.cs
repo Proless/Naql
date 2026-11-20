@@ -236,23 +236,64 @@ internal sealed class PartRunner
                 return null;
             }
 
-            if (!failure.Resume && part.Consumed > 0)
+            var retry = failure.Retryable && CanRetry(failure.Error, checkRepeatable: true) && attempts <= _options.Retry.MaxRetries;
+            var range = part.Range.IsAll && _state.Info?.Length is long length ? new ByteRange(0, length) : part.Range;
+            if (!GoBackToKept(part, failure.Resume))
             {
-                // The part starts over, so its bytes no longer count, and neither does their hash
-                _state.AddTransferred(-part.Consumed);
-                part.Consumed = 0;
-                part.Confirmed = 0;
-                _state.ResetHash();
+                // The session already acknowledged bytes the part has to send again, which only a new session takes
+                return new PartFailure(range, retry ? new StartOverException(failure.Error) : failure.Error, failure.Side, attempts);
             }
-
-            if (!failure.Retryable || !CanRetry(failure.Error, checkRepeatable: true) || attempts > _options.Retry.MaxRetries)
+            if (!retry)
             {
-                var range = part.Range.IsAll && _state.Info?.Length is long length ? new ByteRange(0, length) : part.Range;
                 return new PartFailure(range, failure.Error, failure.Side, attempts);
             }
 
             await WaitBeforeRetryAsync(failure.Error, failure.Side, attempts, token).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// After a failed attempt, sets the part back to the bytes the target is known to keep, so the next attempt
+    /// continues from there: all it read when <paramref name="resume"/> says the target kept them, what it acknowledged
+    /// for an <see cref="IAcknowledgingSession"/>, even when the session itself failed, and nothing otherwise.
+    /// </summary>
+    /// <returns><c>false</c> when the part would have to go back behind what an acknowledging session already
+    /// acknowledged, which that session can't take again; the part is left as it was then</returns>
+    private bool GoBackToKept(PartRun part, bool resume)
+    {
+        var kept = resume ? part.Consumed : 0;
+        var acknowledged = 0L;
+        if (_state.Acknowledging is { } acknowledging)
+        {
+            acknowledged = Math.Min(RunState.Acknowledged(acknowledging, part.Range), part.Consumed);
+            if (_state.CanResumePart())
+            {
+                kept = acknowledged;
+            }
+        }
+        if (kept < part.Consumed && _state.IsHashing)
+        {
+            // A hash can't take back bytes, so a part that lost some starts over
+            kept = 0;
+        }
+        if (kept < acknowledged)
+        {
+            return false;
+        }
+        if (kept == part.Consumed)
+        {
+            return true;
+        }
+
+        // The bytes after what was kept no longer count, and when the part starts over, neither does their hash
+        _state.AddTransferred(kept - part.Consumed);
+        part.Consumed = kept;
+        part.Confirmed = kept;
+        if (kept == 0)
+        {
+            _state.ResetHash();
+        }
+        return true;
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ internal sealed class RunState
     private int _totalParts;
     private Exception? _lastError;
     private IncrementalHash? _hash;
+    private IAcknowledgingSession? _acknowledging;
     private bool _hashable;
 
     public RunState(TransferOptions options, TargetCapabilities capabilities, TagList tags)
@@ -203,13 +204,43 @@ internal sealed class RunState
         }
 
         var resumableParts = _capabilities.ResumableParts;
+        var acknowledging = Acknowledging;
         return new TransferCheckpoint(info.Length, TransferCheckpoint.Fingerprint(info.Identity), info.Version, token, parts.Select(part =>
         {
             var range = part.Range.IsAll ? new ByteRange(0, info.Length) : part.Range;
-            var completed = part.Done && range.Length is long length ? length : resumableParts ? part.Confirmed : 0;
+            // An acknowledging session says what it kept; otherwise what the session asked for again counts
+            var completed = part.Done && range.Length is long length ? length
+                : !resumableParts ? 0
+                : acknowledging != null ? Acknowledged(acknowledging, range)
+                : part.Confirmed;
             return new CheckpointPart(range, Math.Min(completed, range.Length ?? completed));
         }));
     }
+
+    /// <summary>
+    /// The target's session when it keeps only what its other side acknowledged, for as long as the run might still
+    /// make a checkpoint, also after the session is closed.
+    /// </summary>
+    public IAcknowledgingSession? Acknowledging
+    {
+        get => Volatile.Read(ref _acknowledging);
+        set => Volatile.Write(ref _acknowledging, value);
+    }
+
+    /// <summary>
+    /// How much of <paramref name="range"/>, from its start, the session acknowledged.
+    /// </summary>
+    public static long Acknowledged(IAcknowledgingSession session, ByteRange range)
+    {
+        var kept = Math.Max(0, session.Kept(range.Start));
+        return range.Length is long length ? Math.Min(kept, length) : kept;
+    }
+
+    /// <summary>
+    /// Whether the bytes of a part pass through a hash, which can only go forward: a part that goes back to fewer kept
+    /// bytes then has to start over.
+    /// </summary>
+    public bool IsHashing => _hash != null;
 
     /// <summary>
     /// Whether <paramref name="checkpoint"/> can continue a transfer of the content <paramref name="info"/> describes:
@@ -227,10 +258,15 @@ internal sealed class RunState
     /// </summary>
     public List<PartRun> ContinueFrom(TransferCheckpoint checkpoint)
     {
+        // An acknowledging session checked with its server when it reopened, so what it says wins over the checkpoint,
+        // which may be older, or count bytes the server since lost
+        var acknowledging = Acknowledging;
         var parts = checkpoint.Parts.Select(saved =>
         {
-            var kept = saved.IsComplete || _capabilities.ResumableParts ? saved.Completed : 0;
-            return new PartRun(saved.Range, saved.Range.Length) { Consumed = kept, Confirmed = kept, Done = saved.IsComplete };
+            var acknowledged = acknowledging != null ? Acknowledged(acknowledging, saved.Range) : saved.Completed;
+            var done = saved.Range.Length is long length && acknowledged == length;
+            var kept = done || _capabilities.ResumableParts ? acknowledged : 0;
+            return new PartRun(saved.Range, saved.Range.Length) { Consumed = kept, Confirmed = kept, Done = done };
         }).ToList();
 
         var resumed = parts.Sum(part => part.Consumed);
