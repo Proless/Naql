@@ -102,6 +102,16 @@ Naql.PartFailure.Error.get -> Naql.TransferException!
 Naql.PartFailure.Part.get -> Naql.ByteRange
 Naql.PartFailure.PartFailure(Naql.ByteRange part, Naql.TransferException! error, Naql.TransferSide side, int attempts) -> void
 Naql.PartFailure.Side.get -> Naql.TransferSide
+Naql.PartProgress
+Naql.PartProgress.Range.get -> Naql.ByteRange
+Naql.PartProgress.State.get -> Naql.PartState
+Naql.PartProgress.Transferred.get -> long
+Naql.PartState
+Naql.PartState.Done = 3 -> Naql.PartState
+Naql.PartState.Failed = 4 -> Naql.PartState
+Naql.PartState.Retrying = 2 -> Naql.PartState
+Naql.PartState.Running = 1 -> Naql.PartState
+Naql.PartState.Waiting = 0 -> Naql.PartState
 Naql.ReadRequest
 Naql.ReadRequest.IfVersion.get -> string?
 Naql.ReadRequest.Range.get -> Naql.ByteRange
@@ -312,6 +322,7 @@ Naql.TransferProgress.CurrentRate.get -> double
 Naql.TransferProgress.Elapsed.get -> System.TimeSpan
 Naql.TransferProgress.Fraction.get -> double?
 Naql.TransferProgress.LastError.get -> System.Exception?
+Naql.TransferProgress.Parts.get -> System.Collections.Generic.IReadOnlyList<Naql.PartProgress!>!
 Naql.TransferProgress.Remaining.get -> System.TimeSpan?
 Naql.TransferProgress.State.get -> Naql.TransferState
 Naql.TransferProgress.Total.get -> long?

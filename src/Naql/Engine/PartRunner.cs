@@ -61,6 +61,7 @@ internal sealed class PartRunner
             }
 
             _state.PartStarted();
+            part.State = PartState.Running;
             using var activity = Telemetry.Source.StartActivity("naql.part");
             activity?.SetTag("naql.part.start", part.Range.Start);
             activity?.SetTag("naql.part.length", part.Range.Length);
@@ -75,6 +76,7 @@ internal sealed class PartRunner
                 }
                 else
                 {
+                    part.State = PartState.Failed;
                     lock (failures)
                     {
                         failures.Add(failure);
@@ -87,6 +89,7 @@ internal sealed class PartRunner
             }
             catch (OperationCanceledException) when (partsCts.IsCancellationRequested)
             {
+                part.State = PartState.Failed;
                 // Stopped because of another part's failure, or because the transfer was canceled
                 activity?.SetTag(Telemetry.Outcome, "canceled");
             }
@@ -228,6 +231,7 @@ internal sealed class PartRunner
     {
         for (var attempts = 1; ; attempts++)
         {
+            part.State = PartState.Running;
             var failure = await TryPartAsync(part, token).ConfigureAwait(false);
             if (failure == null)
             {
@@ -248,6 +252,7 @@ internal sealed class PartRunner
                 return new PartFailure(range, failure.Error, failure.Side, attempts);
             }
 
+            part.State = PartState.Retrying;
             await WaitBeforeRetryAsync(failure.Error, failure.Side, attempts, token).ConfigureAwait(false);
         }
     }

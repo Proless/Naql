@@ -335,6 +335,7 @@ public sealed class TransferProgress
     public int CompletedParts { get; }
     public int TotalParts { get; }
     public Exception? LastError { get; }         // set while Retrying, and to the failure when Failed
+    public IReadOnlyList<PartProgress> Parts { get; } // every part: its range, bytes moved, and Waiting, Running, Retrying, Done or Failed
 }
 ```
 

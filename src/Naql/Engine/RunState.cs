@@ -324,7 +324,20 @@ internal sealed class RunState
             Volatile.Read(ref _activeParts),
             Volatile.Read(ref _completedParts),
             TotalParts,
-            retrying ? Volatile.Read(ref _lastError) : state == TransferState.Failed ? Failure : null);
+            retrying ? Volatile.Read(ref _lastError) : state == TransferState.Failed ? Failure : null,
+            PartsProgress());
+    }
+
+    private PartProgress[] PartsProgress()
+    {
+        var parts = _parts;
+        if (parts == null)
+        {
+            return Array.Empty<PartProgress>();
+        }
+        var length = _info?.Length;
+        return parts.Select(part => new PartProgress(part.Range.IsAll && length is long total ? new ByteRange(0, total) : part.Range, part.Consumed,
+            part.Done ? PartState.Done : part.State)).ToArray();
     }
 }
 
@@ -335,6 +348,8 @@ internal sealed class PartRun
 {
     private long _confirmed;
     private int _done;
+    private long _consumed;
+    private int _state;
 
     public PartRun(ByteRange range, long? expectedLength)
     {
@@ -348,8 +363,22 @@ internal sealed class PartRun
     /// <summary>How many bytes the part has, or <c>null</c> while unknown.</summary>
     public long? ExpectedLength { get; set; }
 
-    /// <summary>The bytes of the part the target has read so far, and keeps after a failure reading the source.</summary>
-    public long Consumed { get; set; }
+    /// <summary>
+    /// The bytes of the part the target has read so far, and keeps after a failure reading the source. Read by progress
+    /// from other threads.
+    /// </summary>
+    public long Consumed
+    {
+        get => Interlocked.Read(ref _consumed);
+        set => Interlocked.Exchange(ref _consumed, value);
+    }
+
+    /// <summary>What the part is doing, for progress.</summary>
+    public PartState State
+    {
+        get => (PartState)Volatile.Read(ref _state);
+        set => Volatile.Write(ref _state, (int)value);
+    }
 
     /// <summary>
     /// The bytes of the part the target is known to have handled, which may lag <see cref="Consumed"/> by one read.

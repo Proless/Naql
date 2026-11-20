@@ -904,6 +904,57 @@ public sealed class TransferEngineTests
         Assert.Equal(4, last.TotalParts);
         Assert.Equal(4, last.CompletedParts);
         Assert.Equal(0, last.ActiveParts);
+        Assert.Equal([new ByteRange(0, 2_500), new ByteRange(2_500, 2_500), new ByteRange(5_000, 2_500), new ByteRange(7_500, 2_500)],
+            last.Parts.Select(part => part.Range));
+        Assert.All(last.Parts, part => Assert.Equal((PartState.Done, 2_500L), (part.State, part.Transferred)));
+    }
+
+    [Fact]
+    public async Task Each_part_reports_its_own_progress_and_state()
+    {
+        var reports = new List<TransferProgress>();
+        var progress = new SynchronousProgress(report =>
+        {
+            lock (reports)
+            {
+                reports.Add(report);
+            }
+        });
+        // The part at 5 000 breaks after 1 000 bytes and waits before it tries again
+        var source = new MemorySource(Content(10_000))
+        {
+            WrapContent = (read, request, stream) => request.Range.Start == 5_000 && read < 5 ? new FailingStream(stream, 1_000, Broken) : stream
+        };
+        var options = Parallel with { Retry = new RetryPolicy { MaxRetries = 3, InitialDelay = TimeSpan.FromMilliseconds(300), Jitter = false } };
+
+        await RunAsync(source, new MemoryTarget(), options, progress);
+
+        List<TransferProgress> all;
+        lock (reports)
+        {
+            all = reports.ToList();
+        }
+        var third = all.Select(report => report.Parts.FirstOrDefault(part => part.Range.Start == 5_000)).Where(part => part != null).ToList();
+        Assert.Contains(third, part => part!.State == PartState.Retrying && part.Transferred == 1_000);
+        Assert.Equal(PartState.Done, third[^1]!.State);
+        // While the third part waits, the others are done or running, never retrying
+        Assert.DoesNotContain(all.SelectMany(report => report.Parts), part => part.Range.Start != 5_000 && part.State is PartState.Retrying or PartState.Failed);
+    }
+
+    [Fact]
+    public async Task The_final_report_of_a_failed_transfer_shows_which_part_failed()
+    {
+        TransferProgress? last = null;
+        var progress = new SynchronousProgress(report => last = report);
+        var source = new MemorySource(Content(10_000))
+        {
+            OnOpen = (_, request, _) => request.Range.Start == 2_500 ? throw new UnauthorizedAccessException("Denied") : Task.CompletedTask
+        };
+
+        await Assert.ThrowsAsync<TransferFailedException>(() => RunAsync(source, new MemoryTarget(), Parallel, progress));
+
+        Assert.Equal(TransferState.Failed, last!.State);
+        Assert.Equal(PartState.Failed, last.Parts.Single(part => part.Range.Start == 2_500).State);
     }
 
     [Theory]

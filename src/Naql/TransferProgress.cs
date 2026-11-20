@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Naql;
 
@@ -35,8 +36,9 @@ public enum TransferState
 public sealed class TransferProgress
 {
     internal TransferProgress(TransferState state, long transferred, long? total, double currentRate, double averageRate,
-        TimeSpan elapsed, int activeParts, int completedParts, int totalParts, Exception? lastError)
+        TimeSpan elapsed, int activeParts, int completedParts, int totalParts, Exception? lastError, IReadOnlyList<PartProgress> parts)
     {
+        Parts = parts;
         State = state;
         Transferred = transferred;
         Total = total;
@@ -111,4 +113,58 @@ public sealed class TransferProgress
     /// or <c>null</c>.
     /// </summary>
     public Exception? LastError { get; }
+
+    /// <summary>
+    /// Every part of the transfer, in order, with how far it got, such as for a bar per part.
+    /// </summary>
+    public IReadOnlyList<PartProgress> Parts { get; }
+}
+
+/// <summary>
+/// How far one part of a transfer got.
+/// </summary>
+public sealed class PartProgress
+{
+    internal PartProgress(ByteRange range, long transferred, PartState state)
+    {
+        Range = range;
+        Transferred = transferred;
+        State = state;
+    }
+
+    /// <summary>
+    /// The bytes of the part; open-ended while the content's length is unknown.
+    /// </summary>
+    public ByteRange Range { get; }
+
+    /// <summary>
+    /// The bytes of the part moved so far, from its start.
+    /// </summary>
+    public long Transferred { get; }
+
+    /// <summary>
+    /// What the part is doing.
+    /// </summary>
+    public PartState State { get; }
+}
+
+/// <summary>
+/// What one part of a transfer is doing.
+/// </summary>
+public enum PartState
+{
+    /// <summary>Waiting for a connection.</summary>
+    Waiting,
+
+    /// <summary>Moving bytes.</summary>
+    Running,
+
+    /// <summary>Waiting to try again after an error.</summary>
+    Retrying,
+
+    /// <summary>All its bytes have moved.</summary>
+    Done,
+
+    /// <summary>Failed for good, or stopped because another part did.</summary>
+    Failed
 }
