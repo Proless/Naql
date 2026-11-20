@@ -217,4 +217,21 @@ public sealed record TargetCapabilities
             field = value;
         }
     }
+
+    /// <summary>
+    /// Every part but the last must be a multiple of this many bytes, such as 320 KiB for OneDrive's upload
+    /// sessions, or <c>null</c> when any size will do. The planner rounds part sizes to it.
+    /// </summary>
+    public long? PartSizeMultiple
+    {
+        get;
+        init
+        {
+            if (value is long multiple)
+            {
+                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(multiple, nameof(PartSizeMultiple));
+            }
+            field = value;
+        }
+    }
 }

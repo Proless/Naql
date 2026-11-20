@@ -197,6 +197,8 @@ Naql.TargetCapabilities.MinPartSize.get -> long
 Naql.TargetCapabilities.MinPartSize.init -> void
 Naql.TargetCapabilities.ParallelParts.get -> bool
 Naql.TargetCapabilities.ParallelParts.init -> void
+Naql.TargetCapabilities.PartSizeMultiple.get -> long?
+Naql.TargetCapabilities.PartSizeMultiple.init -> void
 Naql.TargetCapabilities.RepeatableWrites.get -> bool
 Naql.TargetCapabilities.RepeatableWrites.init -> void
 Naql.TargetCapabilities.RequiresLength.get -> bool

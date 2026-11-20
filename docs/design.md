@@ -177,6 +177,7 @@ public sealed record TargetCapabilities
     public long MinPartSize { get; init; }        // S3: 5 MiB except the last part
     public long? MaxPartSize { get; init; }
     public int? MaxParts { get; init; }
+    public long? PartSizeMultiple { get; init; }  // parts but the last are multiples of this, such as OneDrive's 320 KiB
 }
 ```
 
@@ -290,7 +291,7 @@ parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 ```
 
 - One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1 (the smaller of `TransferOptions.MaxConnections` and the source's `SourceInfo.MaxConnections`), or the content is smaller than `MinSplitPartSize × 2`.
-- Otherwise `min(MaxConnections, length / MinSplitPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
+- Otherwise `min(MaxConnections, length / MinSplitPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`, and rounded up to its `PartSizeMultiple`; when that would make parts larger than `MaxPartSize`, they are the largest multiple that fits, and only the last part may be shorter.
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
 - Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 

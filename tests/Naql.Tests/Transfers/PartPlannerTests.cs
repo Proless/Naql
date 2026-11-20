@@ -92,4 +92,46 @@ public sealed class PartPlannerTests
         }
         Assert.Equal(length, next);
     }
+
+    [Fact]
+    public void Parts_are_multiples_of_what_the_target_requires()
+    {
+        const long Kib320 = 320 * 1024;
+        var target = Parallel with { PartSizeMultiple = Kib320 };
+
+        var exact = PartPlanner.Plan(10 * 1024 * 1024, true, target, Options);
+        var rounded = PartPlanner.Plan(1_000_000, true, target, Options with { MaxConnections = 3 });
+
+        Assert.Equal(Enumerable.Range(0, 4).Select(i => new ByteRange(i * 8 * Kib320, 8 * Kib320)), exact);
+        Assert.Equal([new ByteRange(0, 2 * Kib320), new ByteRange(2 * Kib320, 1_000_000 - 2 * Kib320)], rounded);
+    }
+
+    [Fact]
+    public void A_multiple_and_a_largest_part_make_the_largest_aligned_parts_that_fit()
+    {
+        var target = Parallel with { PartSizeMultiple = 300_000, MaxPartSize = 700_000 };
+
+        var parts = PartPlanner.Plan(2_000_000, true, target, Options with { MaxConnections = 2 });
+
+        Assert.Equal([600_000L, 600_000, 600_000, 200_000], parts.Select(part => part.Length!.Value));
+    }
+
+    [Fact]
+    public void A_multiple_larger_than_the_largest_part_is_unsupported()
+    {
+        var target = Parallel with { PartSizeMultiple = 800_000, MaxPartSize = 700_000 };
+
+        var ex = Assert.Throws<TransferException>(() => PartPlanner.Plan(2_000_000, true, target, Options));
+
+        Assert.Equal(TransferErrorKind.Unsupported, ex.Kind);
+    }
+
+    [Fact]
+    public void Content_within_one_multiple_is_one_part()
+    {
+        var parts = PartPlanner.Plan(300_000, true, Parallel with { PartSizeMultiple = 320 * 1024 }, Options, out var reason);
+
+        Assert.Equal(ByteRange.All, Assert.Single(parts));
+        Assert.Equal(SingleConnectionReason.TooSmall, reason);
+    }
 }

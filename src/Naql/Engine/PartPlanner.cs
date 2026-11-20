@@ -57,14 +57,31 @@ internal static class PartPlanner
         }
 
         var partSize = DivideRoundingUp(total, count);
-        if (partSize > target.MaxPartSize || (partSize < target.MinPartSize && partSize < total))
+        if (target.PartSizeMultiple is long multiple)
         {
+            // Rounding up only makes fewer parts; if that's too large for the target, the largest aligned size that fits
+            partSize = DivideRoundingUp(partSize, multiple) * multiple;
+            if (target.MaxPartSize is long largest && partSize > largest)
+            {
+                partSize = largest / multiple * multiple;
+            }
+            if (partSize >= total)
+            {
+                reason = SingleConnectionReason.TooSmall;
+                return Single;
+            }
+        }
+
+        if (partSize == 0 || partSize > target.MaxPartSize || (partSize < target.MinPartSize && partSize < total) ||
+            DivideRoundingUp(total, partSize) > target.MaxParts)
+        {
+            var multipleText = target.PartSizeMultiple is long size ? $", in multiples of {size}" : "";
             throw new TransferException(
-                $"The target can't take {total} bytes in at most {target.MaxParts} parts of {target.MinPartSize} to {target.MaxPartSize} bytes",
+                $"The target can't take {total} bytes in at most {target.MaxParts} parts of {target.MinPartSize} to {target.MaxPartSize} bytes{multipleText}",
                 TransferErrorKind.Unsupported, side: TransferSide.Engine);
         }
 
-        var parts = new List<ByteRange>((int)count);
+        var parts = new List<ByteRange>((int)DivideRoundingUp(total, partSize));
         for (long start = 0; start < total; start += partSize)
         {
             parts.Add(new ByteRange(start, Math.Min(partSize, total - start)));

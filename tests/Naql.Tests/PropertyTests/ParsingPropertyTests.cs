@@ -206,7 +206,8 @@ public sealed class ParsingPropertyTests
         from minPart in Gen.Frequency((2, Gen.Const(0L)), (1, Gen.Long[1, 5_000_000]))
         from maxPart in Gen.Frequency((2, Gen.Const((long?)null)), (1, Gen.Long[1, 20_000_000].Select(size => (long?)size)))
         from maxParts in Gen.Frequency((2, Gen.Const((int?)null)), (1, Gen.Int[1, 10_000].Select(parts => (int?)parts)))
-        select (length, connections, minSplit, new TargetCapabilities { ParallelParts = true, MinPartSize = minPart, MaxPartSize = maxPart, MaxParts = maxParts });
+        from multiple in Gen.Frequency((2, Gen.Const((long?)null)), (1, Gen.Long[1, 3_000_000].Select(size => (long?)size)))
+        select (length, connections, minSplit, new TargetCapabilities { ParallelParts = true, MinPartSize = minPart, MaxPartSize = maxPart, MaxParts = maxParts, PartSizeMultiple = multiple });
 
     [Fact]
     public void Planned_parts_cover_the_content_once_within_the_targets_limits()
@@ -222,7 +223,7 @@ public sealed class ParsingPropertyTests
             catch (TransferException ex) when (ex.Kind == TransferErrorKind.Unsupported)
             {
                 // Only when no split fits the target's limits
-                Assert.True(target.MaxPartSize != null && target.MaxParts != null || target.MinPartSize > 0, ex.Message);
+                Assert.True(target.MaxPartSize != null && target.MaxParts != null || target.MinPartSize > 0 || target.PartSizeMultiple != null && target.MaxPartSize != null, ex.Message);
                 return;
             }
 
@@ -238,13 +239,16 @@ public sealed class ParsingPropertyTests
                 var size = part.Length!.Value;
                 Assert.True(size > 0);
                 Assert.True(target.MaxPartSize == null || size <= target.MaxPartSize, $"Part {part} is larger than {target.MaxPartSize}");
+                Assert.True(target.PartSizeMultiple == null || next + size == length || size % target.PartSizeMultiple == 0, $"Part {part} isn't a multiple of {target.PartSizeMultiple}");
                 next += size;
                 Assert.True(next == length || size >= target.MinPartSize, $"Part {part} is smaller than {target.MinPartSize}");
             }
             Assert.Equal(length, next);
             Assert.True(target.MaxParts == null || parts.Count <= target.MaxParts);
             // No more parts than connections, unless the target's largest part makes more necessary
-            var needed = target.MaxPartSize is long maxPart ? (length + maxPart - 1) / maxPart : 0;
+            // A multiple makes the largest part that fits the largest aligned one
+            var largest = target.MaxPartSize is long maxPart && target.PartSizeMultiple is long aligned ? maxPart / aligned * aligned : target.MaxPartSize;
+            var needed = largest is long fits && fits > 0 ? (length + fits - 1) / fits : 0;
             Assert.True(parts.Count <= Math.Max(connections, needed), $"{parts.Count} parts for {connections} connections");
         }, writeLine: Output);
     }
