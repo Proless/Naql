@@ -316,7 +316,15 @@ A watchdog next to it enforces the **idle timeout**: when no bytes move for `Idl
 
 Throttling, progress and timeouts are therefore the same for every protocol and both directions, and no protocol contains that code.
 
-`BandwidthLimiter` is a small public token bucket. Passing the same instance to several transfers (or setting it on a `TransferClient`) limits their combined rate.
+`BandwidthLimiter` is a small public token bucket. Passing the same instance to several transfers (or setting it on a `TransferClient`) limits their combined rate. Its `BytesPerSecond` can change at any time, and 0 means no limit.
+
+### 5.3.1 Changing limits while a transfer runs
+
+A download manager lets people change the speed limit or the number of connections of a transfer that is already running, so `TransferOperation` has `SetMaxBytesPerSecond` and `SetMaxConnections`, which work before and during a run, and `MaxBytesPerSecond` and `MaxConnections` to read the current values. `TransferOptions` stays immutable: it is what the transfer started with.
+
+- **The speed limit** is the transfer's own `BandwidthLimiter`, which every operation has, set to 0 when there is no limit. A new rate applies to the next read; a read already waiting finishes its wait. A shared limiter still applies on top.
+- **The connections** go through an internal gate the parts wait at, whose limit can change. Raising it starts waiting parts at once. Lowering it stops no running part, which would throw away the bytes it is moving and its connection; it starts no new parts until fewer run. The source's `SourceInfo.MaxConnections` still caps it.
+- Parts are planned when the transfer starts, from the connections set then, so raising the connections later only helps when there are parts waiting.
 
 ### 5.4 Progress
 
@@ -397,6 +405,8 @@ public sealed class TransferOperation
 {
     public Task<TransferResult> RunAsync(IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
     public TransferCheckpoint? GetCheckpoint();       // also while running; null when it can't be resumed
+    public void SetMaxBytesPerSecond(long bytesPerSecond);   // also while running; 0: unlimited
+    public void SetMaxConnections(int maxConnections);       // also while running (see 5.3.1)
 }
 
 public sealed class TransferClient

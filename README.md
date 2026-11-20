@@ -104,7 +104,7 @@ catch (TransferFailedException ex)
 }
 ```
 
-Settings live in an immutable `TransferOptions` record: `MaxConnections`, `MaxBytesPerSecond`, `Retry` (a `RetryPolicy`), `ResponseTimeout`, `IdleTimeout` and more. Pass them with `WithOptions`, or give a `TransferClient` defaults and a `BandwidthLimiter` its transfers share. For HTTP authentication and headers, create an `HttpTransport` with your `HttpClient` and a `ConfigureRequest` callback such as `HttpTransport.BasicAuthentication(user, password)`.
+Settings live in an immutable `TransferOptions` record: `MaxConnections`, `MaxBytesPerSecond`, `Retry` (a `RetryPolicy`), `ResponseTimeout`, `IdleTimeout` and more. Pass them with `WithOptions`, or give a `TransferClient` defaults and a `BandwidthLimiter` its transfers share. `TransferOperation.SetMaxBytesPerSecond` and `SetMaxConnections` change a transfer's limits while it runs. For HTTP authentication and headers, create an `HttpTransport` with your `HttpClient` and a `ConfigureRequest` callback such as `HttpTransport.BasicAuthentication(user, password)`.
 
 A new protocol implements `ITransferSource` (describe the content, open a range of it) or `ITransferTarget` (write parts, then complete), and gets everything above without more code. [The design](https://github.com/Proless/Naql/blob/main/docs/design.md) explains the contracts and the engine.
 

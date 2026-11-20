@@ -2,6 +2,7 @@
 Naql.BandwidthLimiter
 Naql.BandwidthLimiter.BandwidthLimiter(long bytesPerSecond) -> void
 Naql.BandwidthLimiter.BytesPerSecond.get -> long
+Naql.BandwidthLimiter.BytesPerSecond.set -> void
 Naql.BandwidthLimiter.WaitAsync(long bytes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Naql.ByteRange
 Naql.ByteRange.ByteRange() -> void
@@ -283,9 +284,13 @@ Naql.TransferFailedException.TransferFailedException(Naql.TransferException! err
 Naql.TransferOperation
 Naql.TransferOperation.CheckpointStore.get -> Naql.ICheckpointStore?
 Naql.TransferOperation.GetCheckpoint() -> Naql.TransferCheckpoint?
+Naql.TransferOperation.MaxBytesPerSecond.get -> long
+Naql.TransferOperation.MaxConnections.get -> int
 Naql.TransferOperation.Options.get -> Naql.TransferOptions!
 Naql.TransferOperation.ResumeFrom.get -> Naql.TransferCheckpoint?
 Naql.TransferOperation.RunAsync(System.IProgress<Naql.TransferProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Naql.TransferResult!>!
+Naql.TransferOperation.SetMaxBytesPerSecond(long bytesPerSecond) -> void
+Naql.TransferOperation.SetMaxConnections(int maxConnections) -> void
 Naql.TransferOperation.Source.get -> Naql.ITransferSource!
 Naql.TransferOperation.Target.get -> Naql.ITransferTarget!
 Naql.TransferOptions

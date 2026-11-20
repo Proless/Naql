@@ -10,7 +10,9 @@ namespace Naql;
 /// </summary>
 /// <remarks>
 /// A token bucket: up to a tenth of a second's worth of bytes can pass at once, and every byte beyond that waits for
-/// its share of time. Callers that go over the limit wait in turn, so parallel parts share the rate fairly.
+/// its share of time. Callers that go over the limit wait in turn, so parallel parts share the rate fairly. The rate
+/// can change at any time, such as from a speed setting in an app; reads already waiting finish their wait, and the
+/// ones after them wait for the new rate.
 /// </remarks>
 public sealed class BandwidthLimiter
 {
@@ -19,46 +21,66 @@ public sealed class BandwidthLimiter
 
     private readonly object _lock = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private readonly double _burst;
+    private long _bytesPerSecond;
+    private double _burst;
     private double _tokens;
     private TimeSpan _lastRefill;
 
     /// <summary>
     /// Creates a limiter.
     /// </summary>
-    /// <param name="bytesPerSecond">The highest average rate</param>
+    /// <param name="bytesPerSecond">The highest average rate, or 0 for no limit</param>
     public BandwidthLimiter(long bytesPerSecond)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bytesPerSecond);
         BytesPerSecond = bytesPerSecond;
-        _burst = Math.Max(1, bytesPerSecond / 10.0);
         _tokens = _burst;
     }
 
     /// <summary>
-    /// The highest average rate.
+    /// The highest average rate in bytes per second, or 0 for no limit. Setting it takes effect for the next read.
     /// </summary>
-    public long BytesPerSecond { get; }
+    public long BytesPerSecond
+    {
+        get => Interlocked.Read(ref _bytesPerSecond);
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value, nameof(BytesPerSecond));
+            lock (_lock)
+            {
+                Refill(_clock.Elapsed);
+                _bytesPerSecond = value;
+                _burst = Math.Max(1, value / 10.0);
+                _tokens = Math.Min(_tokens, _burst);
+            }
+        }
+    }
 
     /// <summary>
-    /// Accounts for <paramref name="bytes"/> that just moved, and waits as long as needed to stay within the limit.
+    /// Waits until <paramref name="bytes"/> may pass under the limit.
     /// </summary>
     public Task WaitAsync(long bytes, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-
         double waitSeconds;
         lock (_lock)
         {
-            var now = _clock.Elapsed;
-            _tokens = Math.Min(_burst, _tokens + ((now - _lastRefill).TotalSeconds * BytesPerSecond));
-            _lastRefill = now;
+            if (_bytesPerSecond == 0)
+            {
+                return Task.CompletedTask;
+            }
+            Refill(_clock.Elapsed);
             _tokens -= bytes;
-            waitSeconds = _tokens < 0 ? -_tokens / BytesPerSecond : 0;
+            waitSeconds = _tokens < 0 ? -_tokens / _bytesPerSecond : 0;
         }
 
         return waitSeconds >= MinWaitSeconds
             ? Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken)
             : Task.CompletedTask;
+    }
+
+    private void Refill(TimeSpan now)
+    {
+        _tokens = Math.Min(_burst, _tokens + ((now - _lastRefill).TotalSeconds * _bytesPerSecond));
+        _lastRefill = now;
     }
 }

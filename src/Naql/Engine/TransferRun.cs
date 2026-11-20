@@ -28,6 +28,9 @@ internal sealed class TransferRun
     private string? _location;
     private IReadOnlyDictionary<string, string> _metadata = ReadOnlyDictionary<string, string>.Empty;
     private Exception? _callerFailure;
+    private readonly ConnectionGate _gate = new(1);
+    private int _requestedConnections;
+    private int? _sourceConnections;
 
     public TransferRun(ITransferSource source, ITransferTarget target, TransferOptions options, BandwidthLimiter[] limiters,
         IProgress<TransferProgress>? progress, TransferCheckpoint? resumeFrom, ICheckpointStore? store)
@@ -44,7 +47,31 @@ internal sealed class TransferRun
             { Telemetry.SourceType, source.GetType().Name },
             { Telemetry.TargetType, target.GetType().Name }
         });
+        _requestedConnections = options.MaxConnections;
         _runner = new PartRunner(source, options, _capabilities, limiters, _state, EnsureSessionAsync);
+    }
+
+    private int RequestedConnections => Volatile.Read(ref _requestedConnections);
+
+    /// <summary>
+    /// Changes how many parts may run at once, also while the transfer runs: more start waiting parts at once, fewer let
+    /// running parts finish and start no new ones until fewer run. A source's own limit still applies.
+    /// </summary>
+    public void SetMaxConnections(int maxConnections)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConnections);
+        Volatile.Write(ref _requestedConnections, maxConnections);
+        UpdateGate();
+    }
+
+    // The setting and the source's limit can both change, from different threads; the lock keeps the gate from
+    // ending up with a limit computed from a stale one
+    private void UpdateGate()
+    {
+        lock (_gate)
+        {
+            _gate.Limit = Math.Min(RequestedConnections, _sourceConnections ?? int.MaxValue);
+        }
     }
 
     /// <summary>
@@ -58,7 +85,7 @@ internal sealed class TransferRun
         using var activity = Telemetry.Source.StartActivity("naql.transfer");
         activity?.SetTag(Telemetry.SourceType, _source.GetType().Name);
         activity?.SetTag(Telemetry.TargetType, _target.GetType().Name);
-        activity?.SetTag("naql.max_connections", _options.MaxConnections);
+        activity?.SetTag("naql.max_connections", RequestedConnections);
         Telemetry.Active.Add(1, _state.Tags);
 
         CheckpointKeeper? keeper = null;
@@ -285,12 +312,16 @@ internal sealed class TransferRun
         List<PartRun>? parts = null;
         var reason = SingleConnectionReason.None;
         var connections = 1;
-        if (checkpoint != null || (!hashWhileStreaming && _options.MaxConnections > 1 && _capabilities.ParallelParts))
+        if (checkpoint != null || (!hashWhileStreaming && RequestedConnections > 1 && _capabilities.ParallelParts))
         {
             var info = await _runner.RetryAsync(TransferSide.Source, t => _runner.WithResponseTimeoutAsync(TransferSide.Source, _source.GetInfoAsync, t), token).ConfigureAwait(false);
             _state.SetInfo(info);
             // The source may allow fewer connections than asked for, such as one for a file host's free account
-            connections = Math.Min(_options.MaxConnections, info.MaxConnections ?? int.MaxValue);
+            lock (_gate)
+            {
+                _sourceConnections = info.MaxConnections;
+            }
+            connections = Math.Min(RequestedConnections, info.MaxConnections ?? int.MaxValue);
             if (checkpoint != null)
             {
                 parts = await TryContinueAsync(checkpoint, info, token).ConfigureAwait(false);
@@ -307,7 +338,7 @@ internal sealed class TransferRun
                 {
                     reason = SingleConnectionReason.NoVersion;
                 }
-                else if (reason == SingleConnectionReason.NotRequested && _options.MaxConnections > 1)
+                else if (reason == SingleConnectionReason.NotRequested && RequestedConnections > 1)
                 {
                     reason = SingleConnectionReason.SourceLimit;
                 }
@@ -319,7 +350,7 @@ internal sealed class TransferRun
             // One connection: the first read describes the content, which saves a request, and the part opens the
             // target once it has
             parts = [new(ByteRange.All, null)];
-            reason = _options.MaxConnections == 1 ? SingleConnectionReason.NotRequested
+            reason = RequestedConnections == 1 ? SingleConnectionReason.NotRequested
                 : !_capabilities.ParallelParts ? SingleConnectionReason.TargetTakesOnePart
                 : SingleConnectionReason.ChecksumHashedWhileStreaming;
         }
@@ -328,7 +359,8 @@ internal sealed class TransferRun
         Activity.Current?.SetTag("naql.single_connection_reason", reason == SingleConnectionReason.None ? null : reason.ToString());
         _state.SetParts(parts);
         _state.State = TransferState.Transferring;
-        await _runner.RunAsync(parts, connections, token).ConfigureAwait(false);
+        UpdateGate();
+        await _runner.RunAsync(parts, _gate, token).ConfigureAwait(false);
 
         var transferred = _state.Transferred;
         if (_state.Info!.Length is long length && transferred != length)

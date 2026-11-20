@@ -1,6 +1,5 @@
 using Naql.Engine;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +11,10 @@ namespace Naql;
 public sealed class TransferOperation
 {
     private readonly BandwidthLimiter? _sharedLimiter;
+    private readonly BandwidthLimiter _limiter;
+    private readonly object _lock = new();
     private volatile TransferRun? _run;
+    private int _maxConnections;
     private int _started;
 
     internal TransferOperation(ITransferSource source, ITransferTarget target, TransferOptions options, BandwidthLimiter? sharedLimiter,
@@ -24,6 +26,8 @@ public sealed class TransferOperation
         ResumeFrom = resumeFrom;
         CheckpointStore = checkpointStore;
         _sharedLimiter = sharedLimiter;
+        _limiter = new BandwidthLimiter(options.MaxBytesPerSecond);
+        _maxConnections = options.MaxConnections;
     }
 
     /// <summary>
@@ -66,19 +70,51 @@ public sealed class TransferOperation
             throw new InvalidOperationException("A transfer operation runs only once; build a new one to transfer again");
         }
 
-        var limiters = new List<BandwidthLimiter>();
-        if (Options.MaxBytesPerSecond > 0)
+        BandwidthLimiter[] limiters = _sharedLimiter == null ? [_limiter] : [_limiter, _sharedLimiter];
+        TransferRun run;
+        lock (_lock)
         {
-            limiters.Add(new BandwidthLimiter(Options.MaxBytesPerSecond));
+            run = new TransferRun(Source, Target, Options, limiters, progress, ResumeFrom, CheckpointStore);
+            run.SetMaxConnections(_maxConnections);
+            _run = run;
         }
-        if (_sharedLimiter != null)
-        {
-            limiters.Add(_sharedLimiter);
-        }
-
-        var run = new TransferRun(Source, Target, Options, limiters.ToArray(), progress, ResumeFrom, CheckpointStore);
-        _run = run;
         return run.RunAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The highest average rate of this transfer in bytes per second, or 0 for no limit. It starts as
+    /// <see cref="TransferOptions.MaxBytesPerSecond"/> and changes with <see cref="SetMaxBytesPerSecond"/>.
+    /// </summary>
+    public long MaxBytesPerSecond => _limiter.BytesPerSecond;
+
+    /// <summary>
+    /// How many parts may move at once. It starts as <see cref="TransferOptions.MaxConnections"/> and changes with
+    /// <see cref="SetMaxConnections"/>.
+    /// </summary>
+    public int MaxConnections => Volatile.Read(ref _maxConnections);
+
+    /// <summary>
+    /// Changes the highest average rate of this transfer, before or while it runs, such as from a speed setting in an
+    /// app. A shared limiter given with <see cref="TransferClient"/> still applies on top.
+    /// </summary>
+    /// <param name="bytesPerSecond">The highest average rate, or 0 for no limit</param>
+    public void SetMaxBytesPerSecond(long bytesPerSecond) => _limiter.BytesPerSecond = bytesPerSecond;
+
+    /// <summary>
+    /// Changes how many parts may move at once, before or while the transfer runs. More connections start waiting
+    /// parts at once; fewer let the running parts finish and start no new ones until fewer run, so nothing already
+    /// transferred is lost. The source's own limit (<see cref="SourceInfo.MaxConnections"/>) still applies, and the
+    /// parts were planned when the transfer started.
+    /// </summary>
+    /// <param name="maxConnections">At least 1</param>
+    public void SetMaxConnections(int maxConnections)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConnections);
+        lock (_lock)
+        {
+            _maxConnections = maxConnections;
+            _run?.SetMaxConnections(maxConnections);
+        }
     }
 
     /// <summary>
