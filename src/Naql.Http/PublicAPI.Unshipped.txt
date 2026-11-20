@@ -1,7 +1,23 @@
 #nullable enable
+abstract Naql.Http.ChunkedUploadTarget.QueryAsync(Naql.Http.ChunkedUpload! upload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+abstract Naql.Http.ChunkedUploadTarget.SendChunkAsync(Naql.Http.ChunkedUpload! upload, Naql.Http.UploadChunk! chunk, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+abstract Naql.Http.ChunkedUploadTarget.StartAsync(Naql.Http.ChunkedUpload! upload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.Http.BearerTokenHandler
 Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken, System.Net.Http.HttpMessageHandler! innerHandler) -> void
 Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken) -> void
+Naql.Http.ChunkedUpload
+Naql.Http.ChunkedUpload.Location.get -> string?
+Naql.Http.ChunkedUpload.Location.set -> void
+Naql.Http.ChunkedUpload.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Naql.Http.ChunkedUpload.Source.get -> Naql.SourceInfo!
+Naql.Http.ChunkedUpload.Token.get -> string?
+Naql.Http.ChunkedUpload.Token.set -> void
+Naql.Http.ChunkedUploadTarget
+Naql.Http.ChunkedUploadTarget.Capabilities.get -> Naql.TargetCapabilities!
+Naql.Http.ChunkedUploadTarget.ChunkedUploadTarget(Naql.Http.HttpTransport! transport, int chunkSize) -> void
+Naql.Http.ChunkedUploadTarget.ChunkSize.get -> int
+Naql.Http.ChunkedUploadTarget.OpenAsync(Naql.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.ITargetSession!>!
+Naql.Http.ChunkedUploadTarget.Transport.get -> Naql.Http.HttpTransport!
 Naql.Http.HttpSource
 Naql.Http.HttpSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
 Naql.Http.HttpSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
@@ -52,6 +68,12 @@ Naql.Http.HttpTransport.Put(System.Uri! uri) -> Naql.Http.HttpTarget!
 Naql.Http.HttpTransport.SendAsync(System.Net.Http.HttpRequestMessage! request, Naql.TransferSide side, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage!>!
 Naql.Http.HttpTransport.UserAgent.get -> string?
 Naql.Http.HttpTransport.UserAgent.init -> void
+Naql.Http.UploadChunk
+Naql.Http.UploadChunk.Content.get -> System.ArraySegment<byte>
+Naql.Http.UploadChunk.Count.get -> int
+Naql.Http.UploadChunk.IsLast.get -> bool
+Naql.Http.UploadChunk.Offset.get -> long
+Naql.Http.UploadChunk.TotalLength.get -> long?
 override Naql.Http.HttpSourceOptions.Equals(object? obj) -> bool
 override Naql.Http.HttpSourceOptions.GetHashCode() -> int
 override Naql.Http.HttpSourceOptions.ToString() -> string!
@@ -72,3 +94,6 @@ static Naql.Http.HttpTransferException.FromResponse(System.Net.Http.HttpResponse
 static Naql.Http.HttpTransport.BasicAuthentication(string! userName, string! password) -> System.Func<System.Net.Http.HttpRequestMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>!
 static Naql.Http.HttpTransport.Default.get -> Naql.Http.HttpTransport!
 static Naql.Http.HttpTransport.DefaultUserAgent.get -> string!
+virtual Naql.Http.ChunkedUploadTarget.AbortAsync(Naql.Http.ChunkedUpload! upload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual Naql.Http.ChunkedUploadTarget.CompleteAsync(Naql.Http.ChunkedUpload! upload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual Naql.Http.ChunkedUploadTarget.RequiresLength.get -> bool

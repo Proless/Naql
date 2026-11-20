@@ -44,7 +44,7 @@ public sealed class ChunkedUploadServer
         }
     }
 
-    public ChunkedUploadTarget Target(int chunkSize, bool verifiable = true) => new(this, chunkSize, verifiable);
+    public AcknowledgingUploadTarget Target(int chunkSize, bool verifiable = true) => new(this, chunkSize, verifiable);
 
     internal Upload Start(string id, long? length)
     {
@@ -89,11 +89,11 @@ public sealed class ChunkedUploadServer
     }
 }
 
-public sealed class ChunkedUploadTarget(ChunkedUploadServer server, int chunkSize, bool verifiable) : ITransferTarget
+public sealed class AcknowledgingUploadTarget(ChunkedUploadServer server, int chunkSize, bool verifiable) : ITransferTarget
 {
     private int _uploads;
 
-    public List<ChunkedUploadSession> Sessions { get; } = [];
+    public List<AcknowledgingUploadSession> Sessions { get; } = [];
 
     public TargetCapabilities Capabilities { get; } = new() { ResumableParts = true, Resumable = true, Verifiable = verifiable };
 
@@ -113,7 +113,7 @@ public sealed class ChunkedUploadTarget(ChunkedUploadServer server, int chunkSiz
             upload = server.Start(id, request.Source.Length);
         }
 
-        var session = new ChunkedUploadSession(server, upload, id, chunkSize);
+        var session = new AcknowledgingUploadSession(server, upload, id, chunkSize);
         lock (Sessions)
         {
             Sessions.Add(session);
@@ -122,7 +122,7 @@ public sealed class ChunkedUploadTarget(ChunkedUploadServer server, int chunkSiz
     }
 }
 
-public sealed class ChunkedUploadSession(ChunkedUploadServer server, ChunkedUploadServer.Upload upload, string id, int chunkSize)
+public sealed class AcknowledgingUploadSession(ChunkedUploadServer server, ChunkedUploadServer.Upload upload, string id, int chunkSize)
     : ITargetSession, IAcknowledgingSession, IVerifiableSession
 {
     // What this session knows the server acknowledged; asked from the server when the session opened
