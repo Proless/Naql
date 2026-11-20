@@ -21,8 +21,8 @@ public static class Resolve
 
     /// <summary>
     /// Resolves <paramref name="reference"/> into sources with the first of <paramref name="resolvers"/> that
-    /// handles it, and resolves every further reference the same way, placing what it gives under that reference's
-    /// path. Sources come out as they are found.
+    /// handles it, and resolves every <see cref="ResolvedReference"/> the same way, placing what it gives under that
+    /// reference's path, so only <see cref="ResolvedSource"/>s come out, as they are found.
     /// </summary>
     /// <param name="reference">What to resolve</param>
     /// <param name="resolvers">The resolvers to use, in order of preference</param>
@@ -74,19 +74,26 @@ public static class Resolve
         await foreach (var resolved in resolver.ResolveAsync(reference, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             var placed = RelativePath.Combine(path, resolved.Path);
-            if (resolved.Next is not { } next)
+            switch (resolved)
             {
-                yield return resolved.Path == placed ? resolved : ResolvedSource.ToSource(resolved.Source!, placed, resolved.Info);
-                continue;
-            }
+                case ResolvedSource source:
+                    yield return source.Path == placed ? source : new ResolvedSource(source.Source, placed, source.Info);
+                    break;
 
-            if (depthLeft == 0)
-            {
-                throw new TransferException($"{Describe(reference)} leads to more than the allowed references", TransferErrorKind.Protocol, side: TransferSide.Source);
-            }
-            await foreach (var further in FollowAsync(next, resolvers, placed, depthLeft - 1, trail, cancellationToken).ConfigureAwait(false))
-            {
-                yield return further;
+                case ResolvedReference further:
+                    if (depthLeft == 0)
+                    {
+                        throw new TransferException($"{Describe(reference)} leads to more than the allowed references", TransferErrorKind.Protocol, side: TransferSide.Source);
+                    }
+                    await foreach (var found in FollowAsync(further.Next, resolvers, placed, depthLeft - 1, trail, cancellationToken).ConfigureAwait(false))
+                    {
+                        yield return found;
+                    }
+                    break;
+
+                default:
+                    // Resolved can't be derived from outside this assembly, but a null item is still possible
+                    throw new TransferException($"A resolver gave nothing usable for {Describe(reference)}", TransferErrorKind.Protocol, side: TransferSide.Source);
             }
         }
     }

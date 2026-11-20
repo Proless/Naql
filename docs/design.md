@@ -208,17 +208,25 @@ A reference that arrives as text, from a user, a file or configuration, isn't al
 public interface ISourceResolver
 {
     bool CanResolve(Uri reference);                                    // a quick look: scheme or host
-    IAsyncEnumerable<ResolvedSource> ResolveAsync(Uri reference, CancellationToken cancellationToken);
+    IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, CancellationToken cancellationToken);
 }
 
-public sealed class ResolvedSource                                    // either a source, or another reference
+public abstract class Resolved                                        // what a reference resolved to: one of the two below
 {
-    public static ResolvedSource ToSource(ITransferSource source, string relativePath = "", SourceInfo? info = null);
-    public static ResolvedSource ToReference(Uri next, string relativePath = "");
-    public ITransferSource? Source { get; }
-    public Uri? Next { get; }
     public string Path { get; }                                       // where it belongs: "", "a.jpg", "album/02.mp3"
-    public SourceInfo? Info { get; }                                   // what's known before transferring
+}
+
+public sealed class ResolvedSource : Resolved                         // a source to transfer
+{
+    public ResolvedSource(ITransferSource source, string path = "", SourceInfo? info = null);
+    public ITransferSource Source { get; }
+    public SourceInfo? Info { get; }                                   // what's known before transferring, such as a listing's sizes
+}
+
+public sealed class ResolvedReference : Resolved                      // a reference to resolve further
+{
+    public ResolvedReference(Uri next, string path = "");
+    public Uri Next { get; }
 }
 
 public interface ITargetResolver
@@ -229,7 +237,7 @@ public interface ITargetResolver
 ```
 
 - **Both ends.** With a resolver for each side, any copy is a pairing: every source a reference resolves to goes to the target its relative path resolves to inside the destination. A download, an upload and a copy between two services are the same code.
-- **References lead to references.** A short link leads to a download page, which leads to the file, each handled by a different package. `ResolvedSource.ToReference` hands the next step on, and what it resolves to is placed under its path.
+- **References lead to references.** A short link leads to a download page, which leads to the file, each handled by a different package. A `ResolvedReference` hands the next step on, and what it resolves to is placed under its path. `Resolved` has only these two kinds, so a resolver's output is either a source with a source in it or a reference with a next one, never neither; `Resolve.SourcesAsync` follows every reference and gives only `ResolvedSource`s.
 - **Relative paths can't escape.** `RelativePath` defines them: empty for a single item, otherwise segments separated by `/`, never empty, `.` or `..`. A target resolver still makes each segment acceptable to its storage.
 - **Streaming.** A resolver yields sources as it finds them, so a large folder starts transferring before it's fully listed.
 - **No registry.** `Resolve.SourcesAsync(reference, resolvers)` resolves with the first resolver in the caller's list that handles each reference, follows references through the same list up to `Resolve.DefaultMaxDepth` steps, and fails on a loop. `Resolve.TargetAsync` picks a target resolver the same way. Which resolvers exist, and in what order, is always the caller's choice; registering them is left to an application or a dependency-injection package. Errors name a reference without its user name, password or query, which can hold credentials.

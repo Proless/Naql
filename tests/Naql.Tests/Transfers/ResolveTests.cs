@@ -16,13 +16,13 @@ public sealed class ResolveTests
     /// <summary>
     /// Resolves the references of one scheme with a fixed answer per reference.
     /// </summary>
-    private sealed class FakeResolver(string scheme, Func<Uri, IEnumerable<ResolvedSource>> resolve) : ISourceResolver
+    private sealed class FakeResolver(string scheme, Func<Uri, IEnumerable<Resolved>> resolve) : ISourceResolver
     {
         public List<Uri> Resolved { get; } = [];
 
         public bool CanResolve(Uri reference) => reference.Scheme == scheme;
 
-        public async IAsyncEnumerable<ResolvedSource> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             Resolved.Add(reference);
             foreach (var item in resolve(reference))
@@ -48,16 +48,15 @@ public sealed class ResolveTests
     public async Task References_are_followed_from_resolver_to_resolver_and_paths_join()
     {
         // A short link leads to an album page, which has two songs and a folder with a cover
-        var shortener = new FakeResolver("short", _ => [ResolvedSource.ToReference(new Uri("album:1"))]);
+        var shortener = new FakeResolver("short", _ => [new ResolvedReference(new Uri("album:1"))]);
         var album = new FakeResolver("album", reference => reference.AbsoluteUri == "album:1"
-            ? [ResolvedSource.ToSource(Song1, "01.mp3"), ResolvedSource.ToSource(Song2, "02.mp3"), ResolvedSource.ToReference(new Uri("album:art"), "art")]
-            : [ResolvedSource.ToSource(Cover, "cover.jpg", new SourceInfo { Length = 1 })]);
+            ? [new ResolvedSource(Song1, "01.mp3"), new ResolvedSource(Song2, "02.mp3"), new ResolvedReference(new Uri("album:art"), "art")]
+            : [new ResolvedSource(Cover, "cover.jpg", new SourceInfo { Length = 1 })]);
 
         var all = await AllAsync(new Uri("short:x"), shortener, album);
 
         Assert.Equal(["01.mp3", "02.mp3", "art/cover.jpg"], all.Select(item => item.Path));
-        Assert.Equal([Song1, Song2, Cover], all.Select(item => (MemorySource)item.Source!));
-        Assert.All(all, item => Assert.Null(item.Next));
+        Assert.Equal([Song1, Song2, Cover], all.Select(item => (MemorySource)item.Source));
         Assert.Equal(1, all[2].Info!.Length);
     }
 
@@ -81,19 +80,19 @@ public sealed class ResolveTests
     {
         public bool CanResolve(Uri reference) => true;
 
-        public async IAsyncEnumerable<ResolvedSource> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            yield return ResolvedSource.ToSource(Song1, "first.bin");
+            yield return new ResolvedSource(Song1, "first.bin");
             await more.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
-            yield return ResolvedSource.ToSource(Song2, "second.bin");
+            yield return new ResolvedSource(Song2, "second.bin");
         }
     }
 
     [Fact]
     public async Task The_first_resolver_that_handles_a_reference_resolves_it()
     {
-        var first = new FakeResolver("pick", _ => [ResolvedSource.ToSource(Song1)]);
-        var second = new FakeResolver("pick", _ => [ResolvedSource.ToSource(Song2)]);
+        var first = new FakeResolver("pick", _ => [new ResolvedSource(Song1)]);
+        var second = new FakeResolver("pick", _ => [new ResolvedSource(Song2)]);
 
         var all = await AllAsync(new Uri("pick:1"), first, second);
 
@@ -118,7 +117,7 @@ public sealed class ResolveTests
     [Fact]
     public async Task References_that_lead_back_to_themselves_fail()
     {
-        var loop = new FakeResolver("loop", reference => [ResolvedSource.ToReference(new Uri(reference.AbsoluteUri == "loop:a" ? "loop:b" : "loop:a"))]);
+        var loop = new FakeResolver("loop", reference => [new ResolvedReference(new Uri(reference.AbsoluteUri == "loop:a" ? "loop:b" : "loop:a"))]);
 
         var ex = await Assert.ThrowsAsync<TransferException>(() => AllAsync(new Uri("loop:a"), loop));
 
@@ -129,7 +128,7 @@ public sealed class ResolveTests
     [Fact]
     public async Task References_are_followed_only_so_deep()
     {
-        var chain = new FakeResolver("chain", reference => [ResolvedSource.ToReference(new Uri($"chain:{int.Parse(reference.AbsolutePath) + 1}"))]);
+        var chain = new FakeResolver("chain", reference => [new ResolvedReference(new Uri($"chain:{int.Parse(reference.AbsolutePath) + 1}"))]);
 
         var ex = await Assert.ThrowsAsync<TransferException>(() => AllAsync(new Uri("chain:0"), chain));
 
@@ -141,8 +140,8 @@ public sealed class ResolveTests
     public async Task The_same_reference_in_two_branches_isnt_a_loop()
     {
         var shared = new FakeResolver("shared", reference => reference.AbsoluteUri == "shared:root"
-            ? [ResolvedSource.ToReference(new Uri("shared:leaf"), "a"), ResolvedSource.ToReference(new Uri("shared:leaf"), "b")]
-            : [ResolvedSource.ToSource(Song1, "x.bin")]);
+            ? [new ResolvedReference(new Uri("shared:leaf"), "a"), new ResolvedReference(new Uri("shared:leaf"), "b")]
+            : [new ResolvedSource(Song1, "x.bin")]);
 
         var all = await AllAsync(new Uri("shared:root"), shared);
 
@@ -206,8 +205,21 @@ public sealed class ResolveTests
         else
         {
             Assert.Throws<ArgumentException>(() => RelativePath.Split(path));
-            Assert.Throws<ArgumentException>(() => ResolvedSource.ToSource(Song1, path));
+            Assert.Throws<ArgumentException>(() => new ResolvedSource(Song1, path));
+            Assert.Throws<ArgumentException>(() => new ResolvedReference(new Uri("next:page"), path));
         }
+    }
+
+    [Fact]
+    public void A_resolved_source_always_has_a_source_and_a_reference_always_has_a_next_one()
+    {
+        Assert.Throws<ArgumentNullException>(() => new ResolvedSource(null!));
+        Assert.Throws<ArgumentNullException>(() => new ResolvedReference(null!));
+        Assert.Throws<ArgumentNullException>(() => new ResolvedSource(Song1, null!));
+
+        Resolved item = new ResolvedReference(new Uri("next:page"), "art");
+        Assert.Equal("art", item.Path);
+        Assert.IsType<ResolvedReference>(item);
     }
 
     [Fact]

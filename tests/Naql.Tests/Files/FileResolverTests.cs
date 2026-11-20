@@ -45,7 +45,7 @@ public sealed class FileResolverTests : IDisposable
         Assert.Equal("", item.Path);
         Assert.Equal(1_234, item.Info!.Length);
         Assert.Equal("report.pdf", item.Info.Name);
-        Assert.Equal(1_234, (await item.Source!.GetInfoAsync(Token)).Length);
+        Assert.Equal(1_234, (await item.Source.GetInfoAsync(Token)).Length);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class FileResolverTests : IDisposable
         await foreach (var item in Resolve.SourcesAsync(Folder(_temp.File("in")), [new FileSourceResolver()], cancellationToken: Token))
         {
             var target = await Resolve.TargetAsync(destination, item.Path, item.Info, targets, Token);
-            await Transfer.From(item.Source!).To(target).RunAsync(cancellationToken: Token);
+            await Transfer.From(item.Source).To(target).RunAsync(cancellationToken: Token);
         }
 
         foreach (var relative in new[] { "a.txt", "sub/b.txt", "sub/deeper/c.txt" })
