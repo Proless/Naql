@@ -97,6 +97,7 @@ Naql.SingleConnectionReason.None = 0 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.NoRangeSupport = 3 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.NotRequested = 1 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.NoVersion = 4 -> Naql.SingleConnectionReason
+Naql.SingleConnectionReason.SourceLimit = 9 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.TargetTakesOnePart = 6 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.TooSmall = 7 -> Naql.SingleConnectionReason
 Naql.SingleConnectionReason.UnknownLength = 2 -> Naql.SingleConnectionReason
@@ -115,6 +116,8 @@ Naql.SourceInfo.LastModified.get -> System.DateTimeOffset?
 Naql.SourceInfo.LastModified.init -> void
 Naql.SourceInfo.Length.get -> long?
 Naql.SourceInfo.Length.init -> void
+Naql.SourceInfo.MaxConnections.get -> int?
+Naql.SourceInfo.MaxConnections.init -> void
 Naql.SourceInfo.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
 Naql.SourceInfo.Metadata.init -> void
 Naql.SourceInfo.Name.get -> string?

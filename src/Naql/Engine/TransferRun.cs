@@ -273,10 +273,13 @@ internal sealed class TransferRun
 
         List<PartRun>? parts = null;
         var reason = SingleConnectionReason.None;
+        var connections = 1;
         if (checkpoint != null || (!hashWhileStreaming && _options.MaxConnections > 1 && _capabilities.ParallelParts))
         {
             var info = await _runner.RetryAsync(TransferSide.Source, t => _runner.WithResponseTimeoutAsync(TransferSide.Source, _source.GetInfoAsync, t), token).ConfigureAwait(false);
             _state.SetInfo(info);
+            // The source may allow fewer connections than asked for, such as one for a file host's free account
+            connections = Math.Min(_options.MaxConnections, info.MaxConnections ?? int.MaxValue);
             if (checkpoint != null)
             {
                 parts = await TryContinueAsync(checkpoint, info, token).ConfigureAwait(false);
@@ -285,13 +288,17 @@ internal sealed class TransferRun
             if (parts == null)
             {
                 // Parts of content without a version could come from different versions and be spliced together
-                var planOptions = _state.CanCombine(info) ? _options : _options with { MaxConnections = 1 };
+                var planOptions = _state.CanCombine(info) ? _options with { MaxConnections = connections } : _options with { MaxConnections = 1 };
                 parts = PartPlanner.Plan(info.Length, info.SupportsRanges, _capabilities, planOptions, out reason)
                     .Select(range => new PartRun(range, range.IsAll ? info.Length : range.Length))
                     .ToList();
                 if (reason == SingleConnectionReason.NotRequested && !_state.CanCombine(info))
                 {
                     reason = SingleConnectionReason.NoVersion;
+                }
+                else if (reason == SingleConnectionReason.NotRequested && _options.MaxConnections > 1)
+                {
+                    reason = SingleConnectionReason.SourceLimit;
                 }
                 await OpenSessionAsync(new TargetOpenRequest(info, bufferSize: _options.BufferSize), token).ConfigureAwait(false);
             }
@@ -310,7 +317,7 @@ internal sealed class TransferRun
         Activity.Current?.SetTag("naql.single_connection_reason", reason == SingleConnectionReason.None ? null : reason.ToString());
         _state.SetParts(parts);
         _state.State = TransferState.Transferring;
-        await _runner.RunAsync(parts, token).ConfigureAwait(false);
+        await _runner.RunAsync(parts, connections, token).ConfigureAwait(false);
 
         var transferred = _state.Transferred;
         if (_state.Info!.Length is long length && transferred != length)

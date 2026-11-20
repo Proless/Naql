@@ -61,6 +61,53 @@ public sealed class TransferEngineTests
     }
 
     [Fact]
+    public async Task A_source_that_allows_fewer_connections_gets_no_more_at_once()
+    {
+        var content = Content(10_000);
+        var target = new MemoryTarget { OnWrite = (_, _, ct) => Task.Delay(20, ct) };
+
+        var result = await RunAsync(new MemorySource(content) { MaxConnections = 2 }, target, Parallel);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(2, result.Parts);
+        Assert.True(target.Session.MaxActiveWrites <= 2);
+    }
+
+    [Fact]
+    public async Task A_source_that_allows_one_connection_says_so_in_the_result()
+    {
+        var content = Content(10_000);
+
+        var result = await RunAsync(new MemorySource(content) { MaxConnections = 1 }, new MemoryTarget(), Parallel);
+
+        Assert.Equal(1, result.Parts);
+        Assert.Equal(SingleConnectionReason.SourceLimit, result.SingleConnectionReason);
+    }
+
+    [Fact]
+    public async Task Parts_from_a_checkpoint_run_no_more_at_once_than_the_source_allows()
+    {
+        var content = Content(10_000);
+        var checkpoint = new TransferCheckpoint(content.Length, TransferCheckpoint.Fingerprint("memory://content"), "v1", "memory-0",
+            Enumerable.Range(0, 4).Select(i => new CheckpointPart(new ByteRange(i * 2_500, 2_500), 0)));
+        var target = new MemoryTarget { OnWrite = (_, _, ct) => Task.Delay(20, ct) };
+        await target.OpenAsync(new TargetOpenRequest(new SourceInfo { Length = content.Length }), Token);
+
+        var result = await new TransferClient(Parallel).From(new MemorySource(content) { MaxConnections = 1 }).To(target)
+            .ResumeFrom(checkpoint).RunAsync(cancellationToken: Token);
+
+        Assert.Equal(content, target.Sessions[^1].Data);
+        Assert.Equal(4, result.Parts);
+        Assert.Equal(1, target.Sessions[^1].MaxActiveWrites);
+    }
+
+    [Fact]
+    public void A_source_cant_allow_zero_connections()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SourceInfo { MaxConnections = 0 });
+    }
+
+    [Fact]
     public async Task Parallel_parts_run_at_the_same_time_and_cover_the_content()
     {
         var content = Content(10_000);

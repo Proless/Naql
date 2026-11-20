@@ -39,13 +39,13 @@ internal sealed class PartRunner
     }
 
     /// <summary>
-    /// Moves the parts that aren't done yet, at most <see cref="TransferOptions.MaxConnections"/> at a time. One part
+    /// Moves the parts that aren't done yet, at most <paramref name="connections"/> at a time. One part
     /// that fails for good stops the others.
     /// </summary>
     /// <exception cref="TransferFailedException">A part failed, with every part's failure</exception>
-    public async Task RunAsync(IReadOnlyList<PartRun> parts, CancellationToken token)
+    public async Task RunAsync(IReadOnlyList<PartRun> parts, int connections, CancellationToken token)
     {
-        using var gate = new SemaphoreSlim(_options.MaxConnections);
+        using var gate = new SemaphoreSlim(connections);
         using var partsCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var failures = new List<PartFailure>();
 

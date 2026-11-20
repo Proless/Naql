@@ -43,6 +43,7 @@ public sealed class EnginePropertyTests
         bool RepeatableWrites,
         bool WithChecksum,
         int MaxRetries,
+        int? SourceMaxConnections,
         Fault[] Faults);
 
     private static readonly Gen<Fault> FaultGen =
@@ -62,9 +63,10 @@ public sealed class EnginePropertyTests
         from repeatableWrites in Gen.Frequency((3, Gen.Const(true)), (1, Gen.Const(false)))
         from withChecksum in Gen.Frequency((1, Gen.Const(true)), (3, Gen.Const(false)))
         from maxRetries in Gen.Int[0, 4]
+        from sourceMaxConnections in Gen.Frequency((3, Gen.Const((int?)null)), (1, Gen.Int[1, 3].Select(limit => (int?)limit)))
         from faults in FaultGen.Array[0, 4]
         select new Scenario(length, connections, hasVersion, supportsRanges, parallelParts, resumableParts, resumable, repeatableWrites,
-            withChecksum, maxRetries, faults);
+            withChecksum, maxRetries, sourceMaxConnections, faults);
 
     // The messages of the faults the test injects
     private static readonly string[] InjectedErrors = ["Denied", "The connection was refused", "The connection was reset", "The disk is busy", "The answer was lost"];
@@ -122,6 +124,10 @@ public sealed class EnginePropertyTests
             }
         }
 
+        // Never more writes at once than the options and the source allow
+        var allowed = Math.Min(scenario.Connections, scenario.SourceMaxConnections ?? int.MaxValue);
+        Assert.All(target.Sessions, session => Assert.True(session.MaxActiveWrites <= allowed, $"{session.MaxActiveWrites} writes at once, but only {allowed} allowed"));
+
         if (!scenario.RepeatableWrites)
         {
             // A target that can't take a part twice never gets one it already read completely
@@ -168,6 +174,7 @@ public sealed class EnginePropertyTests
         return new MemorySource(content)
         {
             Version = scenario.HasVersion ? "v1" : null,
+            MaxConnections = scenario.SourceMaxConnections,
             SupportsRanges = scenario.SupportsRanges,
             OnOpen = (attempt, _, _) => At(attempt, FaultKind.SourceOpenFails, FaultKind.SourceDenied) switch
             {

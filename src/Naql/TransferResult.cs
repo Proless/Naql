@@ -109,5 +109,8 @@ public enum SingleConnectionReason
     TooSmall,
 
     /// <summary>The transfer continued a checkpoint that had one part.</summary>
-    ContinuedCheckpoint
+    ContinuedCheckpoint,
+
+    /// <summary>The source allows one connection at a time, see <see cref="SourceInfo.MaxConnections"/>.</summary>
+    SourceLimit
 }

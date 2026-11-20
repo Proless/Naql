@@ -36,6 +36,23 @@ public sealed record SourceInfo
     public bool IsRepeatable { get; init; } = true;
 
     /// <summary>
+    /// The most connections that may read the content at once, such as 1 for a file host's free account, or
+    /// <c>null</c> for no limit. The engine uses the smaller of this and <see cref="TransferOptions.MaxConnections"/>.
+    /// </summary>
+    public int? MaxConnections
+    {
+        get;
+        init
+        {
+            if (value is int connections)
+            {
+                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(connections, nameof(MaxConnections));
+            }
+            field = value;
+        }
+    }
+
+    /// <summary>
     /// What the content is, independent of its version: the requested URL, a file's full path. A checkpoint only
     /// continues a transfer whose source reports the same identity, so it can't be applied to other content that
     /// happens to have the same version and length. <c>null</c> when the source can't tell.

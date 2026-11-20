@@ -15,6 +15,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
     public bool SupportsRanges { get; init; } = true;
     public bool IsRepeatable { get; init; } = true;
     public bool ReportsLength { get; init; } = true;
+    public int? MaxConnections { get; init; }
 
     /// <summary>
     /// The checksum the source reports for its content.
@@ -55,6 +56,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
         SupportsRanges = SupportsRanges,
         IsRepeatable = IsRepeatable,
         Identity = Identity,
+        MaxConnections = MaxConnections,
         Version = Version,
         Name = "memory.bin",
         Checksum = Checksum

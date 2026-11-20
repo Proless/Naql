@@ -102,6 +102,7 @@ public sealed record SourceInfo
     public bool SupportsRanges { get; init; }          // can OpenReadAsync start anywhere but 0?
     public bool IsRepeatable { get; init; } = true;    // can the content be read again after a failure?
     public string? Identity { get; init; }             // what the content is: the requested URL, a file's full path
+    public int? MaxConnections { get; init; }          // at most this many connections at once, such as 1 for a free file-host account
     public string? Version { get; init; }              // opaque: an ETag, a last-modified time, a file's size + write time; without one, it's read in one piece
     public string? Name { get; init; }                 // a suggested file name (Content-Disposition, the URL path, the file name)
     public string? ContentType { get; init; }
@@ -231,12 +232,12 @@ The planner is a pure function, tested on its own:
 parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 ```
 
-- One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1, or the content is smaller than `MinSplitPartSize × 2`.
+- One part when the length is unknown, the source doesn't support ranges, the target doesn't take `ParallelParts`, `MaxConnections` is 1 (the smaller of `TransferOptions.MaxConnections` and the source's `SourceInfo.MaxConnections`), or the content is smaller than `MinSplitPartSize × 2`.
 - Otherwise `min(MaxConnections, length / MinSplitPartSize)` parts of equal size, adjusted to the target's `MinPartSize`, `MaxPartSize` and `MaxParts`.
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
 - Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 
-Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall` or `ContinuedCheckpoint`; the transfer's trace carries it as `naql.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
+Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall`, `ContinuedCheckpoint` or `SourceLimit`; the transfer's trace carries it as `naql.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
 
 ### 5.3 The metered stream
 
