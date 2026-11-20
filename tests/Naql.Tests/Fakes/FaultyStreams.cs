@@ -66,13 +66,21 @@ public sealed class StallingStream(Stream inner, long stallAfter, bool honorCanc
 }
 
 /// <summary>
-/// Waits before every read, like a slow connection.
+/// Waits before every read, like a slow connection; with no delay, it only lets other work run first, so parallel parts
+/// interleave as they would over a network.
 /// </summary>
 public sealed class SlowStream(Stream inner, TimeSpan delay) : ReadOnlyStream
 {
     public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        await Task.Delay(delay, cancellationToken);
+        if (delay == TimeSpan.Zero)
+        {
+            await Task.Yield();
+        }
+        else
+        {
+            await Task.Delay(delay, cancellationToken);
+        }
         return await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
     }
 

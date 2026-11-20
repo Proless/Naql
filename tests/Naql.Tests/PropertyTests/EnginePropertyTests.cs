@@ -7,8 +7,8 @@ namespace Naql.Tests.PropertyTests;
 
 /// <summary>
 /// The engine's guarantees, checked against generated transfers: random content, connections, source and target
-/// capabilities, retry budgets and faults on any attempt. A failure prints the smallest case CsCheck could find and a
-/// seed to replay it with.
+/// capabilities, retry budgets, faults on any attempt, connections changed while parts run, and parts split for
+/// connections that free up. A failure prints the smallest case CsCheck could find and a seed to replay it with.
 /// </summary>
 public sealed class EnginePropertyTests
 {
@@ -38,6 +38,10 @@ public sealed class EnginePropertyTests
         bool HasVersion,
         bool SupportsRanges,
         bool ParallelParts,
+        bool SplittableParts,
+        bool Interleaved,
+        int? ConnectionsLater,
+        int ChangeAtWrite,
         bool ResumableParts,
         bool Resumable,
         bool RepeatableWrites,
@@ -58,6 +62,10 @@ public sealed class EnginePropertyTests
         from hasVersion in Gen.Frequency((4, Gen.Const(true)), (1, Gen.Const(false)))
         from supportsRanges in Gen.Frequency((4, Gen.Const(true)), (1, Gen.Const(false)))
         from parallelParts in Gen.Bool
+        from splittableParts in Gen.Bool
+        from interleaved in Gen.Bool
+        from connectionsLater in Gen.Frequency((2, Gen.Const((int?)null)), (1, Gen.Int[1, 6].Select(count => (int?)count)))
+        from changeAtWrite in Gen.Int[0, 3]
         from resumableParts in Gen.Bool
         from resumable in Gen.Bool
         from repeatableWrites in Gen.Frequency((3, Gen.Const(true)), (1, Gen.Const(false)))
@@ -65,8 +73,8 @@ public sealed class EnginePropertyTests
         from maxRetries in Gen.Int[0, 4]
         from sourceMaxConnections in Gen.Frequency((3, Gen.Const((int?)null)), (1, Gen.Int[1, 3].Select(limit => (int?)limit)))
         from faults in FaultGen.Array[0, 4]
-        select new Scenario(length, connections, hasVersion, supportsRanges, parallelParts, resumableParts, resumable, repeatableWrites,
-            withChecksum, maxRetries, sourceMaxConnections, faults);
+        select new Scenario(length, connections, hasVersion, supportsRanges, parallelParts, splittableParts, interleaved, connectionsLater,
+            changeAtWrite, resumableParts, resumable, repeatableWrites, withChecksum, maxRetries, sourceMaxConnections, faults);
 
     // The messages of the faults the test injects
     private static readonly string[] InjectedErrors = ["Denied", "The connection was refused", "The connection was reset", "The disk is busy", "The answer was lost"];
@@ -84,9 +92,11 @@ public sealed class EnginePropertyTests
         var content = Content(scenario.Length);
         var source = Source(content, scenario);
         var faulty = new StrongBox<bool>(true);
-        var target = Target(scenario, faulty);
+        var running = new StrongBox<TransferOperation?>();
+        var target = Target(scenario, faulty, running);
         var options = Options(scenario, content);
         var operation = new TransferClient(options).From(source).To(target).Build();
+        running.Value = operation;
 
         TransferResult? result = null;
         TransferFailedException? failure = null;
@@ -124,8 +134,8 @@ public sealed class EnginePropertyTests
             }
         }
 
-        // Never more writes at once than the options and the source allow
-        var allowed = Math.Min(scenario.Connections, scenario.SourceMaxConnections ?? int.MaxValue);
+        // Never more writes at once than the options and the source allow; fewer connections let running parts finish
+        var allowed = Math.Min(Math.Max(scenario.Connections, scenario.ConnectionsLater ?? 0), scenario.SourceMaxConnections ?? int.MaxValue);
         Assert.All(target.Sessions, session => Assert.True(session.MaxActiveWrites <= allowed, $"{session.MaxActiveWrites} writes at once, but only {allowed} allowed"));
 
         if (!scenario.RepeatableWrites)
@@ -182,13 +192,18 @@ public sealed class EnginePropertyTests
                 { } => throw new IOException("The connection was refused"),
                 _ => Task.CompletedTask
             },
-            WrapContent = (attempt, _, stream) => At(attempt, FaultKind.SourceBreaks) is { } fault
-                ? new FailingStream(stream, fault.Offset, () => new IOException("The connection was reset"))
-                : stream
+            WrapContent = (attempt, _, stream) =>
+            {
+                if (At(attempt, FaultKind.SourceBreaks) is { } fault)
+                {
+                    stream = new FailingStream(stream, fault.Offset, () => new IOException("The connection was reset"));
+                }
+                return scenario.Interleaved ? new SlowStream(stream, TimeSpan.Zero) : stream;
+            }
         };
     }
 
-    private static MemoryTarget Target(Scenario scenario, StrongBox<bool> faulty)
+    private static MemoryTarget Target(Scenario scenario, StrongBox<bool> faulty, StrongBox<TransferOperation?> running)
     {
         bool Has(int write, FaultKind kind) => faulty.Value && scenario.Faults.Any(fault => fault.Attempt == write && fault.Kind == kind);
 
@@ -197,12 +212,21 @@ public sealed class EnginePropertyTests
             Capabilities = new TargetCapabilities
             {
                 ParallelParts = scenario.ParallelParts,
+                SplittableParts = scenario.SplittableParts,
                 ResumableParts = scenario.ResumableParts,
                 Resumable = scenario.Resumable,
                 RepeatableWrites = scenario.RepeatableWrites,
                 Verifiable = true
             },
-            OnWrite = (write, _, _) => Has(write, FaultKind.TargetFailsBeforeReading) ? throw new IOException("The disk is busy") : Task.CompletedTask,
+            OnWrite = (write, _, _) =>
+            {
+                // Like a person changing the setting while parts run, which may also split this very part
+                if (faulty.Value && write == scenario.ChangeAtWrite && scenario.ConnectionsLater is int later)
+                {
+                    running.Value?.SetMaxConnections(later);
+                }
+                return Has(write, FaultKind.TargetFailsBeforeReading) ? throw new IOException("The disk is busy") : Task.CompletedTask;
+            },
             AfterRead = (write, _) => Has(write, FaultKind.TargetFailsAfterReading) ? throw new IOException("The answer was lost") : Task.CompletedTask
         };
     }

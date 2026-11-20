@@ -64,8 +64,7 @@ internal sealed class TransferRun
     }
 
     // The setting and the source's limit can both change, from different threads; the lock keeps the gate from
-    // ending up with a limit computed from a stale one. A source that only describes itself with its first read still
-    // has its limit applied: parts beyond the planned ones are only split off within it.
+    // ending up with a limit computed from a stale one
     private void UpdateGate()
     {
         lock (_gate)
@@ -435,6 +434,8 @@ internal sealed class TransferRun
     {
         if (_session == null)
         {
+            // With one connection the first read is what describes the content, and with it the source's limit
+            UpdateGate();
             await OpenSessionAsync(new TargetOpenRequest(_state.Info!, bufferSize: _options.BufferSize), token).ConfigureAwait(false);
         }
         return _session!;

@@ -182,6 +182,35 @@ public sealed class SplittingTests
     }
 
     [Fact]
+    public async Task A_source_limit_learned_from_the_first_read_holds_for_connections_raised_before_it()
+    {
+        var content = Content(40_000);
+        TransferOperation? operation = null;
+        var source = new MemorySource(content)
+        {
+            MaxConnections = 1,
+            // Raised once the transfer runs, but before the first read describes the source
+            OnOpen = (index, _, _) =>
+            {
+                if (index == 0)
+                {
+                    operation!.SetMaxConnections(4);
+                }
+                return Task.CompletedTask;
+            },
+            WrapContent = (_, _, stream) => new SlowStream(stream, TimeSpan.FromMilliseconds(2))
+        };
+        var target = new MemoryTarget { Capabilities = Splittable };
+        operation = Transfer.From(source).To(target).WithOptions(Options).Build();
+
+        var result = await operation.RunAsync(cancellationToken: Token);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(1, result.Parts);
+        Assert.Single(source.Reads);
+    }
+
+    [Fact]
     public async Task Split_parts_of_a_file_download_put_every_byte_in_place()
     {
         using var temp = new TempDirectory();
