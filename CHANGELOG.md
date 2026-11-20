@@ -20,6 +20,7 @@ Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .
 - Traces and metrics through `ActivitySource` and `Meter`, named in `NaqlDiagnostics`.
 - `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`. `FileTarget.InDirectory` makes names from sources safe on every OS, including names Windows reserves and names too long for the file system.
 - The contracts for new protocols: `ITransferSource`, `ITransferTarget`, `ITargetSession` and `IVerifiableSession`.
+- Resolving references into sources and destinations into targets, for any protocol: `ISourceResolver`, `ITargetResolver`, `ResolvedSource`, `RelativePath`, and `Resolve` to follow references across resolvers the caller chooses.
 
 ### Naql.Http
 
