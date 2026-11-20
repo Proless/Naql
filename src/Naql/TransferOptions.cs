@@ -93,7 +93,8 @@ public sealed record TransferOptions
     /// <summary>
     /// The smallest part worth its own connection when the engine splits the content: content smaller than twice this
     /// size uses one connection. It's a preference, unlike <see cref="TargetCapabilities.MinPartSize"/>, which is a limit:
-    /// a target's <see cref="TargetCapabilities.MaxPartSize"/> can still make parts smaller than this.
+    /// a target's <see cref="TargetCapabilities.MaxPartSize"/> can still make parts smaller than this. A running part is
+    /// only split for a connection that freed up when at least twice this size is left of it.
     /// </summary>
     public long MinSplitPartSize
     {

@@ -175,6 +175,7 @@ public interface IVerifiableSession
 public sealed record TargetCapabilities
 {
     public bool ParallelParts { get; init; }      // parts can be written at the same time, in any order
+    public bool SplittableParts { get; init; }    // a part's stream may end before its range does (see 5.2.1)
     public bool ResumableParts { get; init; }     // bytes consumed from a failed part's stream are kept
     public bool Resumable { get; init; }          // OpenAsync accepts a ResumeToken; a disposed session keeps its data
     public bool RepeatableWrites { get; init; } = true;  // writing a part again is harmless (files, PUT); false for POST
@@ -301,6 +302,15 @@ parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 - When resuming, finished parts from the checkpoint are skipped, and partly finished ones continue from their recorded offset.
 - Content without a `Version` is never assembled from separate reads, because they could come from different versions of the content. The engine uses one part, starts a failed part over instead of continuing it, and makes no checkpoint. When a checksum will be verified (`ExpectedChecksum`), a splice would be caught, so parallel parts and continuing a failed part stay allowed; a checkpoint still needs a version, since a later run can't check the content otherwise.
 
+### 5.2.1 Splitting running parts
+
+Planned parts of equal size rarely finish together: one connection is slower, or a part retried. The connection that freed up then sits idle while the slowest part holds up the end of the transfer. So when a connection frees up, or a part starts while one is free, and no part is waiting for it, the engine gives the end of the running part with the most bytes left to a new part:
+
+- **Where:** halfway through what that part hasn't read yet, at a multiple of the target's `PartSizeMultiple`, and only when both halves keep at least `MinSplitPartSize` bytes and the new part the target's `MinPartSize`, and the target takes another part (`MaxParts`).
+- **How:** the running part's stream ends sooner. The engine never gives away bytes the part already read, or that a read in flight may still return, so no byte moves twice and nothing is lost. The target's write sees its content end before the range it was given; a target declares `SplittableParts` when that is fine, which is when it writes each byte where it belongs as it arrives, as files and seekable streams do.
+- **When not:** the length is unknown, the source can't read ranges or has no version to check the new part's read against (content without a `Version` is never combined from separate reads), the session acknowledges what it keeps (an upload session's chunks were declared already), a single part is hashed as it passes for a checksum, or the source's `MaxConnections` is reached.
+- The new part follows the one it came from, so checkpoints still list the parts in order, and a checkpoint or progress report never sees a part half split. `TransferResult.Parts` counts the parts that were split off.
+
 Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall`, `ContinuedCheckpoint` or `SourceLimit`; the transfer's trace carries it as `naql.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
 
 ### 5.3 The metered stream
@@ -324,7 +334,7 @@ A download manager lets people change the speed limit or the number of connectio
 
 - **The speed limit** is the transfer's own `BandwidthLimiter`, which every operation has, set to 0 when there is no limit. A new rate applies to the next read; a read already waiting finishes its wait. A shared limiter still applies on top.
 - **The connections** go through an internal gate the parts wait at, whose limit can change. Raising it starts waiting parts at once. Lowering it stops no running part, which would throw away the bytes it is moving and its connection; it starts no new parts until fewer run. The source's `SourceInfo.MaxConnections` still caps it.
-- Parts are planned when the transfer starts, from the connections set then, so raising the connections later only helps when there are parts waiting.
+- More connections than parts are filled by splitting running parts (see [5.2.1](#521-splitting-running-parts)), so raising the connections of a transfer that started with one connection speeds it up too, when the target and the source allow it.
 
 ### 5.4 Progress
 
@@ -537,7 +547,7 @@ How checkpoints behave:
   - A part that has to go back behind what the session acknowledged, because the checksum is hashed as the bytes pass or because the part can't continue, needs a new session, since the server won't take those bytes again. The engine then starts the transfer over with one, once, as it does when the content changes.
 - **Available while running.** `GetCheckpoint` is safe to call during the transfer, for example from the progress handler, so an app can save it regularly in case the process ends without a chance to save it.
 - **`null` when nothing can be continued:** before the transfer starts, after it completes, when the target isn't `Resumable` or discarded its partial data, and when the source has no version or doesn't support ranges.
-- **Resuming checks first.** It always asks the source for its info. When the identity, version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now.
+- **Resuming checks first.** It always asks the source for its info. When the identity, version or length differ, the target can't resume, or it reports `NotFound` for the resume token (the partial file is gone), the transfer starts over as if there were no checkpoint. Otherwise it reopens the target with the token, skips finished parts and continues the others where they stopped, keeping the checkpoint's parts whatever `MaxConnections` is now; connections the checkpoint's parts leave free are filled by splitting them (see [5.2.1](#521-splitting-running-parts)).
 - **Identity, not just version.** `SourceInfo.Identity` (the requested URL, a file's full path) tells which content a checkpoint belongs to, so a checkpoint saved for one URL can't continue a download of another that happens to have the same ETag and length. The checkpoint keeps its SHA-256 (`TransferCheckpoint.Fingerprint`), so URLs with credentials or signatures aren't written to disk.
 - **Checked when created.** The parts must cover the content exactly once, in order and without gaps, or the constructor throws (and `Deserialize` throws `FormatException`): a damaged or hand-edited checkpoint can't complete a transfer with bytes missing.
 - **A target checks its token.** `FileTarget` only continues a partial file it could have written: the file's own for `FileTarget.At`, or one in its directory for `InDirectory` and `FileConflict.KeepBoth`. Any other path counts as `NotFound`, so the transfer starts over instead of writing somewhere else.

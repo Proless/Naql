@@ -85,6 +85,7 @@ public sealed class FileTarget : ITransferTarget
     public TargetCapabilities Capabilities { get; } = new()
     {
         ParallelParts = true,
+        SplittableParts = true,
         ResumableParts = true,
         Resumable = true,
         Verifiable = true

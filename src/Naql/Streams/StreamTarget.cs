@@ -45,6 +45,7 @@ public sealed class StreamTarget : ITransferTarget
         Capabilities = new TargetCapabilities
         {
             ParallelParts = stream.CanSeek,
+            SplittableParts = stream.CanSeek,
             ResumableParts = true,
             Verifiable = stream.CanSeek && stream.CanRead
         };

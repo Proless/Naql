@@ -17,10 +17,12 @@ internal sealed class RunState
     private readonly TransferOptions _options;
     private readonly TargetCapabilities _capabilities;
     private readonly RateMeter _rate = new();
+    // Splitting a part changes two ranges and the list together; checkpoints and progress must see all or none of it
+    private readonly object _partsLock = new();
 
     private volatile SourceInfo? _info;
     private volatile TransferState _state;
-    private volatile List<PartRun>? _parts;
+    private volatile List<PartRun>? _parts; // replaced, never changed, so readers can hold on to it
     private volatile string? _resumeToken;
     private volatile bool _discarded;
     private volatile bool _completed;
@@ -135,10 +137,79 @@ internal sealed class RunState
     /// </summary>
     public void SetParts(List<PartRun> parts)
     {
-        _hashable = parts.Count == 1 && parts[0].Consumed == 0;
-        _parts = parts;
-        Volatile.Write(ref _totalParts, parts.Count);
-        Volatile.Write(ref _completedParts, parts.Count(part => part.Done));
+        lock (_partsLock)
+        {
+            _hashable = parts.Count == 1 && parts[0].Consumed == 0;
+            _parts = parts;
+            Volatile.Write(ref _totalParts, parts.Count);
+            Volatile.Write(ref _completedParts, parts.Count(part => part.Done));
+        }
+    }
+
+    /// <summary>
+    /// Gives the end of the running part with the most bytes left to a new part, for a connection that freed up. The
+    /// running part's stream ends sooner, so no byte is moved twice, and the new part follows it in the list, which keeps
+    /// the parts in order for checkpoints.
+    /// </summary>
+    /// <returns>The new part, or <c>null</c> when no part can be split: the length isn't known, the source can't read
+    /// ranges or its parts can't be combined, the target can't take it, a hash needs the bytes in order, or no running
+    /// part has enough left</returns>
+    public PartRun? TrySplit()
+    {
+        var info = _info;
+        if (info?.Length is not long length || !info.SupportsRanges || !CanCombine(info) ||
+            !_capabilities.ParallelParts || !_capabilities.SplittableParts || IsHashing || Acknowledging != null)
+        {
+            return null;
+        }
+
+        lock (_partsLock)
+        {
+            var parts = _parts;
+            if (parts == null || parts.Count >= (_capabilities.MaxParts ?? int.MaxValue))
+            {
+                return null;
+            }
+
+            var best = -1;
+            long bestStart = 0;
+            long bestFrom = 0;
+            long bestEnd = 0;
+            PartAttempt? bestAttempt = null;
+            for (var i = 0; i < parts.Count; i++)
+            {
+                var part = parts[i];
+                var range = part.Range.IsAll ? new ByteRange(0, length) : part.Range;
+                if (part.Done || part.Attempt is not { } attempt || range.Length is not long partLength)
+                {
+                    continue;
+                }
+                var from = range.Start + attempt.Offset + attempt.Stream.ReservedEnd;
+                var end = range.Start + partLength;
+                if (best < 0 || end - from > bestEnd - bestFrom)
+                {
+                    (best, bestStart, bestFrom, bestEnd, bestAttempt) = (i, range.Start, from, end, attempt);
+                }
+            }
+            if (best < 0 ||
+                PartPlanner.SplitAt(bestStart, bestFrom, bestEnd, _capabilities, _options) is not long at ||
+                !bestAttempt!.Stream.TryEndAt(at - bestStart - bestAttempt.Offset))
+            {
+                return null;
+            }
+
+            var split = parts[best];
+            split.Range = new ByteRange(bestStart, at - bestStart);
+            split.ExpectedLength = at - bestStart;
+            var next = new PartRun(new ByteRange(at, bestEnd - at), bestEnd - at);
+            var updated = new List<PartRun>(parts);
+            updated.Insert(best + 1, next);
+            // Only a single part is hashed as it passes, and the content no longer is one
+            _hashable = false;
+            _parts = updated;
+            Interlocked.Increment(ref _totalParts);
+            return next;
+        }
     }
 
     /// <summary>
@@ -205,16 +276,26 @@ internal sealed class RunState
 
         var resumableParts = _capabilities.ResumableParts;
         var acknowledging = Acknowledging;
-        return new TransferCheckpoint(info.Length, TransferCheckpoint.Fingerprint(info.Identity), info.Version, token, parts.Select(part =>
+        CheckpointPart[] saved;
+        lock (_partsLock)
         {
-            var range = part.Range.IsAll ? new ByteRange(0, info.Length) : part.Range;
-            // An acknowledging session says what it kept; otherwise what the session asked for again counts
-            var completed = part.Done && range.Length is long length ? length
-                : !resumableParts ? 0
-                : acknowledging != null ? Acknowledged(acknowledging, range)
-                : part.Confirmed;
-            return new CheckpointPart(range, Math.Min(completed, range.Length ?? completed));
-        }));
+            // A split may have replaced the list since
+            if (_parts is not { } current)
+            {
+                return null;
+            }
+            saved = current.Select(part =>
+            {
+                var range = part.Range.IsAll ? new ByteRange(0, info.Length) : part.Range;
+                // An acknowledging session says what it kept; otherwise what the session asked for again counts
+                var completed = part.Done && range.Length is long length ? length
+                    : !resumableParts ? 0
+                    : acknowledging != null ? Acknowledged(acknowledging, range)
+                    : part.Confirmed;
+                return new CheckpointPart(range, Math.Min(completed, range.Length ?? completed));
+            }).ToArray();
+        }
+        return new TransferCheckpoint(info.Length, TransferCheckpoint.Fingerprint(info.Identity), info.Version, token, saved);
     }
 
     /// <summary>
@@ -336,8 +417,11 @@ internal sealed class RunState
             return Array.Empty<PartProgress>();
         }
         var length = _info?.Length;
-        return parts.Select(part => new PartProgress(part.Range.IsAll && length is long total ? new ByteRange(0, total) : part.Range, part.Consumed,
-            part.Done ? PartState.Done : part.State)).ToArray();
+        lock (_partsLock)
+        {
+            return (_parts ?? parts).Select(part => new PartProgress(part.Range.IsAll && length is long total ? new ByteRange(0, total) : part.Range, part.Consumed,
+                part.Done ? PartState.Done : part.State)).ToArray();
+        }
     }
 }
 
@@ -351,17 +435,63 @@ internal sealed class PartRun
     private long _consumed;
     private int _state;
 
+    private readonly object _lock = new();
+    private ByteRange _range;
+    private long? _expectedLength;
+    private PartAttempt? _attempt;
+
     public PartRun(ByteRange range, long? expectedLength)
     {
-        Range = range;
-        ExpectedLength = expectedLength;
+        _range = range;
+        _expectedLength = expectedLength;
     }
 
-    /// <summary>The whole part.</summary>
-    public ByteRange Range { get; }
+    /// <summary>The whole part, which ends sooner once it was split.</summary>
+    public ByteRange Range
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _range;
+            }
+        }
+        set
+        {
+            lock (_lock)
+            {
+                _range = value;
+            }
+        }
+    }
 
     /// <summary>How many bytes the part has, or <c>null</c> while unknown.</summary>
-    public long? ExpectedLength { get; set; }
+    public long? ExpectedLength
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _expectedLength;
+            }
+        }
+        set
+        {
+            lock (_lock)
+            {
+                _expectedLength = value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The attempt moving the part right now, whose stream a split can end sooner, or <c>null</c> between attempts.
+    /// </summary>
+    public PartAttempt? Attempt
+    {
+        get => Volatile.Read(ref _attempt);
+        set => Volatile.Write(ref _attempt, value);
+    }
 
     /// <summary>
     /// The bytes of the part the target has read so far, and keeps after a failure reading the source. Read by progress
@@ -396,4 +526,20 @@ internal sealed class PartRun
         get => Volatile.Read(ref _done) == 1;
         set => Volatile.Write(ref _done, value ? 1 : 0);
     }
+}
+
+/// <summary>
+/// An attempt at a part: the stream the target reads, which starts <see cref="Offset"/> bytes into the part.
+/// </summary>
+internal sealed class PartAttempt
+{
+    public PartAttempt(MeteredStream stream, long offset)
+    {
+        Stream = stream;
+        Offset = offset;
+    }
+
+    public MeteredStream Stream { get; }
+
+    public long Offset { get; }
 }

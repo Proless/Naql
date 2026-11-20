@@ -103,8 +103,8 @@ public sealed class TransferOperation
     /// <summary>
     /// Changes how many parts may move at once, before or while the transfer runs. More connections start waiting
     /// parts at once; fewer let the running parts finish and start no new ones until fewer run, so nothing already
-    /// transferred is lost. The source's own limit (<see cref="SourceInfo.MaxConnections"/>) still applies, and the
-    /// parts were planned when the transfer started.
+    /// transferred is lost. The source's own limit (<see cref="SourceInfo.MaxConnections"/>) still applies. Connections
+    /// beyond the planned parts split running parts when the target allows it (<see cref="TargetCapabilities.SplittableParts"/>).
     /// </summary>
     /// <param name="maxConnections">At least 1</param>
     public void SetMaxConnections(int maxConnections)

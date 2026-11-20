@@ -78,11 +78,13 @@ public sealed class HttpSourceTests : IDisposable
         var result = await RunAsync(Source(server), FileTarget.At(path), Options with { MaxConnections = 4 });
 
         Assert.Equal(server.Content, File.ReadAllBytes(path));
-        Assert.Equal(4, result.Parts);
+        // Four planned parts, and maybe more split off them when a connection frees up early
+        Assert.True(result.Parts >= 4, $"{result.Parts} parts");
         // The first request only asks for one byte, to learn the length and whether ranges work
-        Assert.Equal(5, server.RequestCount);
+        Assert.Equal(1 + result.Parts, server.RequestCount);
         Assert.Equal(0, server.RequestedRanges[0]!.Ranges.Single().To);
-        Assert.Equal([0L, 25_000L, 50_000L, 75_000L], server.RequestedRanges.Skip(1).Select(RangeStart).OrderBy(start => start));
+        var starts = server.RequestedRanges.Skip(1).Select(RangeStart).ToList();
+        Assert.All(new[] { 0L, 25_000L, 50_000L, 75_000L }, start => Assert.Contains(start, starts));
     }
 
     [Fact]

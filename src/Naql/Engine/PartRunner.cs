@@ -20,6 +20,8 @@ internal sealed class PartRunner
     private readonly BandwidthLimiter[] _limiters;
     private readonly RunState _state;
     private readonly Func<CancellationToken, Task<ITargetSession>> _session;
+    // Called when an attempt at a part starts, which a free connection may want to split
+    private Action? _attemptStarted;
 
     /// <param name="source">Where the parts come from</param>
     /// <param name="options">The transfer's settings</param>
@@ -40,19 +42,25 @@ internal sealed class PartRunner
 
     /// <summary>
     /// Moves the parts that aren't done yet, as many at a time as <paramref name="gate"/> lets in, which may change
-    /// while they run. One part that fails for good stops the others.
+    /// while they run. A connection that frees up with no part waiting for it takes the end of the running part with the
+    /// most left, when the target can take that. One part that fails for good stops the others.
     /// </summary>
     /// <exception cref="TransferFailedException">A part failed, with every part's failure</exception>
     public async Task RunAsync(IReadOnlyList<PartRun> parts, ConnectionGate gate, CancellationToken token)
     {
         using var partsCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var failures = new List<PartFailure>();
+        // The parts' tasks, including those of parts split off while they run; the lock also keeps splits one at a time
+        var running = new List<Task>();
+        var splitting = true;
+        // Planned parts that haven't asked for a connection yet, which a split mustn't take from them
+        var unstarted = 0;
 
-        async Task RunGuardedAsync(PartRun part)
+        async Task RunGuardedAsync(PartRun part, Task? admitted = null)
         {
             try
             {
-                await gate.WaitAsync(partsCts.Token).ConfigureAwait(false);
+                await (admitted ?? gate.WaitAsync(partsCts.Token)).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -100,8 +108,68 @@ internal sealed class PartRunner
             }
         }
 
-        // Parts a checkpoint says are done are skipped
-        await Task.WhenAll(parts.Where(part => !part.Done).Select(RunGuardedAsync)).ConfigureAwait(false);
+        void Split()
+        {
+            lock (running)
+            {
+                while (splitting && unstarted == 0 && !partsCts.IsCancellationRequested && gate.Waiting == 0 &&
+                       gate.Active < Math.Min(gate.Limit, _state.Info?.MaxConnections ?? int.MaxValue) &&
+                       _state.TrySplit() is { } next)
+                {
+                    // The connection is taken now, so the next round sees it taken; the part runs off this thread,
+                    // which may be a part's that is just finishing
+                    var admitted = gate.WaitAsync(partsCts.Token);
+                    running.Add(Task.Run(() => RunGuardedAsync(next, admitted), CancellationToken.None));
+                }
+            }
+        }
+
+        // A connection may free up before the part it could split has started, so starting parts check too, which also
+        // fills connections the plan left free, such as when a checkpoint has fewer parts than there are connections now
+        gate.Freed += Split;
+        Volatile.Write(ref _attemptStarted, Split);
+        try
+        {
+            lock (running)
+            {
+                // Parts a checkpoint says are done are skipped. A part may run on this thread until it waits, and even
+                // finish, before the next one starts
+                var planned = parts.Where(part => !part.Done).ToList();
+                unstarted = planned.Count;
+                foreach (var part in planned)
+                {
+                    unstarted--;
+                    running.Add(RunGuardedAsync(part));
+                }
+            }
+
+            while (true)
+            {
+                Task[] started;
+                lock (running)
+                {
+                    started = running.ToArray();
+                }
+                await Task.WhenAll(started).ConfigureAwait(false);
+                lock (running)
+                {
+                    if (running.Count == started.Length)
+                    {
+                        splitting = false;
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            gate.Freed -= Split;
+            Volatile.Write(ref _attemptStarted, null);
+            lock (running)
+            {
+                splitting = false;
+            }
+        }
 
         token.ThrowIfCancellationRequested();
         if (failures.Count > 0)
@@ -352,6 +420,9 @@ internal sealed class PartRunner
             using var stopReads = attempt.Token.Register(() => opened.Dispose());
             watchdog = IdleWatchdog.Start(metered, _options.IdleTimeout, _options.ResponseTimeout, attempt, _state.Clock);
 
+            // From now on a split can end the stream sooner, and the range the target got then ends later than the part
+            part.Attempt = new PartAttempt(metered, keptBefore);
+            Volatile.Read(ref _attemptStarted)?.Invoke();
             await session.WritePartAsync(range, metered, attempt.Token).ConfigureAwait(false);
             if (!metered.ReachedEnd)
             {
@@ -392,6 +463,7 @@ internal sealed class PartRunner
         }
         finally
         {
+            part.Attempt = null;
             watchdog?.Dispose();
             source?.Dispose();
         }

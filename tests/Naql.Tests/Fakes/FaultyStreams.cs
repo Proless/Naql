@@ -66,6 +66,24 @@ public sealed class StallingStream(Stream inner, long stallAfter, bool honorCanc
 }
 
 /// <summary>
+/// Waits before every read, like a slow connection.
+/// </summary>
+public sealed class SlowStream(Stream inner, TimeSpan delay) : ReadOnlyStream
+{
+    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+    {
+        await Task.Delay(delay, cancellationToken);
+        return await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        inner.Dispose();
+        base.Dispose(disposing);
+    }
+}
+
+/// <summary>
 /// Hides the ability to seek, like a network or pipe stream.
 /// </summary>
 public sealed class NonSeekableStream(Stream inner) : Stream

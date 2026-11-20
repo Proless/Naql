@@ -220,6 +220,8 @@ Naql.TargetCapabilities.Resumable.get -> bool
 Naql.TargetCapabilities.Resumable.init -> void
 Naql.TargetCapabilities.ResumableParts.get -> bool
 Naql.TargetCapabilities.ResumableParts.init -> void
+Naql.TargetCapabilities.SplittableParts.get -> bool
+Naql.TargetCapabilities.SplittableParts.init -> void
 Naql.TargetCapabilities.TargetCapabilities() -> void
 Naql.TargetCapabilities.Verifiable.get -> bool
 Naql.TargetCapabilities.Verifiable.init -> void

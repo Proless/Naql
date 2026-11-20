@@ -89,5 +89,28 @@ internal static class PartPlanner
         return parts;
     }
 
+    /// <summary>
+    /// Where to split a running part that covers <paramref name="start"/> to <paramref name="end"/> and can't give away
+    /// the bytes before <paramref name="from"/>: halfway through the rest, at a multiple the target needs, and only when
+    /// both halves are worth a connection and the target takes their sizes.
+    /// </summary>
+    /// <returns>Where the new part starts, or <c>null</c> when splitting isn't worth it</returns>
+    public static long? SplitAt(long start, long from, long end, TargetCapabilities target, TransferOptions options)
+    {
+        var minSplit = options.MinSplitPartSize;
+        if (end - from < 2 * minSplit)
+        {
+            return null;
+        }
+
+        var at = Math.Max(from + ((end - from) / 2), start + target.MinPartSize);
+        if (target.PartSizeMultiple is long multiple)
+        {
+            // Parts start at multiples, so the new one has to as well
+            at = DivideRoundingUp(at, multiple) * multiple;
+        }
+        return end - at < Math.Max(minSplit, target.MinPartSize) || at - from < minSplit ? null : at;
+    }
+
     private static long DivideRoundingUp(long value, long divisor) => ((value - 1) / divisor) + 1;
 }

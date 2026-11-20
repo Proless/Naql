@@ -99,7 +99,9 @@ public interface ITargetSession : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// <list type="bullet">
-    /// <item>Read <paramref name="content"/> to its end. It holds exactly <c>range.Length</c> bytes when the length is known.</item>
+    /// <item>Read <paramref name="content"/> to its end. It holds exactly <c>range.Length</c> bytes when the length is known,
+    /// or fewer with <see cref="TargetCapabilities.SplittableParts"/>, when the engine gave the end of the range to another
+    /// part while this one ran.</item>
     /// <item>The engine may write the same range again after a failure; the new bytes replace the old ones.</item>
     /// <item>With <see cref="TargetCapabilities.ResumableParts"/>, the engine may continue a failed part with the rest of
     /// its range. Every byte read from <paramref name="content"/> before reading it failed must then be kept.</item>
@@ -171,6 +173,14 @@ public sealed record TargetCapabilities
     /// Parts can be written at the same time, in any order.
     /// </summary>
     public bool ParallelParts { get; init; }
+
+    /// <summary>
+    /// A part may end before the end of the range its write was given: the engine then gave the rest of the range to a
+    /// new part, so a connection that freed up can move it, and the content stream simply ends sooner. True when a
+    /// session writes each byte where it belongs as it arrives, such as a file; false when it needs a part's size up
+    /// front, such as a multipart upload that declares each part's size. Needs <see cref="ParallelParts"/>.
+    /// </summary>
+    public bool SplittableParts { get; init; }
 
     /// <summary>
     /// A failed part can continue where it stopped: every byte the session read from the part is kept, or, for a session

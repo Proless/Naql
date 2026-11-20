@@ -30,7 +30,6 @@ internal sealed class TransferRun
     private Exception? _callerFailure;
     private readonly ConnectionGate _gate = new(1);
     private int _requestedConnections;
-    private int? _sourceConnections;
 
     public TransferRun(ITransferSource source, ITransferTarget target, TransferOptions options, BandwidthLimiter[] limiters,
         IProgress<TransferProgress>? progress, TransferCheckpoint? resumeFrom, ICheckpointStore? store)
@@ -65,12 +64,13 @@ internal sealed class TransferRun
     }
 
     // The setting and the source's limit can both change, from different threads; the lock keeps the gate from
-    // ending up with a limit computed from a stale one
+    // ending up with a limit computed from a stale one. A source that only describes itself with its first read still
+    // has its limit applied: parts beyond the planned ones are only split off within it.
     private void UpdateGate()
     {
         lock (_gate)
         {
-            _gate.Limit = Math.Min(RequestedConnections, _sourceConnections ?? int.MaxValue);
+            _gate.Limit = Math.Min(RequestedConnections, _state.Info?.MaxConnections ?? int.MaxValue);
         }
     }
 
@@ -317,10 +317,6 @@ internal sealed class TransferRun
             var info = await _runner.RetryAsync(TransferSide.Source, t => _runner.WithResponseTimeoutAsync(TransferSide.Source, _source.GetInfoAsync, t), token).ConfigureAwait(false);
             _state.SetInfo(info);
             // The source may allow fewer connections than asked for, such as one for a file host's free account
-            lock (_gate)
-            {
-                _sourceConnections = info.MaxConnections;
-            }
             connections = Math.Min(RequestedConnections, info.MaxConnections ?? int.MaxValue);
             if (checkpoint != null)
             {

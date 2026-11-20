@@ -8,12 +8,15 @@ namespace Naql.Engine;
 
 /// <summary>
 /// The stream a target reads a part from. It wraps the source's stream to throttle, count bytes, record activity for
-/// the idle timeout, stop at the end of the part, and notice when the source ends too early.
+/// the idle timeout, stop at the end of the part, and notice when the source ends too early. The end can move earlier
+/// while the part runs, when the engine gives the rest of the part to another one.
 /// </summary>
 internal sealed class MeteredStream : Stream
 {
     private readonly Stream _inner;
-    private readonly long? _expectedLength;
+    private readonly object _lengthLock = new();
+    private long? _expectedLength;
+    private long _reservedEnd;
     private readonly int _maxRead;
     private readonly BandwidthLimiter[] _limiters;
     private readonly Action<ReadOnlyMemory<byte>> _onRead;
@@ -45,6 +48,38 @@ internal sealed class MeteredStream : Stream
         _onConfirmed = onConfirmed;
         _clock = clock;
         Touch();
+    }
+
+    /// <summary>
+    /// The bytes this stream can no longer give away: those it read, and those a read in flight may still return.
+    /// </summary>
+    public long ReservedEnd
+    {
+        get
+        {
+            lock (_lengthLock)
+            {
+                return _reservedEnd;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends the stream sooner, after <paramref name="length"/> bytes, so another part can move the rest.
+    /// </summary>
+    /// <returns><c>false</c>, changing nothing, when the length isn't known, isn't shorter, the stream already ended,
+    /// or it read or may still read past <paramref name="length"/></returns>
+    public bool TryEndAt(long length)
+    {
+        lock (_lengthLock)
+        {
+            if (_expectedLength is not long expected || length >= expected || length < _reservedEnd || ReachedEnd)
+            {
+                return false;
+            }
+            _expectedLength = length;
+            return true;
+        }
     }
 
     /// <summary>
@@ -118,16 +153,21 @@ internal sealed class MeteredStream : Stream
         }
 
         var toRead = Math.Min(buffer.Length, _maxRead);
-        if (_expectedLength is long expected)
+        lock (_lengthLock)
         {
-            var remaining = expected - _read;
-            if (remaining == 0)
+            if (_expectedLength is long expected)
             {
-                // Don't read past the part, even when the source has more
-                MarkEnd();
-                return 0;
+                var remaining = expected - _read;
+                if (remaining == 0)
+                {
+                    // Don't read past the part, even when the source has more
+                    MarkEnd();
+                    return 0;
+                }
+                toRead = (int)Math.Min(toRead, remaining);
             }
-            toRead = (int)Math.Min(toRead, remaining);
+            // The end can't move before what this read may return
+            _reservedEnd = _read + toRead;
         }
 
         int read;
@@ -149,7 +189,12 @@ internal sealed class MeteredStream : Stream
 
         if (read == 0)
         {
-            if (_expectedLength is long length && _read < length)
+            long? expectedLength;
+            lock (_lengthLock)
+            {
+                expectedLength = _expectedLength;
+            }
+            if (expectedLength is long length && _read < length)
             {
                 var failure = new TransferException($"The source ended after {_read} of {length} bytes", TransferErrorKind.Network, isTransient: true);
                 Interlocked.CompareExchange(ref _readFailure, failure, null);

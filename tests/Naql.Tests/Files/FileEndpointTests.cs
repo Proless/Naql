@@ -53,7 +53,8 @@ public sealed class FileEndpointTests : IDisposable
         var result = await RunAsync(FileSource.At(source), FileTarget.At(target), Parallel);
 
         Assert.Equal(content, File.ReadAllBytes(target));
-        Assert.Equal(4, result.Parts);
+        // Four planned parts, and maybe more split off them when a connection frees up early
+        Assert.True(result.Parts >= 4, $"{result.Parts} parts");
     }
 
     [Fact]
