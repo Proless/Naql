@@ -18,7 +18,7 @@ Both packages build for net8.0 (no dependencies), netstandard2.1 (.NET 5 to 7, .
 - Checkpoints: `GetCheckpoint()`, `ResumeFrom(checkpoint)`, and `WithCheckpointStore(ICheckpointStore)` to continue unfinished transfers by themselves, with `FileCheckpointStore`. A checkpoint only continues the same content, by `SourceInfo.Identity` and version, and keeps a fingerprint of the identity rather than the URL.
 - Checksum verification with `WithExpectedChecksum(Checksum.Sha256("…"))`, hashed while streaming or by reading the target back.
 - Traces and metrics through `ActivitySource` and `Meter`, named in `NaqlDiagnostics`.
-- `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`. `FileTarget.InDirectory` makes names from sources safe on every OS, including names Windows reserves and names too long for the file system.
+- `FileSource` and `FileTarget` in `Naql.Files`, and `StreamSource` and `StreamTarget` in `Naql.Streams`. `FileSourceResolver` and `FileTargetResolver` resolve `file:` references, so whole folders copy through resolvers. `FileTarget.InDirectory` makes names from sources safe on every OS, including names Windows reserves and names too long for the file system.
 - The contracts for new protocols: `ITransferSource`, `ITransferTarget`, `ITargetSession` and `IVerifiableSession`.
 - Resolving references into sources and destinations into targets, for any protocol: `ISourceResolver`, `ITargetResolver`, `ResolvedSource`, `RelativePath`, and `Resolve` to follow references across resolvers the caller chooses.
 

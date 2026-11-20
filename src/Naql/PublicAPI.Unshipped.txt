@@ -39,11 +39,21 @@ Naql.Files.FileSource
 Naql.Files.FileSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceInfo!>!
 Naql.Files.FileSource.OpenReadAsync(Naql.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.SourceRead!>!
 Naql.Files.FileSource.Path.get -> string!
+Naql.Files.FileSourceResolver
+Naql.Files.FileSourceResolver.CanResolve(System.Uri! reference) -> bool
+Naql.Files.FileSourceResolver.FileSourceResolver(bool recursive = true) -> void
+Naql.Files.FileSourceResolver.Recursive.get -> bool
+Naql.Files.FileSourceResolver.ResolveAsync(System.Uri! reference, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naql.ResolvedSource!>!
 Naql.Files.FileTarget
 Naql.Files.FileTarget.Capabilities.get -> Naql.TargetCapabilities!
 Naql.Files.FileTarget.Conflict.get -> Naql.Files.FileConflict
 Naql.Files.FileTarget.OpenAsync(Naql.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.ITargetSession!>!
 const Naql.Files.FileTarget.PartialExtension = ".naql-part" -> string!
+Naql.Files.FileTargetResolver
+Naql.Files.FileTargetResolver.CanResolve(System.Uri! destination) -> bool
+Naql.Files.FileTargetResolver.Conflict.get -> Naql.Files.FileConflict
+Naql.Files.FileTargetResolver.FileTargetResolver(Naql.Files.FileConflict conflict = Naql.Files.FileConflict.Overwrite) -> void
+Naql.Files.FileTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naql.SourceInfo? info, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naql.ITransferTarget!>
 Naql.ICheckpointStore
 Naql.ICheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Naql.ICheckpointStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naql.TransferCheckpoint?>!

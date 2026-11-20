@@ -233,6 +233,7 @@ public interface ITargetResolver
 - **Relative paths can't escape.** `RelativePath` defines them: empty for a single item, otherwise segments separated by `/`, never empty, `.` or `..`. A target resolver still makes each segment acceptable to its storage.
 - **Streaming.** A resolver yields sources as it finds them, so a large folder starts transferring before it's fully listed.
 - **No registry.** `Resolve.SourcesAsync(reference, resolvers)` resolves with the first resolver in the caller's list that handles each reference, follows references through the same list up to `Resolve.DefaultMaxDepth` steps, and fails on a loop. `Resolve.TargetAsync` picks a target resolver the same way. Which resolvers exist, and in what order, is always the caller's choice; registering them is left to an application or a dependency-injection package. Errors name a reference without its user name, password or query, which can hold credentials.
+- **Files.** `FileSourceResolver` resolves a `file:` reference to a file into its source, and a folder into all its files with their paths, leaving out unfinished transfers and checkpoints. `FileTargetResolver` writes a relative path inside a `file:` destination folder, making each segment safe like `FileTarget.InDirectory`; a destination that isn't a folder is the file a single item goes to.
 - **Not for typed inputs.** A package whose SDK already returns typed objects, such as a file's metadata, offers direct factories for them; resolving is for references that arrive as text.
 
 ## 5. The engine
@@ -565,7 +566,7 @@ There's no `ILogger` in the core: it would add a package dependency, which secti
 
 | Package | Contents | Dependencies |
 |---|---|---|
-| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
+| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
 | `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication) | `Naql` |
 | Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
 
