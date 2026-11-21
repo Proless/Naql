@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Naql.Http;
 
@@ -8,6 +9,8 @@ namespace Naql.Http;
 /// </summary>
 public sealed class ChunkedUpload
 {
+    private long _acknowledged;
+
     internal ChunkedUpload(SourceInfo source, string? token)
     {
         Source = source;
@@ -24,6 +27,18 @@ public sealed class ChunkedUpload
     /// it's the resume token, so a later run continues the session from it alone.
     /// </summary>
     public string? Token { get; set; }
+
+    /// <summary>
+    /// How many bytes from the start of the content the service has acknowledged: what the last chunk reached, or
+    /// what <see cref="ChunkedUploadTarget"/>'s query found when a later run reopened the session. When the finish
+    /// step runs, it's the content's whole length, which services such as Dropbox need to finish an upload, also for
+    /// content whose length wasn't known up front.
+    /// </summary>
+    public long Acknowledged
+    {
+        get => Interlocked.Read(ref _acknowledged);
+        internal set => Interlocked.Exchange(ref _acknowledged, value);
+    }
 
     /// <summary>
     /// Where the content is once the upload completed, such as the file's URL, for

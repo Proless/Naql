@@ -6,6 +6,7 @@ Naql.Http.BearerTokenHandler
 Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken, System.Net.Http.HttpMessageHandler! innerHandler) -> void
 Naql.Http.BearerTokenHandler.BearerTokenHandler(System.Func<bool, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! getToken) -> void
 Naql.Http.ChunkedUpload
+Naql.Http.ChunkedUpload.Acknowledged.get -> long
 Naql.Http.ChunkedUpload.Location.get -> string?
 Naql.Http.ChunkedUpload.Location.set -> void
 Naql.Http.ChunkedUpload.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!

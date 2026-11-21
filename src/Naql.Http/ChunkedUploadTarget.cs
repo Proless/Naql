@@ -94,7 +94,8 @@ public abstract class ChunkedUploadTarget : ITransferTarget
             }
             acknowledged = 0;
         }
-        return new Session(this, upload, acknowledged);
+        upload.Acknowledged = acknowledged;
+        return new Session(this, upload);
     }
 
     /// <summary>
@@ -120,7 +121,7 @@ public abstract class ChunkedUploadTarget : ITransferTarget
 
     /// <summary>
     /// Finishes the upload once the server has every byte, for services with a separate step, such as Dropbox's
-    /// <c>finish</c>; it can set <see cref="ChunkedUpload.Location"/> and <see cref="ChunkedUpload.Metadata"/>. Does
+    /// <c>finish</c>, with <see cref="ChunkedUpload.Acknowledged"/> as the content's length; it can set <see cref="ChunkedUpload.Location"/> and <see cref="ChunkedUpload.Metadata"/>. Does
     /// nothing by default, for services the last chunk finishes.
     /// </summary>
     protected virtual Task CompleteAsync(ChunkedUpload upload, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -131,21 +132,19 @@ public abstract class ChunkedUploadTarget : ITransferTarget
     /// </summary>
     protected virtual Task AbortAsync(ChunkedUpload upload, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private sealed class Session(ChunkedUploadTarget target, ChunkedUpload upload, long acknowledged) : ITargetSession, IAcknowledgingSession
+    private sealed class Session(ChunkedUploadTarget target, ChunkedUpload upload) : ITargetSession, IAcknowledgingSession
     {
-        private long _acknowledged = acknowledged;
-
         public string? ResumeToken => upload.Token;
 
         public string? Location => upload.Location;
 
         public IReadOnlyDictionary<string, string> Metadata => new Dictionary<string, string>(upload.Metadata);
 
-        public long Kept(long position) => Math.Max(0, Interlocked.Read(ref _acknowledged) - position);
+        public long Kept(long position) => Math.Max(0, upload.Acknowledged - position);
 
         public async Task WritePartAsync(ByteRange range, Stream content, CancellationToken cancellationToken)
         {
-            var offset = Interlocked.Read(ref _acknowledged);
+            var offset = upload.Acknowledged;
             if (range.Start != offset)
             {
                 throw new TransferException($"The upload is at {offset}, so it can't continue from {range.Start}", TransferErrorKind.Protocol, side: TransferSide.Target);
@@ -185,7 +184,7 @@ public abstract class ChunkedUploadTarget : ITransferTarget
 
                 sent = true;
                 offset = reached;
-                Interlocked.Exchange(ref _acknowledged, reached);
+                upload.Acknowledged = reached;
                 // What the server didn't take goes again, at the front of the next chunk
                 Buffer.BlockCopy(buffer, (int)taken, buffer, 0, filled - (int)taken);
                 filled -= (int)taken;

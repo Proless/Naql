@@ -17,10 +17,12 @@ namespace Naql.Http;
 /// <list type="bullet">
 /// <item>Getting the first token, such as by signing in, is the caller's; the handler only asks the token function
 /// for the current token, or for a fresh one after a rejection.</item>
-/// <item>A request without a body that's answered with 401 is sent again with a fresh token, once.</item>
-/// <item>A request with a body can't be sent twice, since the body is streamed. The handler gets a fresh token and
-/// fails the attempt as a transient <see cref="TransferErrorKind.Unauthorized"/>, so the transfer's retry sends it
-/// again with the fresh token.</item>
+/// <item>A request that's answered with 401 is sent again with a fresh token, once, when its body can be sent twice:
+/// it has none, or one in memory such as a <see cref="StringContent"/> or another <see cref="ByteArrayContent"/>,
+/// like the JSON of an API call.</item>
+/// <item>A streamed body, such as an upload's, can't be sent twice. The handler gets a fresh token and fails the
+/// attempt as a transient <see cref="TransferErrorKind.Unauthorized"/>, so the transfer's retry sends it again with
+/// the fresh token.</item>
 /// <item>Requests rejected at the same time share one refresh: a request whose token was already replaced uses the
 /// new one.</item>
 /// </list>
@@ -66,7 +68,7 @@ public sealed class BearerTokenHandler : DelegatingHandler
         }
 
         var fresh = await RefreshAsync(token, cancellationToken).ConfigureAwait(false);
-        if (request.Content != null)
+        if (request.Content is not (null or ByteArrayContent))
         {
             var error = HttpTransferException.FromResponse(response, "The access token was rejected; the next attempt uses a fresh one",
                 TransferErrorKind.Unauthorized, isTransient: true, TransferSide.Unknown);

@@ -100,6 +100,21 @@ public sealed class BearerTokenHandlerTests
     }
 
     [Fact]
+    public async Task An_api_call_whose_body_is_in_memory_is_sent_again_at_once()
+    {
+        var tokens = new Tokens();
+        var server = new FakeUploadServer();
+        var transport = Transport(tokens, server);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, FakeUploadServer.Uri) { Content = new StringContent("{\"path\":\"/a\"}") };
+        using var response = await transport.SendAsync(request, TransferSide.Source, Token);
+
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Equal(1, tokens.Refreshes);
+        Assert.Equal("{\"path\":\"/a\"}"u8.ToArray(), Assert.Single(server.Uploads).Body);
+    }
+
+    [Fact]
     public async Task Requests_rejected_at_the_same_time_share_one_refresh()
     {
         var tokens = new Tokens();
