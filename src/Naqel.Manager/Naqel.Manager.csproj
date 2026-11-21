@@ -16,4 +16,10 @@
 		<ProjectReference Include="..\Naqel.Plugins\Naqel.Plugins.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<PackageReference Include="NuGet.Protocol" />
+		<!-- Replaces the vulnerable version NuGet.Packaging would bring -->
+		<PackageReference Include="System.Security.Cryptography.Pkcs" />
+	</ItemGroup>
+
 </Project>

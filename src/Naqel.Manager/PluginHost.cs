@@ -16,7 +16,7 @@ namespace Naqel.Manager;
 /// <item>A plugin that can't load or fails to register is left out, with a <see cref="PluginFailure"/> saying why;
 /// the others load.</item>
 /// <item>Plugins load once, when Naqel starts. Installing, updating and removing plugins takes effect on the next
-/// start (see the plugin catalog).</item>
+/// start (see <see cref="PluginCatalog"/>).</item>
 /// </list>
 /// </remarks>
 public sealed class PluginHost
@@ -74,6 +74,8 @@ public sealed class PluginHost
         {
             return set;
         }
+        // Before anything loads, while no plugin's files are in use
+        PluginCatalog.ApplyPending(_options.PluginsDirectory);
         foreach (var directory in Directory.GetDirectories(_options.PluginsDirectory).Order(StringComparer.Ordinal))
         {
             // Folders starting with a dot belong to the catalog, such as plugins waiting to be installed
@@ -81,7 +83,7 @@ public sealed class PluginHost
             {
                 continue;
             }
-            await LoadAsync(set, directory, cancellationToken).ConfigureAwait(false);
+            await LoadPluginAsync(set, directory, cancellationToken).ConfigureAwait(false);
         }
         return set;
     }
@@ -127,7 +129,7 @@ public sealed class PluginHost
         }
     }
 
-    private async Task LoadAsync(PluginSet set, string directory, CancellationToken cancellationToken)
+    private async Task LoadPluginAsync(PluginSet set, string directory, CancellationToken cancellationToken)
     {
         PluginManifest manifest;
         try
