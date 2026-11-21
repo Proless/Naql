@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- The app's manager: jobs, the queue, routing and hooks. It isn't a package; the app's hosts use it -->
+	<PropertyGroup>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<TrackPublicApi>false</TrackPublicApi>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Naqel.Manager.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Naqel.Plugins\Naqel.Plugins.csproj" />
+	</ItemGroup>
+
+</Project>
