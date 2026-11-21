@@ -167,7 +167,8 @@ public sealed record StorageItem(string Path, string? Id, string Name, bool IsFo
 - Optional operations, such as delete, move and server-side copy, are capabilities with their own small interfaces, so a service implements only what it can.
 - Items have an id as well as a path, for services such as Google Drive, which identify files by id, allow two files with the same name in one folder, and let a file sit in several folders. The design is checked against Google Drive before it's settled.
 - `StorageSourceResolver` and `StorageTargetResolver` resolve any storage's references, so a storage service plugin implements only listing, describing, reading and writing. Tests prove the contract against a fake storage service with ids, paths and case-insensitive names.
-- **Storage locations** in the manager are named, configured storages, such as "Media share" on an SMB server or "Backups" in a Dropbox folder. A local folder is one too, including a network share the OS has mounted.
+- **Storage locations** in the manager are named, configured storages, such as "media" on an SMB server or "backups" in a Dropbox folder. A local folder is one too, through `FileStorage`, including a network share the OS has mounted. A location's name is the host of its references, such as `location://media/movies/`, so names are lowercase letters, digits and hyphens. `StorageLocations` resolves sources and targets in every location, so Naqel's engine uses them as resolvers; a reference to a location that's gone fails as `NotFound`, naming it. Phase 2 keeps locations in memory; the job store keeps them from phase 4 on.
+- **Deleting a job's data** goes through the same contracts: an unfinished file's target discards what it kept through its own abort, and a finished file is deleted when its storage can delete (`IStorageDelete`). A file written with `WriteMode.KeepBoth` may have another name than its path says, so it's kept, as are finished files outside a storage, such as in a plain `file:` folder.
 
 ### 6.2 Content kinds and choices (in Naqel.Core)
 
@@ -259,7 +260,7 @@ public interface INaqelPlugin
 Each phase is a few topic commits with tests, reviewed before the next starts. The desktop app comes first; the server follows, reusing everything below the UI.
 
 1. **Manager foundations (done).** `Naqel.Plugins` with the engine contract and the hooks; `Naqel.Manager` with jobs, the queue, routing, job events, completion steps and job data; the Naqel engine adapter. Tested with fake plugins and a fake engine, and driven from a small console host.
-2. **Storage.** `IStorage` and the generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
+2. **Storage (done).** `IStorage` and the generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
 3. **Plugin host.** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages install and load as plugins.
 4. **Contracts, application and data.** `Naqel.Contracts` with every operation and event; `Naqel.Application` implementing it, with the host interfaces; `Naqel.Data` with EF Core and SQLite. The console host moves onto it.
 5. **Desktop.** `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux: the queue, job details with per-part progress, live speed and connection controls, adding links with format choices, storage locations, settings, accounts and plugins; tray, notifications, link handling and file pickers.

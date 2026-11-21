@@ -6,11 +6,11 @@ Naqel (ناقل, "carrier") is becoming a download and upload manager with two i
 
 | Path | What |
 |---|---|
-| `src/Naqel.Core` | Package `Naqel.Core`, namespace `Naqel`: the transfer engine, contracts, resolvers, `Naqel.Files`, `Naqel.Streams` |
+| `src/Naqel.Core` | Package `Naqel.Core`, namespace `Naqel`: the transfer engine, contracts, resolvers, storages (`Naqel.Storage`), `Naqel.Files`, `Naqel.Streams` |
 | `src/Naqel.Http` | Package `Naqel.Http`: HTTP sources and targets, `BearerTokenHandler`, `ChunkedUploadTarget`, HTTP resolvers |
 | `src/Compat` | Polyfills compiled into each library on netstandard |
 | `src/Naqel.Plugins` | The plugin contracts: the engine contract and the hooks (net10.0, API list kept, not packed yet) |
-| `src/Naqel.Manager` | The job manager and Naqel's own engine (net10.0, not a package) |
+| `src/Naqel.Manager` | The job manager, storage locations and Naqel's own engine (net10.0, not a package) |
 | `src/Naqel.Data` | Planned: the job store with EF Core |
 | `src/Naqel.Contracts`, `Naqel.Application`, `Naqel.Client` | Planned: the operations and events the UI uses, implemented in-process and over the server's API |
 | `src/Naqel.Presentation`, `Naqel.Desktop` | Planned: the desktop UI's view models, and the desktop app with an Avalonia UI |
@@ -65,7 +65,7 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 The plan is [docs/architecture.md](docs/architecture.md); its phases, in order:
 
 - [x] 1. Manager foundations: `Naqel.Plugins` with the engine contract and hooks, `Naqel.Manager` with jobs, queue, routing, job events, completion steps and job data, the Naqel engine adapter, and a console host.
-- [ ] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
+- [x] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
 - [ ] 3. Plugin host: the catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user.
 - [ ] 4. Contracts, application and data: `Naqel.Contracts` with every operation and event, `Naqel.Application` implementing it, `Naqel.Data` with EF Core and SQLite.
 - [ ] 5. Desktop: `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux, tray, notifications, link handling and file pickers.
