@@ -82,6 +82,6 @@ public sealed class StorageTargetResolver : ITargetResolver, IStorageLocator
         {
             path = folder;
         }
-        return new StorageTarget(Storage, path, Storage.OpenWrite(path, Mode, info));
+        return new StorageTarget(Storage, path, Mode, Storage.OpenWrite(path, Mode, info));
     }
 }

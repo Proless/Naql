@@ -14,7 +14,8 @@ namespace Naqel.Storage;
 /// </summary>
 /// <remarks>
 /// In a storage with <see cref="StorageCapabilities.DuplicateNames"/>, two files of a folder can have the same path;
-/// the later ones get a number, as in <c>a (2).txt</c>, so each keeps a place of its own wherever the folder goes.
+/// the later ones get a number, as in <c>a (1).txt</c>, the way <see cref="WriteMode.KeepBoth"/> names a file, so each
+/// keeps a place of its own wherever the folder goes.
 /// </remarks>
 public sealed class StorageSourceResolver : ISourceResolver, IStorageLocator
 {
@@ -107,7 +108,7 @@ public sealed class StorageSourceResolver : ISourceResolver, IStorageLocator
         var name = path.Substring(slash + 1);
         var dot = name.LastIndexOf('.');
         var (stem, extension) = dot > 0 ? (name.Remove(dot), name.Substring(dot)) : (name, "");
-        for (var n = 2; ; n++)
+        for (var n = 1; ; n++)
         {
             var candidate = FormattableString.Invariant($"{folder}{stem} ({n}){extension}");
             if (taken.Add(candidate))

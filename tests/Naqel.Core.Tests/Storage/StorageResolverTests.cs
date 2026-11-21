@@ -93,8 +93,8 @@ public sealed class StorageResolverTests
             await Transfer.From(item.Source).To(target).RunAsync(cancellationToken: Token);
         }
 
-        Assert.Equal(["notes (2).txt", "notes (3).txt", "notes.txt", "readme", "readme (2)"], copy.Paths);
-        Assert.Equal([1, 2, 3], new[] { "notes.txt", "notes (2).txt", "notes (3).txt" }.Select(path => (int)copy.Read(path)![0]).OrderBy(value => value));
+        Assert.Equal(["notes (1).txt", "notes (2).txt", "notes.txt", "readme", "readme (1)"], copy.Paths);
+        Assert.Equal([1, 2, 3], new[] { "notes.txt", "notes (1).txt", "notes (2).txt" }.Select(path => (int)copy.Read(path)![0]).OrderBy(value => value));
     }
 
     [Fact]

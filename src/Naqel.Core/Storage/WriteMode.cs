@@ -11,6 +11,6 @@ public enum WriteMode
     /// <summary>Fail with <see cref="TransferErrorKind.AlreadyExists"/>.</summary>
     Fail,
 
-    /// <summary>Keep both, giving the new file another name, such as <c>a (2).txt</c>.</summary>
+    /// <summary>Keep both, giving the new file another name, such as <c>a (1).txt</c>.</summary>
     KeepBoth
 }

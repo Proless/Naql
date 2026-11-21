@@ -11,12 +11,14 @@ namespace Naqel.Storage;
 public sealed class StorageTarget : ITransferTarget
 {
     /// <summary>
-    /// The target <paramref name="target"/>, which writes <paramref name="path"/> in <paramref name="storage"/>.
+    /// The target <paramref name="target"/>, which writes <paramref name="path"/> in <paramref name="storage"/> with
+    /// <paramref name="mode"/>.
     /// </summary>
-    public StorageTarget(IStorage storage, string path, ITransferTarget target)
+    public StorageTarget(IStorage storage, string path, WriteMode mode, ITransferTarget target)
     {
         Storage = storage ?? throw new ArgumentNullException(nameof(storage));
         Path = path ?? throw new ArgumentNullException(nameof(path));
+        Mode = mode;
         Target = target ?? throw new ArgumentNullException(nameof(target));
     }
 
@@ -29,6 +31,12 @@ public sealed class StorageTarget : ITransferTarget
     /// The file's path in the storage, before a <see cref="WriteMode.KeepBoth"/> write gives it another name.
     /// </summary>
     public string Path { get; }
+
+    /// <summary>
+    /// What the write does when a file is there already. With <see cref="WriteMode.KeepBoth"/>, the file written may
+    /// have another name than <see cref="Path"/>, and the one at <see cref="Path"/> may be another file.
+    /// </summary>
+    public WriteMode Mode { get; }
 
     /// <summary>
     /// The storage's own target for the file.
