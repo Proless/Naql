@@ -13,6 +13,7 @@
 		<VersionPrefix>0.1.0</VersionPrefix>
 		<VersionSuffix>preview.1</VersionSuffix>
 		<Authors>Proless</Authors>
+		<Title>HTTP</Title>
 		<Description>HTTP and HTTPS downloads and uploads for the Naqel app, as a plugin.</Description>
 		<PackageTags>naqel-plugin naqel-contract-1</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

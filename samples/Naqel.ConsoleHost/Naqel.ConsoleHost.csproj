@@ -9,8 +9,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- No Naqel.Http: HTTP comes through its plugin, which the catalog installs -->
 		<ProjectReference Include="..\..\src\Naqel.Manager\Naqel.Manager.csproj" />
-		<ProjectReference Include="..\..\src\Naqel.Http\Naqel.Http.csproj" />
 	</ItemGroup>
 
 </Project>
