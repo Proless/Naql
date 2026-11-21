@@ -6,6 +6,7 @@
     <Project Path="src/Naqel.Plugins/Naqel.Plugins.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/Naqel.ConsoleHost/Naqel.ConsoleHost.csproj" />
     <Project Path="samples/Naqel.Samples/Naqel.Samples.csproj" />
   </Folder>
   <Folder Name="/tests/">
