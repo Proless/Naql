@@ -68,6 +68,11 @@ public sealed class JobManager : IAsyncDisposable
     public int MaxActiveJobs => Volatile.Read(ref _maxActiveJobs);
 
     /// <summary>
+    /// The storage locations jobs save to and read from; they can be added and removed at any time.
+    /// </summary>
+    public StorageLocations Locations => _options.Locations;
+
+    /// <summary>
     /// The job with <paramref name="jobId"/>, as it is now, or <c>null</c>.
     /// </summary>
     public JobInfo? Find(string jobId) => Array.Find(_published, job => job.Id == jobId);

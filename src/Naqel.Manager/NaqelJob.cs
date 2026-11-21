@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Naqel.Plugins;
+using Naqel.Storage;
 
 namespace Naqel.Manager;
 
@@ -8,7 +9,8 @@ namespace Naqel.Manager;
 /// </summary>
 internal sealed class NaqelJob : IEngineJob
 {
-    // Engine state keys: the files done so far, and each unfinished file's checkpoint
+    // Engine state keys: the job's files, the files done so far, and each unfinished file's checkpoint
+    private const string FilesKey = "files";
     private const string DoneKey = "done";
     private const string CheckpointKey = "checkpoint:";
 
@@ -58,12 +60,64 @@ internal sealed class NaqelJob : IEngineJob
 
     public async Task RemoveAsync(bool deleteData, CancellationToken cancellationToken)
     {
+        await StopAsync().ConfigureAwait(false);
         if (deleteData)
         {
-            throw new NotSupportedException("Naqel's engine can't delete what its jobs transferred yet");
+            await DeleteDataAsync(cancellationToken).ConfigureAwait(false);
         }
-        await StopAsync().ConfigureAwait(false);
         _engine.Forget(this);
+    }
+
+    // Each file goes to the target it went to before: an unfinished one's target discards what it kept through its own
+    // abort, and a finished one is deleted where its storage can delete it
+    private async Task DeleteDataAsync(CancellationToken token)
+    {
+        var done = await LoadDoneAsync(token).ConfigureAwait(false);
+        foreach (var file in await LoadFilesAsync(token).ConfigureAwait(false))
+        {
+            var info = new SourceInfo { Name = file.Name, Length = file.Length };
+            var target = await Resolve.TargetAsync(_request.Destination, file.Path, info, _engine.TargetResolvers, cancellationToken: token).ConfigureAwait(false);
+            if (done.ContainsKey(file.Path))
+            {
+                // A write that kept both may have put this job's file under another name, so the path may name someone else's
+                if (target is StorageTarget { Mode: not WriteMode.KeepBoth, Storage: IStorageDelete deleter } kept &&
+                    await kept.Storage.GetAsync(kept.Path, token).ConfigureAwait(false) is { IsFolder: false } item)
+                {
+                    await deleter.DeleteAsync(item, token).ConfigureAwait(false);
+                }
+                continue;
+            }
+
+            var checkpoints = new EngineStateCheckpointStore(State, Id, CheckpointKey + file.Path);
+            if (await checkpoints.LoadAsync(token).ConfigureAwait(false) is { ResumeToken: { } resumeToken } checkpoint)
+            {
+                try
+                {
+                    var session = await target.OpenAsync(new TargetOpenRequest(new SourceInfo { Name = file.Name, Length = checkpoint.Length }, resumeToken), token).ConfigureAwait(false);
+                    await using (session.ConfigureAwait(false))
+                    {
+                        await session.AbortAsync(token).ConfigureAwait(false);
+                    }
+                }
+                catch (TransferException ex) when (ex.Kind == TransferErrorKind.NotFound)
+                {
+                    // Nothing left to discard
+                }
+            }
+        }
+    }
+
+    private async Task<List<KnownFile>> LoadFilesAsync(CancellationToken token)
+    {
+        var text = await State.GetAsync(Id, FilesKey, token).ConfigureAwait(false);
+        try
+        {
+            return text == null ? [] : JsonSerializer.Deserialize<List<KnownFile>>(text) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     public Task SetLimitsAsync(JobLimits limits, CancellationToken cancellationToken)
@@ -118,11 +172,18 @@ internal sealed class NaqelJob : IEngineJob
             var items = new List<ResolvedSource>();
             await foreach (var item in Resolve.SourcesAsync(_request.Reference, _engine.SourceResolvers, cancellationToken: token).ConfigureAwait(false))
             {
-                items.Add(item);
+                // A single file needs its name before its target is known, such as to go into a folder of a storage; a
+                // resolver that didn't describe it, to save a request, leaves that to this one request
+                items.Add(item.Path.Length == 0 && item.Info?.Name is not { Length: > 0 }
+                    ? new ResolvedSource(item.Source, item.Path, await item.Source.GetInfoAsync(token).ConfigureAwait(false))
+                    : item);
             }
             var files = items.Select(item => done.TryGetValue(item.Path, out var finished)
                 ? new JobFile(item.Path, NameOf(item), finished.Length, finished.Length ?? 0, Done: true, finished.Location)
                 : new JobFile(item.Path, NameOf(item), item.Info?.Length, 0, Done: false)).ToList();
+            // Kept so the job's data can be found again without resolving its reference, such as to delete it
+            var known = files.Select(file => new KnownFile(file.Path, file.Name, file.Length)).ToList();
+            await State.SetAsync(Id, FilesKey, JsonSerializer.Serialize(known), token).ConfigureAwait(false);
             Report(Summarize(files, JobState.Transferring, rate: 0));
 
             for (var i = 0; i < items.Count; i++)
@@ -234,6 +295,11 @@ internal sealed class NaqelJob : IEngineJob
     /// A file of the job that's done: its length and where it ended up.
     /// </summary>
     private sealed record FinishedFile(long? Length, string? Location);
+
+    /// <summary>
+    /// A file of the job, as its reference resolved: where it belongs, its name and its length.
+    /// </summary>
+    private sealed record KnownFile(string Path, string Name, long? Length);
 
     /// <summary>
     /// Hands progress on at once, on the transfer's own thread, unlike <see cref="Progress{T}"/>.

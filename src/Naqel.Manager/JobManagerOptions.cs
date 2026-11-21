@@ -24,6 +24,12 @@ public sealed class JobManagerOptions
     public IList<ICompletionStep> CompletionSteps { get; } = new List<ICompletionStep>();
 
     /// <summary>
+    /// The storage locations jobs save to and read from. Give the same instance to Naqel's own engine as a source and
+    /// target resolver, so its jobs can use them.
+    /// </summary>
+    public StorageLocations Locations { get; set; } = new();
+
+    /// <summary>
     /// Where jobs are kept; in memory by default.
     /// </summary>
     public IJobStore Store { get; set; } = new MemoryJobStore();

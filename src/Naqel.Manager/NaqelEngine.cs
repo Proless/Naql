@@ -15,6 +15,9 @@ namespace Naqel.Manager;
 /// file's checkpoint. Pausing, a failure or a restart therefore continue where the job stopped.</item>
 /// <item>The engine's limit is one <see cref="BandwidthLimiter"/> all its jobs share; a job's own limits apply to its
 /// current transfer on top.</item>
+/// <item>Removing a job with its data discards what an unfinished file's target kept, through the target's own abort,
+/// and deletes finished files in storages that can delete them (<see cref="Storage.IStorageDelete"/>). Finished files
+/// elsewhere, such as in a folder given by a plain <c>file:</c> destination, stay.</item>
 /// </list>
 /// </remarks>
 public sealed class NaqelEngine : ITransferEngine
@@ -44,7 +47,7 @@ public sealed class NaqelEngine : ITransferEngine
     public string Name => EngineName;
 
     /// <inheritdoc />
-    public EngineCapabilities Capabilities { get; } = new() { Pause = true, JobLimits = true, EngineLimits = true };
+    public EngineCapabilities Capabilities { get; } = new() { Pause = true, JobLimits = true, EngineLimits = true, DeleteData = true };
 
     internal IReadOnlyList<ISourceResolver> SourceResolvers { get; }
 

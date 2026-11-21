@@ -86,6 +86,9 @@ public sealed class SlowResolver : ISourceResolver
 {
     public Dictionary<string, SlowSource> Sources { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>Whether a single file comes with what's known about it; without, like a resolver that saves a request.</summary>
+    public bool Describe { get; set; } = true;
+
     public bool CanResolve(Uri reference) => reference.Scheme == "slow";
 
     public async IAsyncEnumerable<Resolved> ResolveAsync(Uri reference, ResolveContext context, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -101,6 +104,6 @@ public sealed class SlowResolver : ISourceResolver
             yield break;
         }
         var single = Sources.GetValueOrDefault(name) ?? throw new TransferException($"There's no {name}", TransferErrorKind.NotFound, side: TransferSide.Source);
-        yield return new ResolvedSource(single, "", await single.GetInfoAsync(cancellationToken));
+        yield return new ResolvedSource(single, "", Describe ? await single.GetInfoAsync(cancellationToken) : null);
     }
 }

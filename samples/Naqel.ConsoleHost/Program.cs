@@ -1,7 +1,8 @@
 // Drives the job manager from the console, with Naqel's own engine for HTTP and files:
 //   Naqel.ConsoleHost <link or path> [<link or path> ...] [--to <folder>] [--jobs <n>] [--connections <n>]
 // Every link becomes a job; at most --jobs of them run at once (default 2), each over --connections connections
-// (default 4). While they run, press p to pause all, r to resume all, and q to quit.
+// (default 4). The folder is a storage location named "downloads", so the jobs save to location://downloads/. While
+// they run, press p to pause all, r to resume all, and q to quit.
 
 using System.Globalization;
 using Naqel;
@@ -38,17 +39,21 @@ if (links.Count == 0)
     return 2;
 }
 
+var locations = new StorageLocations();
+locations.Add("downloads", new FileStorage(folder));
 var engineOptions = new NaqelEngineOptions { TransferOptions = new TransferOptions { MaxConnections = connections } };
+engineOptions.SourceResolvers.Add(locations);
 engineOptions.SourceResolvers.Add(new HttpSourceResolver(describe: false));
 engineOptions.SourceResolvers.Add(new FileSourceResolver());
+engineOptions.TargetResolvers.Add(locations);
 engineOptions.TargetResolvers.Add(new FileTargetResolver());
-var managerOptions = new JobManagerOptions { MaxActiveJobs = maxJobs };
+var managerOptions = new JobManagerOptions { MaxActiveJobs = maxJobs, Locations = locations };
 managerOptions.Engines.Add(new NaqelEngine(engineOptions));
 managerOptions.Observers.Add(new ConsoleObserver());
 
 await using var manager = new JobManager(managerOptions);
 await manager.StartAsync();
-var destination = new Uri(folder + Path.DirectorySeparatorChar);
+var destination = StorageLocations.UriOf("downloads");
 foreach (var link in links)
 {
     await manager.AddAsync(link, destination);

@@ -1,6 +1,7 @@
 using Naqel.Files;
 using Naqel.Manager.Tests.Fakes;
 using Naqel.Plugins;
+using Naqel.Storage;
 
 namespace Naqel.Manager.Tests;
 
@@ -14,6 +15,7 @@ public sealed class NaqelEngineTests : IAsyncDisposable
     private readonly List<JobManager> _managers = [];
     private readonly SlowResolver _slow = new();
     private readonly MemoryJobStore _store = new();
+    private readonly StorageLocations _locations = new();
 
     public NaqelEngineTests()
     {
@@ -52,10 +54,12 @@ public sealed class NaqelEngineTests : IAsyncDisposable
                 Retry = new RetryPolicy { MaxRetries = 0 }
             }
         };
+        engineOptions.SourceResolvers.Add(_locations);
         engineOptions.SourceResolvers.Add(_slow);
         engineOptions.SourceResolvers.Add(new FileSourceResolver());
+        engineOptions.TargetResolvers.Add(_locations);
         engineOptions.TargetResolvers.Add(new FileTargetResolver());
-        var options = new JobManagerOptions { Store = _store };
+        var options = new JobManagerOptions { Store = _store, Locations = _locations };
         options.Engines.Add(new NaqelEngine(engineOptions));
         var manager = new JobManager(options);
         _managers.Add(manager);
@@ -224,4 +228,145 @@ public sealed class NaqelEngineTests : IAsyncDisposable
 
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Took {watch.Elapsed.TotalMilliseconds} ms after lifting the limit");
     }
+
+    #region Storage locations and deleting data
+
+    private string Location(string name, WriteMode mode = WriteMode.Overwrite)
+    {
+        var root = Path.Combine(_temp, name);
+        _locations.Add(name, new FileStorage(root), mode);
+        return root;
+    }
+
+    private string Folder(params (string Path, int Length)[] files)
+    {
+        var folder = Path.Combine(_temp, "in");
+        foreach (var (path, length) in files)
+        {
+            var full = Path.Combine(folder, path.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllBytes(full, Content(length, path.Length));
+        }
+        return folder;
+    }
+
+    private static string[] FilesIn(string folder) =>
+        Directory.Exists(folder)
+            ? [.. Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Select(file => Path.GetRelativePath(folder, file).Replace(Path.DirectorySeparatorChar, '/')).Order(StringComparer.Ordinal)]
+            : [];
+
+    [Fact]
+    public async Task A_job_saves_into_a_storage_location_by_its_name()
+    {
+        var root = Location("media");
+        var folder = Folder(("a.txt", 100), ("sub/b.txt", 2_000));
+        var manager = await StartAsync();
+
+        var job = await manager.AddAsync(new Uri(folder), StorageLocations.UriOf("media", "backup"), cancellationToken: Token);
+        await StateAsync(manager, job.Id, JobState.Completed);
+
+        Assert.Equal(["backup/a.txt", "backup/sub/b.txt"], FilesIn(root));
+        Assert.Same(_locations, manager.Locations);
+    }
+
+    [Fact]
+    public async Task Removing_a_completed_job_with_its_data_deletes_its_files_from_the_location()
+    {
+        var root = Location("media");
+        var folder = Folder(("a.txt", 100), ("sub/b.txt", 2_000));
+        File.WriteAllBytes(Path.Combine(_temp, "media-other.txt"), [1]);
+        var manager = await StartAsync();
+        var job = await manager.AddAsync(new Uri(folder), StorageLocations.UriOf("media"), cancellationToken: Token);
+        await StateAsync(manager, job.Id, JobState.Completed);
+        Directory.CreateDirectory(root);
+        File.WriteAllBytes(Path.Combine(root, "not-this-jobs.txt"), [1]);
+
+        await manager.RemoveAsync(job.Id, deleteData: true, Token);
+
+        Assert.Equal(["not-this-jobs.txt"], FilesIn(root));
+        Assert.Null(manager.Find(job.Id));
+    }
+
+    [Fact]
+    public async Task Removing_an_unfinished_job_with_its_data_discards_what_its_target_kept()
+    {
+        Slow("big.bin", 200_000);
+        var manager = await StartAsync();
+        var job = await manager.AddAsync(new Uri("slow:big.bin"), Output, cancellationToken: Token);
+        await EventuallyAsync(manager, job.Id, job => job.Progress.Transferred > 20_000, "some bytes arrived");
+        await manager.PauseAsync(job.Id, Token);
+        var output = Path.Combine(_temp, "out");
+        Assert.Contains("big.bin" + FileTarget.PartialExtension, FilesIn(output));
+
+        await manager.RemoveAsync(job.Id, deleteData: true, Token);
+
+        Assert.Empty(FilesIn(output));
+        Assert.Null(await _store.GetEngineStateAsync(job.Id, "checkpoint:", Token));
+    }
+
+    [Fact]
+    public async Task Removing_a_job_without_its_data_keeps_its_files()
+    {
+        var root = Location("media");
+        var folder = Folder(("a.txt", 100));
+        var manager = await StartAsync();
+        var job = await manager.AddAsync(new Uri(folder), StorageLocations.UriOf("media"), cancellationToken: Token);
+        await StateAsync(manager, job.Id, JobState.Completed);
+
+        await manager.RemoveAsync(job.Id, cancellationToken: Token);
+
+        Assert.Equal(["a.txt"], FilesIn(root));
+    }
+
+    [Fact]
+    public async Task Finished_files_outside_a_storage_or_written_beside_others_are_kept()
+    {
+        var keepBoth = Location("shared", WriteMode.KeepBoth);
+        Directory.CreateDirectory(keepBoth);
+        File.WriteAllBytes(Path.Combine(keepBoth, "a.txt"), [42]);
+        var folder = Folder(("a.txt", 100));
+        var manager = await StartAsync();
+        var plain = await manager.AddAsync(new Uri(folder), Output, cancellationToken: Token);
+        var beside = await manager.AddAsync(new Uri(folder), StorageLocations.UriOf("shared"), cancellationToken: Token);
+        await StateAsync(manager, plain.Id, JobState.Completed);
+        await StateAsync(manager, beside.Id, JobState.Completed);
+
+        await manager.RemoveAsync(plain.Id, deleteData: true, Token);
+        await manager.RemoveAsync(beside.Id, deleteData: true, Token);
+
+        // A plain folder isn't a storage that can delete, and a write that kept both can't tell its file by its path
+        Assert.Equal(["a.txt"], FilesIn(Path.Combine(_temp, "out")));
+        Assert.Equal(["a (1).txt", "a.txt"], FilesIn(keepBoth));
+        Assert.Equal([42], File.ReadAllBytes(Path.Combine(keepBoth, "a.txt")));
+    }
+
+    [Fact]
+    public async Task A_single_file_its_resolver_didnt_describe_goes_into_a_location_under_its_own_name()
+    {
+        var root = Location("media");
+        var source = Slow("named.bin", 3_000, delayMs: 0);
+        _slow.Describe = false;
+        var manager = await StartAsync();
+
+        var job = await manager.AddAsync(new Uri("slow:named.bin"), StorageLocations.UriOf("media"), cancellationToken: Token);
+        await StateAsync(manager, job.Id, JobState.Completed);
+
+        Assert.Equal(source.Content, File.ReadAllBytes(Path.Combine(root, "named.bin")));
+    }
+
+    [Fact]
+    public async Task A_job_into_a_location_that_was_removed_fails_as_not_found()
+    {
+        Location("gone");
+        var folder = Folder(("a.txt", 100));
+        _locations.Remove("gone");
+        var manager = await StartAsync();
+
+        var job = await manager.AddAsync(new Uri(folder), StorageLocations.UriOf("gone"), cancellationToken: Token);
+        var failed = await StateAsync(manager, job.Id, JobState.Failed);
+
+        Assert.Equal(TransferErrorKind.NotFound, failed.Error!.Kind);
+    }
+
+    #endregion
 }
