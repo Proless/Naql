@@ -13,5 +13,6 @@
     <Project Path="tests/Naqel.Soak/Naqel.Soak.csproj" />
     <Project Path="tests/Naqel.Core.Tests/Naqel.Core.Tests.csproj" />
     <Project Path="tests/Naqel.Manager.Tests/Naqel.Manager.Tests.csproj" />
+    <Project Path="tests/Naqel.TestPlugin/Naqel.TestPlugin.csproj" />
   </Folder>
 </Solution>
