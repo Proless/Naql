@@ -20,10 +20,15 @@
 		<ProjectReference Include="..\..\src\Naqel.Manager\Naqel.Manager.csproj" />
 		<!-- Built first, but not referenced: the tests copy it into a plugins folder and load it from there -->
 		<ProjectReference Include="..\Naqel.TestPlugin\Naqel.TestPlugin.csproj" ReferenceOutputAssembly="false" Private="false" />
+		<ProjectReference Include="..\..\plugins\Naqel.Http.Plugin\Naqel.Http.Plugin.csproj" ReferenceOutputAssembly="false" Private="false" />
 	</ItemGroup>
 
 	<Target Name="CopyTestPlugin" AfterTargets="Build">
 		<Copy SourceFiles="..\Naqel.TestPlugin\bin\$(Configuration)\net10.0\Naqel.TestPlugin.dll" DestinationFolder="$(OutDir)test-plugin" SkipUnchangedFiles="true" />
+		<ItemGroup>
+			<HttpPluginFiles Include="..\..\plugins\Naqel.Http.Plugin\bin\$(Configuration)\net10.0\*.*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(HttpPluginFiles)" DestinationFolder="$(OutDir)http-plugin" SkipUnchangedFiles="true" />
 	</Target>
 
 </Project>

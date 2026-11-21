@@ -1,0 +1,9 @@
+{
+  "id": "Naqel.Http.Plugin",
+  "name": "HTTP",
+  "version": "0.1.0-preview.1",
+  "contract": 1,
+  "assembly": "Naqel.Http.Plugin.dll",
+  "description": "Downloads and uploads over HTTP and HTTPS, with parallel parts and resuming.",
+  "authors": "Proless"
+}

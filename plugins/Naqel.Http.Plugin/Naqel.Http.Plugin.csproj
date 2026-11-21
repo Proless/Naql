@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Naqel.Http as a plugin for the Naqel app. Its build output, with the manifest, is a plugin folder the host loads;
+		its package, made with -p:PackPlugins=true, is what the plugin catalog installs: the manifest at the root and
+		the assemblies in plugin/, without Naqel.Core and Naqel.Plugins, which Naqel brings itself.
+	-->
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AnalysisMode>Recommended</AnalysisMode>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<VersionPrefix>0.1.0</VersionPrefix>
+		<VersionSuffix>preview.1</VersionSuffix>
+		<Authors>Proless</Authors>
+		<Description>HTTP and HTTPS downloads and uploads for the Naqel app, as a plugin.</Description>
+		<PackageTags>naqel-plugin naqel-contract-1</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/Proless/Naqel</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Proless/Naqel</RepositoryUrl>
+		<!-- A plugin package isn't a library: no lib/ folder and no dependencies, only the plugin/ folder -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddPluginFiles</TargetsForTfmSpecificContentInPackage>
+		<!-- Published plugins come later; until then the solution's pack leaves it out -->
+		<IsPackable Condition="'$(PackPlugins)' != 'true'">false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Naqel.Http\Naqel.Http.csproj" />
+		<ProjectReference Include="..\..\src\Naqel.Plugins\Naqel.Plugins.csproj" Private="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="naqel-plugin.json" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+	<Target Name="AddPluginFiles">
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="$(OutDir)*.dll" Exclude="$(OutDir)Naqel.Core.dll;$(OutDir)Naqel.Plugins.dll" PackagePath="plugin/" />
+		</ItemGroup>
+	</Target>
+
+</Project>
