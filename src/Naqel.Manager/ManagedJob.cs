@@ -22,6 +22,9 @@ internal sealed class ManagedJob(JobInfo info, ITransferEngine? engine, string? 
     /// <summary>The state the engine last reported, which the job takes on once its completion steps ran.</summary>
     public JobState EngineState { get; set; } = info.State;
 
+    /// <summary>How many questions about the job wait for the user; while any do, the job needs attention.</summary>
+    public int Attention { get; set; }
+
     /// <summary>Stops the completion steps, when they run.</summary>
     public CancellationTokenSource? Finishing { get; set; }
 

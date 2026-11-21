@@ -24,7 +24,9 @@ public sealed class JobManager : IAsyncDisposable
     private readonly IJobStore _store;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly List<ManagedJob> _jobs = [];
-    private readonly Channel<EngineReport> _reports = Channel.CreateUnbounded<EngineReport>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<ManagerMessage> _reports = Channel.CreateUnbounded<ManagerMessage>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Interactions _interactions;
+    private readonly Accounts _accounts;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly List<ObserverQueue> _observers = [];
     private readonly ConcurrentDictionary<Task, bool> _steps = new();
@@ -50,12 +52,24 @@ public sealed class JobManager : IAsyncDisposable
         }
         _store = options.Store;
         _maxActiveJobs = options.MaxActiveJobs;
+        _interactions = new Interactions(options.TimeProvider, jobId => _reports.Writer.TryWrite(new AttentionChange(jobId)));
+        _accounts = new Accounts(options.Secrets, _interactions);
+        foreach (var provider in options.AccountProviders)
+        {
+            _accounts.AddProvider(provider);
+        }
     }
 
     /// <summary>
     /// Raised when an observer threw while handling an event. The observer still gets the next events.
     /// </summary>
     public event Action<IJobObserver, JobEvent, Exception>? ObserverFailed;
+
+    /// <summary>
+    /// Raised when the manager couldn't take in something an engine or a question reported, such as when the job store
+    /// failed to save; the manager goes on with what comes next.
+    /// </summary>
+    public event Action<Exception>? Faulted;
 
     /// <summary>
     /// Every job, in the order they were added, as they are now. Safe to read from any thread.
@@ -71,6 +85,16 @@ public sealed class JobManager : IAsyncDisposable
     /// The storage locations jobs save to and read from; they can be added and removed at any time.
     /// </summary>
     public StorageLocations Locations => _options.Locations;
+
+    /// <summary>
+    /// The questions waiting for the user's answer.
+    /// </summary>
+    public Interactions Interactions => _interactions;
+
+    /// <summary>
+    /// The user's accounts.
+    /// </summary>
+    public Accounts Accounts => _accounts;
 
     /// <summary>
     /// The job with <paramref name="jobId"/>, as it is now, or <c>null</c>.
@@ -98,7 +122,8 @@ public sealed class JobManager : IAsyncDisposable
             }
             _reportLoop = Task.Run(ProcessReportsAsync, CancellationToken.None);
 
-            var host = new EngineHost(_reports.Writer, _store);
+            await _accounts.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var host = new EngineHost(_reports.Writer, _store, _interactions);
             foreach (var engine in _options.Engines)
             {
                 await engine.StartAsync(host, cancellationToken).ConfigureAwait(false);
@@ -234,6 +259,7 @@ public sealed class JobManager : IAsyncDisposable
         {
             await finishing.CancelAsync().ConfigureAwait(false);
         }
+        _interactions.CancelFor(job.Info.Id);
         if (job.EngineJob != null)
         {
             await job.EngineJob.RemoveAsync(deleteData, _shutdown.Token).ConfigureAwait(false);
@@ -499,17 +525,30 @@ public sealed class JobManager : IAsyncDisposable
     {
         try
         {
-            await foreach (var report in _reports.Reader.ReadAllAsync(_shutdown.Token).ConfigureAwait(false))
+            await foreach (var message in _reports.Reader.ReadAllAsync(_shutdown.Token).ConfigureAwait(false))
             {
                 await _lock.WaitAsync(_shutdown.Token).ConfigureAwait(false);
                 try
                 {
-                    var job = _jobs.Find(job => job.Info.Id == report.JobId);
-                    if (job?.EngineJob != null)
+                    var job = _jobs.Find(job => job.Info.Id == message.JobId);
+                    if (job == null)
+                    {
+                        continue;
+                    }
+                    if (message is EngineReport report && job.EngineJob != null)
                     {
                         await ApplyAsync(job, report.Snapshot).ConfigureAwait(false);
-                        await ScheduleAsync().ConfigureAwait(false);
                     }
+                    else if (message is AttentionChange)
+                    {
+                        await UpdateAttentionAsync(job).ConfigureAwait(false);
+                    }
+                    await ScheduleAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !_shutdown.IsCancellationRequested)
+                {
+                    // One message that couldn't be taken in mustn't stop the ones after it
+                    OnFaulted(ex);
                 }
                 finally
                 {
@@ -560,6 +599,11 @@ public sealed class JobManager : IAsyncDisposable
             job.Info = info;
             await FailAsync(job, snapshot.Error ?? new JobError(TransferErrorKind.Unknown, "The engine reported a failure without an error", IsTransient: false)).ConfigureAwait(false);
         }
+        else if (job.Attention > 0)
+        {
+            // The job waits for the user; it needs attention whatever the engine is doing meanwhile
+            job.Info = info;
+        }
         else if (snapshot.State is JobState.Completed or JobState.Seeding or JobState.Queued or JobState.Finishing)
         {
             // Not a state an engine reports without its content being complete; only the progress counts
@@ -572,6 +616,21 @@ public sealed class JobManager : IAsyncDisposable
         else
         {
             job.Info = info;
+        }
+    }
+
+    // A running job with a question waiting needs attention, and goes back to what its engine does once none waits
+    private async Task UpdateAttentionAsync(ManagedJob job)
+    {
+        job.Attention = _interactions.CountFor(job.Info.Id);
+        if (job.Attention > 0 && IsActive(job.Info.State) && job.Info.State != JobState.NeedsAttention)
+        {
+            await ChangeAsync(job, job.Info with { State = JobState.NeedsAttention }, JobEventKind.StateChanged).ConfigureAwait(false);
+        }
+        else if (job.Attention == 0 && job.Info.State == JobState.NeedsAttention && job.EngineState != JobState.NeedsAttention)
+        {
+            var state = IsActive(job.EngineState) ? job.EngineState : JobState.Preparing;
+            await ChangeAsync(job, job.Info with { State = state }, JobEventKind.StateChanged).ConfigureAwait(false);
         }
     }
 
@@ -710,6 +769,18 @@ public sealed class JobManager : IAsyncDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // A handler's own failure mustn't stop the observer's events
+        }
+    }
+
+    private void OnFaulted(Exception exception)
+    {
+        try
+        {
+            Faulted?.Invoke(exception);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A handler's own failure mustn't stop the manager
         }
     }
 

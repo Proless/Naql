@@ -76,7 +76,7 @@ internal sealed class NaqelJob : IEngineJob
         foreach (var file in await LoadFilesAsync(token).ConfigureAwait(false))
         {
             var info = new SourceInfo { Name = file.Name, Length = file.Length };
-            var target = await Resolve.TargetAsync(_request.Destination, file.Path, info, _engine.TargetResolvers, cancellationToken: token).ConfigureAwait(false);
+            var target = await Resolve.TargetAsync(_request.Destination, file.Path, info, _engine.TargetResolvers, Context, token).ConfigureAwait(false);
             if (done.ContainsKey(file.Path))
             {
                 // A write that kept both may have put this job's file under another name, so the path may name someone else's
@@ -161,6 +161,9 @@ internal sealed class NaqelJob : IEngineJob
 
     private IEngineState State => _engine.Host.State;
 
+    // Resolvers can ask the user about this job through it
+    private ResolveContext Context => ResolveContext.Default.With(new JobContext(Id, _engine.Host.InteractionFor(Id)));
+
     private async Task RunAsync(CancellationToken token)
     {
         try
@@ -170,7 +173,8 @@ internal sealed class NaqelJob : IEngineJob
 
             // The whole reference first, so the job knows all its files and their size before moving any
             var items = new List<ResolvedSource>();
-            await foreach (var item in Resolve.SourcesAsync(_request.Reference, _engine.SourceResolvers, cancellationToken: token).ConfigureAwait(false))
+            var context = Context;
+            await foreach (var item in Resolve.SourcesAsync(_request.Reference, _engine.SourceResolvers, context, cancellationToken: token).ConfigureAwait(false))
             {
                 // A single file needs its name before its target is known, such as to go into a folder of a storage; a
                 // resolver that didn't describe it, to save a request, leaves that to this one request
@@ -194,7 +198,7 @@ internal sealed class NaqelJob : IEngineJob
                 }
                 var item = items[i];
                 var index = i;
-                var target = await Resolve.TargetAsync(_request.Destination, item.Path, item.Info, _engine.TargetResolvers, cancellationToken: token).ConfigureAwait(false);
+                var target = await Resolve.TargetAsync(_request.Destination, item.Path, item.Info, _engine.TargetResolvers, context, token).ConfigureAwait(false);
                 var operation = _engine.Client.From(item.Source).To(target)
                     .WithCheckpointStore(new EngineStateCheckpointStore(State, Id, CheckpointKey + item.Path))
                     .Build();

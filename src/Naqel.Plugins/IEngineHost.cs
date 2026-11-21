@@ -18,4 +18,11 @@ public interface IEngineHost
     /// that has no store of its own. The manager deletes a job's state when the job is removed.
     /// </summary>
     IEngineState State { get; }
+
+    /// <summary>
+    /// Asks the user about a job, such as for a password its link needs; the job needs attention
+    /// (<see cref="JobState.NeedsAttention"/>) until the user answers.
+    /// </summary>
+    /// <param name="jobId">The manager's id for the job</param>
+    IInteraction InteractionFor(string jobId);
 }

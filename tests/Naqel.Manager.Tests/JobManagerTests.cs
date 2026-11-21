@@ -460,6 +460,60 @@ public sealed class JobManagerTests : IAsyncDisposable
 
     #endregion
 
+    [Fact]
+    public async Task A_report_that_couldnt_be_saved_is_reported_and_the_reports_after_it_still_count()
+    {
+        var engine = new FakeEngine();
+        var store = new FlakyStore();
+        var options = Options(engine);
+        options.Store = store;
+        var manager = await StartAsync(options);
+        var faults = new List<Exception>();
+        manager.Faulted += fault =>
+        {
+            lock (faults)
+            {
+                faults.Add(fault);
+            }
+        };
+        var job = await manager.AddAsync(Link(1), Destination, cancellationToken: Token);
+
+        store.FailNextSave = true;
+        engine.Job(job.Id).Transfer(100);
+        await EventuallyAsync(() => faults.Count == 1, "the failed save was reported");
+        engine.Job(job.Id).Complete();
+
+        await StateAsync(manager, job.Id, JobState.Completed);
+    }
+
+    /// <summary>
+    /// A store that fails one save when asked to, like a disk that's briefly full.
+    /// </summary>
+    private sealed class FlakyStore : IJobStore
+    {
+        private readonly MemoryJobStore _inner = new();
+
+        public bool FailNextSave { get; set; }
+
+        public Task<IReadOnlyList<StoredJob>> LoadAsync(CancellationToken cancellationToken) => _inner.LoadAsync(cancellationToken);
+
+        public Task SaveAsync(StoredJob job, CancellationToken cancellationToken)
+        {
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+                throw new IOException("The disk is full");
+            }
+            return _inner.SaveAsync(job, cancellationToken);
+        }
+
+        public Task DeleteAsync(string jobId, CancellationToken cancellationToken) => _inner.DeleteAsync(jobId, cancellationToken);
+
+        public Task<string?> GetEngineStateAsync(string jobId, string key, CancellationToken cancellationToken) => _inner.GetEngineStateAsync(jobId, key, cancellationToken);
+
+        public Task SetEngineStateAsync(string jobId, string key, string? value, CancellationToken cancellationToken) => _inner.SetEngineStateAsync(jobId, key, value, cancellationToken);
+    }
+
     #region Restarts
 
     [Fact]

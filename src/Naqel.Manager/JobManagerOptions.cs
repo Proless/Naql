@@ -30,6 +30,16 @@ public sealed class JobManagerOptions
     public StorageLocations Locations { get; set; } = new();
 
     /// <summary>
+    /// The ways to sign in to services, which plugins bring.
+    /// </summary>
+    public IList<IAccountProvider> AccountProviders { get; } = new List<IAccountProvider>();
+
+    /// <summary>
+    /// Where accounts' secrets and secret settings are kept; in memory by default.
+    /// </summary>
+    public ISecretStore Secrets { get; set; } = new MemorySecretStore();
+
+    /// <summary>
     /// Where jobs are kept; in memory by default.
     /// </summary>
     public IJobStore Store { get; set; } = new MemoryJobStore();

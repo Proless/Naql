@@ -224,3 +224,174 @@ Naqel.Plugins.JobLimits.MaxConnections.get -> int?
 Naqel.Plugins.JobLimits.MaxConnections.init -> void
 Naqel.Plugins.JobInfo.Error.get -> Naqel.Plugins.JobError?
 Naqel.Plugins.JobInfo.Error.init -> void
+Naqel.Plugins.InteractionKind.Choice = 2 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.IAccounts
+Naqel.Plugins.InteractionKind.OpenUrl = 4 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.IAccountSecrets
+Naqel.Plugins.InteractionKind.Text = 0 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.AccountInfo.Service.get -> string!
+Naqel.Plugins.AccountInfo.Service.init -> void
+Naqel.Plugins.InteractionKind.Captcha = 5 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.AccountInfo.Id.get -> string!
+Naqel.Plugins.InteractionKind.Confirm = 3 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.AccountInfo.Id.init -> void
+Naqel.Plugins.InteractionKind.Secret = 1 -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.AccountInfo.Name.get -> string!
+Naqel.Plugins.InteractionKind
+Naqel.Plugins.AccountInfo.Name.init -> void
+Naqel.Plugins.IAccountProvider
+Naqel.Plugins.IInteraction
+Naqel.Plugins.IPluginContext
+Naqel.Plugins.INaqelPlugin
+Naqel.Plugins.AccountInfo
+override Naqel.Plugins.AccountInfo.ToString() -> string!
+static Naqel.Plugins.AccountInfo.operator !=(Naqel.Plugins.AccountInfo? left, Naqel.Plugins.AccountInfo? right) -> bool
+static Naqel.Plugins.AccountInfo.operator ==(Naqel.Plugins.AccountInfo? left, Naqel.Plugins.AccountInfo? right) -> bool
+override Naqel.Plugins.AccountInfo.GetHashCode() -> int
+override Naqel.Plugins.AccountInfo.Equals(object? obj) -> bool
+Naqel.Plugins.AccountInfo.Equals(Naqel.Plugins.AccountInfo? other) -> bool
+Naqel.Plugins.AccountInfo.<Clone>$() -> Naqel.Plugins.AccountInfo!
+Naqel.Plugins.AccountInfo.Deconstruct(out string! Service, out string! Id, out string! Name) -> void
+Naqel.Plugins.IPluginSettings.Changed -> System.Action<string!>?
+Naqel.Plugins.JobContext.JobId.get -> string!
+Naqel.Plugins.JobContext.JobId.init -> void
+Naqel.Plugins.JobContext.Interaction.get -> Naqel.Plugins.IInteraction!
+Naqel.Plugins.JobContext.Interaction.init -> void
+Naqel.Plugins.IPluginSettings
+Naqel.Plugins.JobContext
+override Naqel.Plugins.JobContext.ToString() -> string!
+static Naqel.Plugins.JobContext.operator !=(Naqel.Plugins.JobContext? left, Naqel.Plugins.JobContext? right) -> bool
+static Naqel.Plugins.JobContext.operator ==(Naqel.Plugins.JobContext? left, Naqel.Plugins.JobContext? right) -> bool
+override Naqel.Plugins.JobContext.GetHashCode() -> int
+override Naqel.Plugins.JobContext.Equals(object? obj) -> bool
+Naqel.Plugins.JobContext.Equals(Naqel.Plugins.JobContext? other) -> bool
+Naqel.Plugins.JobContext.<Clone>$() -> Naqel.Plugins.JobContext!
+Naqel.Plugins.InteractionAnswer.Value.get -> string?
+Naqel.Plugins.JobContext.Deconstruct(out string! JobId, out Naqel.Plugins.IInteraction! Interaction) -> void
+Naqel.Plugins.InteractionAnswer.Value.init -> void
+const Naqel.Plugins.PluginContract.Version = 1 -> int
+Naqel.Plugins.ResolverRole.Format = 1 -> Naqel.Plugins.ResolverRole
+Naqel.Plugins.ResolverRole.Protocol = 2 -> Naqel.Plugins.ResolverRole
+Naqel.Plugins.ResolverRole.Site = 0 -> Naqel.Plugins.ResolverRole
+Naqel.Plugins.SettingKind.Secret = 1 -> Naqel.Plugins.SettingKind
+Naqel.Plugins.SettingKind.Text = 0 -> Naqel.Plugins.SettingKind
+Naqel.Plugins.InteractionAnswer
+Naqel.Plugins.SettingKind.Number = 2 -> Naqel.Plugins.SettingKind
+Naqel.Plugins.PluginContract
+override Naqel.Plugins.InteractionAnswer.ToString() -> string!
+static Naqel.Plugins.InteractionAnswer.operator !=(Naqel.Plugins.InteractionAnswer? left, Naqel.Plugins.InteractionAnswer? right) -> bool
+static Naqel.Plugins.InteractionAnswer.operator ==(Naqel.Plugins.InteractionAnswer? left, Naqel.Plugins.InteractionAnswer? right) -> bool
+Naqel.Plugins.SettingKind.Boolean = 3 -> Naqel.Plugins.SettingKind
+override Naqel.Plugins.InteractionAnswer.GetHashCode() -> int
+override Naqel.Plugins.InteractionAnswer.Equals(object? obj) -> bool
+Naqel.Plugins.SettingKind.Choice = 4 -> Naqel.Plugins.SettingKind
+Naqel.Plugins.InteractionAnswer.Equals(Naqel.Plugins.InteractionAnswer? other) -> bool
+Naqel.Plugins.SettingKind
+Naqel.Plugins.InteractionAnswer.<Clone>$() -> Naqel.Plugins.InteractionAnswer!
+Naqel.Plugins.InteractionAnswer.Deconstruct(out string? Value) -> void
+Naqel.Plugins.ResolverRole
+Naqel.Plugins.InteractionRequest.Kind.get -> Naqel.Plugins.InteractionKind
+Naqel.Plugins.IPluginRegistry
+Naqel.Plugins.InteractionRequest.Kind.init -> void
+Naqel.Plugins.SettingDefinition.Key.get -> string!
+Naqel.Plugins.SettingDefinition.Key.init -> void
+Naqel.Plugins.SettingDefinition.Kind.get -> Naqel.Plugins.SettingKind
+Naqel.Plugins.SettingDefinition.Kind.init -> void
+Naqel.Plugins.InteractionRequest.Title.get -> string!
+Naqel.Plugins.InteractionRequest.Title.init -> void
+Naqel.Plugins.SettingDefinition.Title.get -> string!
+Naqel.Plugins.SettingDefinition.Title.init -> void
+Naqel.Plugins.IAccounts.GetTokenAsync(string! service, string! accountId, bool refresh, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+const Naqel.Plugins.PluginManifest.FileName = "naqel-plugin.json" -> string!
+Naqel.Plugins.IAccountSecrets.GetAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Naqel.Plugins.SettingDefinition
+override Naqel.Plugins.SettingDefinition.ToString() -> string!
+Naqel.Plugins.IAccountSecrets.SetAsync(string! key, string? value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.IAccountProvider.Service.get -> string!
+static Naqel.Plugins.SettingDefinition.operator !=(Naqel.Plugins.SettingDefinition? left, Naqel.Plugins.SettingDefinition? right) -> bool
+Naqel.Plugins.IAccountProvider.Title.get -> string!
+static Naqel.Plugins.SettingDefinition.operator ==(Naqel.Plugins.SettingDefinition? left, Naqel.Plugins.SettingDefinition? right) -> bool
+Naqel.Plugins.InteractionRequest
+override Naqel.Plugins.SettingDefinition.GetHashCode() -> int
+override Naqel.Plugins.SettingDefinition.Equals(object? obj) -> bool
+Naqel.Plugins.IAccountProvider.SignInAsync(Naqel.Plugins.IInteraction! interaction, System.Func<string!, Naqel.Plugins.IAccountSecrets!>! secrets, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Plugins.AccountInfo!>!
+Naqel.Plugins.SettingDefinition.Equals(Naqel.Plugins.SettingDefinition? other) -> bool
+Naqel.Plugins.SettingDefinition.<Clone>$() -> Naqel.Plugins.SettingDefinition!
+Naqel.Plugins.IAccountProvider.SignOutAsync(Naqel.Plugins.AccountInfo! account, Naqel.Plugins.IAccountSecrets! secrets, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.SettingDefinition.Deconstruct(out string! Key, out string! Title, out Naqel.Plugins.SettingKind Kind) -> void
+Naqel.Plugins.IEngineHost.InteractionFor(string! jobId) -> Naqel.Plugins.IInteraction!
+override Naqel.Plugins.InteractionRequest.ToString() -> string!
+static Naqel.Plugins.InteractionRequest.operator !=(Naqel.Plugins.InteractionRequest? left, Naqel.Plugins.InteractionRequest? right) -> bool
+Naqel.Plugins.IAccountProvider.GetTokenAsync(Naqel.Plugins.AccountInfo! account, Naqel.Plugins.IAccountSecrets! secrets, bool refresh, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+static Naqel.Plugins.InteractionRequest.operator ==(Naqel.Plugins.InteractionRequest? left, Naqel.Plugins.InteractionRequest? right) -> bool
+override Naqel.Plugins.InteractionRequest.GetHashCode() -> int
+override Naqel.Plugins.InteractionRequest.Equals(object? obj) -> bool
+Naqel.Plugins.InteractionRequest.Equals(Naqel.Plugins.InteractionRequest? other) -> bool
+Naqel.Plugins.IInteraction.AskAsync(Naqel.Plugins.InteractionRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Plugins.InteractionAnswer!>!
+Naqel.Plugins.INaqelPlugin.Register(Naqel.Plugins.IPluginRegistry! registry, Naqel.Plugins.IPluginContext! context) -> void
+Naqel.Plugins.PluginManifest
+Naqel.Plugins.IPluginContext.Settings.get -> Naqel.Plugins.IPluginSettings!
+Naqel.Plugins.IPluginContext.Accounts.get -> Naqel.Plugins.IAccounts!
+Naqel.Plugins.InteractionRequest.<Clone>$() -> Naqel.Plugins.InteractionRequest!
+Naqel.Plugins.InteractionRequest.Deconstruct(out Naqel.Plugins.InteractionKind Kind, out string! Title) -> void
+Naqel.Plugins.IPluginRegistry.AddSourceResolver(Naqel.ISourceResolver! resolver, Naqel.Plugins.ResolverRole role) -> void
+Naqel.Plugins.IPluginRegistry.AddObserver(Naqel.Plugins.IJobObserver! observer) -> void
+Naqel.Plugins.IPluginRegistry.AddStorageKind(string! kind, string! title, System.Collections.Generic.IReadOnlyList<Naqel.Plugins.SettingDefinition!>! settings, System.Func<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!, Naqel.Storage.IStorage!>! create) -> void
+Naqel.Plugins.IPluginRegistry.AddEngine(Naqel.Plugins.ITransferEngine! engine) -> void
+Naqel.Plugins.IPluginRegistry.AddAccountProvider(Naqel.Plugins.IAccountProvider! provider) -> void
+Naqel.Plugins.IPluginContext.Manifest.get -> Naqel.Plugins.PluginManifest!
+override Naqel.Plugins.PluginManifest.ToString() -> string!
+static Naqel.Plugins.PluginManifest.operator !=(Naqel.Plugins.PluginManifest? left, Naqel.Plugins.PluginManifest? right) -> bool
+static Naqel.Plugins.PluginManifest.operator ==(Naqel.Plugins.PluginManifest? left, Naqel.Plugins.PluginManifest? right) -> bool
+override Naqel.Plugins.PluginManifest.GetHashCode() -> int
+override Naqel.Plugins.PluginManifest.Equals(object? obj) -> bool
+Naqel.Plugins.IPluginContext.DataDirectory.get -> string!
+Naqel.Plugins.PluginManifest.Equals(Naqel.Plugins.PluginManifest? other) -> bool
+Naqel.Plugins.PluginManifest.<Clone>$() -> Naqel.Plugins.PluginManifest!
+Naqel.Plugins.PluginManifest.PluginManifest() -> void
+Naqel.Plugins.IPluginRegistry.AddTargetResolver(Naqel.ITargetResolver! resolver, Naqel.Plugins.ResolverRole role) -> void
+Naqel.Plugins.IPluginRegistry.AddSettings(System.Collections.Generic.IReadOnlyList<Naqel.Plugins.SettingDefinition!>! settings) -> void
+Naqel.Plugins.JobContext.JobContext(string! JobId, Naqel.Plugins.IInteraction! Interaction) -> void
+Naqel.Plugins.AccountInfo.AccountInfo(string! Service, string! Id, string! Name) -> void
+Naqel.Plugins.InteractionRequest.InteractionRequest(Naqel.Plugins.InteractionKind Kind, string! Title) -> void
+Naqel.Plugins.SettingDefinition.SettingDefinition(string! Key, string! Title, Naqel.Plugins.SettingKind Kind) -> void
+static Naqel.Plugins.InteractionAnswer.Declined.get -> Naqel.Plugins.InteractionAnswer!
+Naqel.Plugins.InteractionRequest.Message.get -> string?
+Naqel.Plugins.InteractionAnswer.InteractionAnswer(string? Value) -> void
+Naqel.Plugins.InteractionRequest.Choices.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Naqel.Plugins.SettingDefinition.Description.get -> string?
+Naqel.Plugins.SettingDefinition.Default.get -> string?
+Naqel.Plugins.SettingDefinition.Description.init -> void
+Naqel.Plugins.SettingDefinition.Default.init -> void
+Naqel.Plugins.InteractionRequest.Image.get -> System.ReadOnlyMemory<byte>
+Naqel.Plugins.InteractionRequest.Image.init -> void
+Naqel.Plugins.SettingDefinition.Choices.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Naqel.Plugins.InteractionRequest.Message.init -> void
+Naqel.Plugins.InteractionRequest.Choices.init -> void
+Naqel.Plugins.PluginManifest.Id.get -> string!
+Naqel.Plugins.InteractionRequest.Url.get -> System.Uri?
+Naqel.Plugins.PluginManifest.Id.init -> void
+Naqel.Plugins.InteractionRequest.Url.init -> void
+Naqel.Plugins.PluginManifest.Name.get -> string!
+Naqel.Plugins.InteractionAnswer.IsDeclined.get -> bool
+Naqel.Plugins.PluginManifest.Name.init -> void
+Naqel.Plugins.InteractionRequest.ImageType.get -> string?
+Naqel.Plugins.PluginManifest.Version.init -> void
+Naqel.Plugins.PluginManifest.Version.get -> string!
+Naqel.Plugins.SettingDefinition.Choices.init -> void
+Naqel.Plugins.InteractionRequest.ImageType.init -> void
+Naqel.Plugins.SettingDefinition.Required.get -> bool
+Naqel.Plugins.PluginManifest.Assembly.get -> string!
+Naqel.Plugins.SettingDefinition.Required.init -> void
+Naqel.Plugins.InteractionRequest.JobId.get -> string?
+Naqel.Plugins.PluginManifest.Assembly.init -> void
+Naqel.Plugins.PluginManifest.Description.init -> void
+Naqel.Plugins.PluginManifest.Contract.init -> void
+Naqel.Plugins.PluginManifest.Contract.get -> int
+Naqel.Plugins.InteractionRequest.JobId.init -> void
+Naqel.Plugins.PluginManifest.Authors.get -> string?
+Naqel.Plugins.PluginManifest.Authors.init -> void
+Naqel.Plugins.PluginManifest.Description.get -> string?
+Naqel.Plugins.IAccounts.OfService(string! service) -> System.Collections.Generic.IReadOnlyList<Naqel.Plugins.AccountInfo!>!
+Naqel.Plugins.IPluginRegistry.AddCompletionStep(Naqel.Plugins.ICompletionStep! completionStep) -> void
+Naqel.Plugins.IPluginSettings.GetValue(string! key) -> string?
