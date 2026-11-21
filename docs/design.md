@@ -1,6 +1,6 @@
 # Naqel design
 
-This document describes how Naqel works and why. In Naqel, any transfer — a download, an upload, or a copy between two servers — is the same operation: bytes move from a **source** to a **target**, and one **engine** does the work that every protocol needs.
+This document describes how the Naqel libraries work and why; the app built on them is planned in [architecture.md](architecture.md). In Naqel, any transfer — a download, an upload, or a copy between two servers — is the same operation: bytes move from a **source** to a **target**, and one **engine** does the work that every protocol needs.
 
 ## 1. Goals and non-goals
 

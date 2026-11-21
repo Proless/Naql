@@ -1,6 +1,6 @@
 # Naqel
 
-Naqel (ناقل, "carrier") is becoming a download and upload manager app, built on reusable .NET libraries that anyone can use on their own. The libraries exist; the app doesn't yet.
+Naqel (ناقل, "carrier") is becoming a download and upload manager with two implementations that share all their logic. The desktop app is complete on its own, and can also connect to a Naqel Server and act as its UI. The server is the same app as a self-hosted service, with a REST API and a web UI. Both are for one user with one setup, and build on reusable .NET libraries that anyone can use on their own. The libraries exist; the apps don't yet.
 
 ## Layout
 
@@ -9,12 +9,16 @@ Naqel (ناقل, "carrier") is becoming a download and upload manager app, built
 | `src/Naqel.Core` | Package `Naqel.Core`, namespace `Naqel`: the transfer engine, contracts, resolvers, `Naqel.Files`, `Naqel.Streams` |
 | `src/Naqel.Http` | Package `Naqel.Http`: HTTP sources and targets, `BearerTokenHandler`, `ChunkedUploadTarget`, HTTP resolvers |
 | `src/Compat` | Polyfills compiled into each library on netstandard |
-| `src/Naqel` | Planned: the manager app, namespace `Naqel.App` |
+| `src/Naqel.Plugins`, `Naqel.Manager`, `Naqel.Data` | Planned: plugin contracts, the manager, the job store |
+| `src/Naqel.Contracts`, `Naqel.Application`, `Naqel.Client` | Planned: the operations and events the UI uses, implemented in-process and over the server's API |
+| `src/Naqel.Presentation`, `Naqel.Desktop` | Planned: the desktop UI's view models, and the desktop app with an Avalonia UI |
+| `src/Naqel.Server`, `Naqel.Web` | Planned: the server (REST API, SignalR), and its Vue.js web UI |
 | `samples/Naqel.Samples` | Console sample against real public servers |
 | `samples/Naqel.Samples.Dropbox` | Sample service package built only on the public API (not packed) |
 | `tests/Naqel.Core.Tests` | Tests for both libraries: net10.0 (net8.0 build) and net48 (netstandard2.0 build) |
 | `tests/Naqel.Samples.Dropbox.Tests` | The Dropbox sample against a fake Dropbox API |
 | `tests/Naqel.Soak` | Long runs against real servers, net10.0 and net48 |
+| `docs/architecture.md` | The plan for the app: plugin kinds, contracts, engines, phases |
 | `docs/design.md`, `docs/releasing.md` | How the libraries work and why; how to release |
 
 ## Commands
@@ -53,15 +57,29 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 
 ### The manager app
 
-- [ ] Choose the UI framework: WPF or WinUI for Windows only, or Avalonia for cross-platform.
-- [ ] Create `src/Naqel`, with the namespace `Naqel.App`, and its test project.
-- [ ] Decide whether queue, job store, scheduling and accounts go into a UI-free `Naqel.Manager` library, so they stay testable and reusable by a CLI or service.
-- [ ] Manager features that were out of scope for the libraries:
-  - [ ] a queue
-  - [ ] a persistent job store, with checkpoints
-  - [ ] accounts and interactive sign-in
-  - [ ] asking the user, for example about conflicts or credentials
-- [ ] Use the live controls in the UI: `SetMaxBytesPerSecond`, `SetMaxConnections`, and per-part progress (`TransferProgress.Parts`).
+The plan is [docs/architecture.md](docs/architecture.md); its phases, in order:
+
+- [ ] 1. Manager foundations: `Naqel.Plugins` with the engine contract and hooks, `Naqel.Manager` with jobs, queue, routing, job events, completion steps and job data, the Naqel engine adapter, and a console host.
+- [ ] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, with the Dropbox sample moved onto them; storage locations in the manager.
+- [ ] 3. Plugin host: the catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user.
+- [ ] 4. Contracts, application and data: `Naqel.Contracts` with every operation and event, `Naqel.Application` implementing it, `Naqel.Data` with EF Core and SQLite.
+- [ ] 5. Desktop: `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux, tray, notifications, link handling and file pickers.
+- [ ] 6. Server: `Naqel.Server` with the REST API, OpenAPI, SignalR, an optional password and API keys; `Naqel.Client`; a Docker image.
+- [ ] 7. Web UI: `Naqel.Web` with Vue.js and TypeScript, on a client generated from the OpenAPI description.
+- [ ] 8. Desktop connected to a server, through `Naqel.Client`, with version checks.
+- [ ] 9. BitTorrent with MonoTorrent.
+- [ ] 10. Content kinds and choices, `Naqel.Hls`, and a first site plugin, such as a podcast feed.
+- [ ] 11. More protocols and services, and the browser extension.
+
+Decisions, also in section 9 of the plan:
+
+- The desktop app uses Avalonia, for Windows, macOS and Linux. The server's web UI is Vue.js, not wrapped in a desktop shell.
+- The desktop app shows one connection at a time (this computer or one server), with no combined view.
+- One user and one setup, on the desktop and the server; a password on the server is optional.
+- MonoTorrent is the first engine besides Naqel's own.
+- Plugins come from a catalog of sources such as NuGet feeds, each in its own `AssemblyLoadContext`.
+- No scheduling.
+- Features planned for later versions build on the hooks (job events, completion steps, job data, operations for plugins). Keep the core abstractions open for them, without designing those features into the core.
 
 ### Libraries
 
