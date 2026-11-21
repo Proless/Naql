@@ -228,24 +228,41 @@ Plugins can take part in a job's life without being an engine or a resolver. Tha
 
 ### 6.5 Plugins (in Naqel.Plugins)
 
+Phase 3 built it as follows:
+
 ```csharp
 public interface INaqelPlugin
 {
-    PluginInfo Info { get; }                          // id, name, version, the contract version it was built for
-    void Register(IPluginRegistry registry);          // adds resolvers, storages, engines, hooks, account providers, settings
+    void Register(IPluginRegistry registry, IPluginContext context);   // the context has the manifest, settings, accounts, a data folder
+}
+
+public interface IPluginRegistry
+{
+    void AddSourceResolver(ISourceResolver resolver, ResolverRole role);   // Site, Format or Protocol
+    void AddTargetResolver(ITargetResolver resolver, ResolverRole role);
+    void AddStorageKind(string kind, string title, IReadOnlyList<SettingDefinition> settings, Func<IReadOnlyDictionary<string, string>, IStorage> create);
+    void AddEngine(ITransferEngine engine);
+    void AddObserver(IJobObserver observer);
+    void AddCompletionStep(ICompletionStep completionStep);
+    void AddAccountProvider(IAccountProvider provider);
+    void AddSettings(IReadOnlyList<SettingDefinition> settings);
 }
 ```
 
-- **Order:** when several plugins could handle a link, the most specific wins: site plugins first, then formats, then protocols. This is the order the host gives `Resolve`, which already asks resolvers in order.
-- **The catalog:** plugins are packages, installed from a catalog of sources such as NuGet feeds. The catalog lists the plugins of its sources, installs, updates and removes them, and offers only versions built for a contract version this Naqel supports.
-- **Loading:** each plugin in its own `AssemblyLoadContext`, so plugins can bring their own dependencies, and can be updated or removed without affecting the others. A manifest says what a plugin is and which contract version it needs, so the host can refuse an incompatible plugin before loading it.
-- **Settings:** a plugin describes its settings as data, and both UIs render them, so a plugin needs no UI code of its own, and its settings can be changed from the desktop app and the browser alike.
+- **The manifest:** `naqel-plugin.json` says what a plugin is (id, name, version, main assembly) and which version of the plugin contracts it's built for (`PluginContract.Version`). The host reads it first and refuses a plugin built for another version without running its code.
+- **Loading:** `PluginHost` loads each plugin in its own `AssemblyLoadContext`: the plugin's assemblies come from its folder, so plugins can bring different versions of a library, but `Naqel.Core` and `Naqel.Plugins` always come from Naqel, even when a package carries its own copies. A plugin that can't load or fails to register is left out with a reason the UIs can show, and the others load. What the host builds in, such as local files and its storage locations, registers the same way, so it's ordered with the plugins.
+- **Order:** when several resolvers could take a link, the most specific wins: site ones first, then formats, then protocols, and within a role in the order they were registered. Engines from plugins are offered new jobs before Naqel's own.
+- **The catalog:** `PluginCatalog` searches NuGet sources, such as nuget.org or a folder of packages, for packages tagged `naqel-plugin`, and tells which are built for this Naqel (`naqel-contract-1`). A plugin package has its manifest at its root and its assemblies, with every library it uses, in a `plugin/` folder: the catalog installs one package, not a dependency graph. Installing refuses packages built for other contracts and files that would land outside the plugin's folder.
+- **Changes on the next start:** installs, updates and removals are staged and take effect when Naqel starts next, since a loaded plugin's files stay in use. Applying a change moves the old folder aside first, so a plugin whose files are still in use stays whole, and its change waits for a later start. A plugin's data folder stays when it's updated or removed.
+- **Naqel.Http as a plugin:** `Naqel.Http.Plugin` registers the HTTP resolvers as protocol resolvers, with a User-Agent setting. Its build output is a plugin folder, and `-p:PackPlugins=true` packs it in the catalog's layout.
+- **Settings:** a plugin describes its settings as data (`SettingDefinition`: key, title, kind, default, choices), and both UIs render them, so a plugin needs no UI code of its own, and its settings can be changed from the desktop app and the browser alike. Values come from an `ISettingsStore` over the definitions' defaults, and a plugin hears when one changes.
 - **Trust:** a plugin runs with Naqel's rights. Only the user installs plugins and engines, from sources the user added, and Naqel never downloads or starts an executable without the user agreeing.
 
 ### 6.6 Accounts and asking the user (in Naqel.Plugins)
 
-- **Accounts:** `IAccountProvider` signs in to a service and hands out fresh credentials, such as the token function `BearerTokenHandler` takes. Sign-ins that need a browser, such as OAuth, open it on the desktop, and use a redirect back to the web UI on the server.
-- **Asking the user:** a plugin can raise a request instead of failing: a password for a protected link, choosing a format, confirming an overwrite, signing in, or a captcha the user solves themself. It's an event in `Naqel.Contracts`, so whichever UI is connected shows it (section 3). Plugins never solve captchas themselves.
+- **Accounts:** `IAccountProvider` signs in to a service and hands out fresh credentials, such as the token function `BearerTokenHandler` takes. The manager's `Accounts` signs in through the providers, keeps each account's secrets, such as a refresh token, in an `ISecretStore`, and gives plugins tokens through `IAccounts`. Sign-ins that need a browser, such as OAuth, open it on the desktop, and use a redirect back to the web UI on the server.
+- **Asking the user:** a plugin can raise a request instead of failing: a password for a protected link, choosing a format, confirming an overwrite, opening a sign-in page, or a captcha the user solves themself. A request is data (`InteractionRequest`), so both UIs show it. Naqel's engine passes resolvers a `JobContext` in their `ResolveContext`, whose `IInteraction` asks about that job. The manager's `Interactions` keeps a request until a UI or the API answers it; the job needs attention meanwhile and keeps its place in the queue, and removing or pausing it stops the wait. Plugins never solve captchas themselves.
+- **Until phase 4,** settings, secrets and accounts live in memory stores; phase 4 keeps them, encrypted where they're secret.
 
 ## 7. How a link becomes a job
 
@@ -261,7 +278,7 @@ Each phase is a few topic commits with tests, reviewed before the next starts. T
 
 1. **Manager foundations (done).** `Naqel.Plugins` with the engine contract and the hooks; `Naqel.Manager` with jobs, the queue, routing, job events, completion steps and job data; the Naqel engine adapter. Tested with fake plugins and a fake engine, and driven from a small console host.
 2. **Storage (done).** `IStorage` and the generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
-3. **Plugin host.** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages install and load as plugins.
+3. **Plugin host (done).** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages install and load as plugins.
 4. **Contracts, application and data.** `Naqel.Contracts` with every operation and event; `Naqel.Application` implementing it, with the host interfaces; `Naqel.Data` with EF Core and SQLite. The console host moves onto it.
 5. **Desktop.** `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux: the queue, job details with per-part progress, live speed and connection controls, adding links with format choices, storage locations, settings, accounts and plugins; tray, notifications, link handling and file pickers.
 6. **Server.** `Naqel.Server` with the REST API, OpenAPI, SignalR, an optional password and API keys; `Naqel.Client`; a Docker image.
