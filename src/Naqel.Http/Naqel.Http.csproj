@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<Description>HTTP and HTTPS for Naqel: downloads with resumable byte ranges and parallel parts, and uploads with PUT, POST or multipart forms.</Description>
+		<PackageTags>naqel;transfer;download;upload;http;https</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Naqel.Core\Naqel.Core.csproj" />
+	</ItemGroup>
+
+</Project>

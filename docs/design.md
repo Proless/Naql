@@ -1,6 +1,6 @@
-# Naql design
+# Naqel design
 
-This document describes how Naql works and why. In Naql, any transfer — a download, an upload, or a copy between two servers — is the same operation: bytes move from a **source** to a **target**, and one **engine** does the work that every protocol needs.
+This document describes how Naqel works and why. In Naqel, any transfer — a download, an upload, or a copy between two servers — is the same operation: bytes move from a **source** to a **target**, and one **engine** does the work that every protocol needs.
 
 ## 1. Goals and non-goals
 
@@ -8,7 +8,7 @@ This document describes how Naql works and why. In Naql, any transfer — a down
 
 1. **One model for both directions.** A download is "HTTP source → file target". An upload is "file source → HTTP target". Nothing in the core knows which one it is running.
 2. **Protocols only move bytes.** A protocol package implements reading a range and writing a range. Retries, timeouts, throttling, parallel parts, progress, resume and integrity checks are written once, in the engine.
-3. **Many protocols as separate packages.** `Naql` is the core, and each protocol ships as `Naql.<Protocol>` (`Naql.Http` first; `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.Tus` later). A third party can add a protocol using only the public API.
+3. **Many protocols as separate packages.** `Naqel.Core` is the core, and each protocol ships as `Naqel.<Protocol>` (`Naqel.Http` first; `Naqel.Sftp`, `Naqel.Ftp`, `Naqel.S3`, `Naqel.Tus` later). A third party can add a protocol using only the public API.
 4. **Idiomatic modern .NET.** `async` all the way, `CancellationToken` everywhere, `IProgress<T>` instead of events, a returned result, exceptions for failures, and options fixed before the transfer starts.
 5. **Testable without a network.** In-memory sources and targets (`MemorySource` and `MemoryTarget` in the tests) drive every engine test.
 6. **Every supported .NET, one API.** The packages build for net8.0, netstandard2.1 and netstandard2.0 with the same public API (see [7.2](#72-target-frameworks)). The net8.0 build has no dependencies beyond the base library. The API uses `init` setters, records and `with`, so it needs C# 9 or later, also on .NET Framework.
@@ -48,7 +48,7 @@ This document describes how Naql works and why. In Naql, any transfer — a down
 | Resume | `TransferCheckpoint`, `ICheckpointStore` | Enough state to continue a transfer after the process restarts |
 | Integrity | `Checksum` | The hash the content must have |
 
-All core types live in the `Naql` namespace. File endpoints live in `Naql.Files`, stream endpoints in `Naql.Streams`, and each protocol package uses its own namespace (`Naql.Http`).
+All core types live in the `Naqel` namespace. File endpoints live in `Naqel.Files`, stream endpoints in `Naqel.Streams`, and each protocol package uses its own namespace (`Naqel.Http`).
 
 ## 4. Contracts for protocol implementers
 
@@ -194,13 +194,13 @@ How existing and planned protocols fit:
 
 | Target | ParallelParts | ResumableParts | Resumable | RepeatableWrites | Commit (`CompleteAsync`) |
 |---|---|---|---|---|---|
-| File (`Naql.Files`) | yes, writes at offsets | yes | yes, the temp file path | yes | rename `name.naql-part` to `name` |
-| HTTP PUT (`Naql.Http`) | no, one part | no | no | yes | nothing, the request is the commit |
-| HTTP POST, forms (`Naql.Http`) | no, one part | no | no | no | nothing, the request is the commit |
-| tus (`Naql.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | yes | nothing |
-| S3 multipart (`Naql.S3`) | yes | no, a part is redone | yes, the upload id | yes | `CompleteMultipartUpload` |
-| SFTP (`Naql.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | yes | rename |
-| FTP (`Naql.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | yes | rename |
+| File (`Naqel.Files`) | yes, writes at offsets | yes | yes, the temp file path | yes | rename `name.naqel-part` to `name` |
+| HTTP PUT (`Naqel.Http`) | no, one part | no | no | yes | nothing, the request is the commit |
+| HTTP POST, forms (`Naqel.Http`) | no, one part | no | no | no | nothing, the request is the commit |
+| tus (`Naqel.Tus`) | no, in order | yes, the server keeps the offset | yes, the upload URL | yes | nothing |
+| S3 multipart (`Naqel.S3`) | yes | no, a part is redone | yes, the upload id | yes | `CompleteMultipartUpload` |
+| SFTP (`Naqel.Sftp`) | yes, writes at offsets | yes | yes, the remote temp path | yes | rename |
+| FTP (`Naqel.Ftp`) | no, one stream | yes, `APPE`/`REST` | yes | yes | rename |
 
 When a target isn't `RepeatableWrites`, the engine only writes a part again if the target failed before reading all of it: a request that never got its whole body can't have been processed, but a `POST` whose answer was lost may have created the upload already. The error stays as it was, transient or not, so a caller who knows the server can take a repeat may try again.
 
@@ -311,7 +311,7 @@ Planned parts of equal size rarely finish together: one connection is slower, or
 - **When not:** the length is unknown, the source can't read ranges or has no version to check the new part's read against (content without a `Version` is never combined from separate reads), the session acknowledges what it keeps (an upload session's chunks were declared already), a single part is hashed as it passes for a checksum, or the source's `MaxConnections` is reached.
 - The new part follows the one it came from, so checkpoints still list the parts in order, and a checkpoint or progress report never sees a part half split. `TransferResult.Parts` counts the parts that were split off.
 
-Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall`, `ContinuedCheckpoint` or `SourceLimit`; the transfer's trace carries it as `naql.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
+Callers don't check range support or the size themselves before choosing how to transfer; the planner decides. `TransferResult.SingleConnectionReason` says what it decided when it used one part: `NotRequested`, `UnknownLength`, `NoRangeSupport`, `NoVersion`, `ChecksumHashedWhileStreaming`, `TargetTakesOnePart`, `TooSmall`, `ContinuedCheckpoint` or `SourceLimit`; the transfer's trace carries it as `naqel.single_connection_reason`. A required checksum turning off parallel parts is therefore visible instead of silent.
 
 ### 5.3 The metered stream
 
@@ -384,7 +384,7 @@ await Transfer
     .To(HttpTarget.Put(uploadUri))
     .RunAsync();
 
-// Copy between servers without touching the disk, with a future Naql.Sftp package
+// Copy between servers without touching the disk, with a future Naqel.Sftp package
 await Transfer.From(HttpSource.Get(uri)).To(SftpTarget.At(connection, "/backups/file.zip")).RunAsync();
 ```
 
@@ -505,7 +505,7 @@ public enum TransferErrorKind
 }
 ```
 
-- **Protocol details live in the protocol package.** `Naql.Http` throws `HttpTransferException`, with the `StatusCode` (`null` when no response arrived), `ReasonPhrase`, `Method` and `RequestUri`, and fills `RetryDelay` from `Retry-After`. It maps 404 and 410 to `NotFound`, 401 and 407 to `Unauthorized`, 403 to `AccessDenied`, 429 to a transient `RateLimited`, 408 and 5xx to transient errors, 413 and 507 to `InsufficientStorage`, and other unexpected statuses to `Protocol`.
+- **Protocol details live in the protocol package.** `Naqel.Http` throws `HttpTransferException`, with the `StatusCode` (`null` when no response arrived), `ReasonPhrase`, `Method` and `RequestUri`, and fills `RetryDelay` from `Retry-After`. It maps 404 and 410 to `NotFound`, 401 and 407 to `Unauthorized`, 403 to `AccessDenied`, 429 to a transient `RateLimited`, 408 and 5xx to transient errors, 413 and 507 to `InsufficientStorage`, and other unexpected statuses to `Protocol`.
 - **Kinds that need the site to tell.** `QuotaExceeded` and `Expired` can't be read from a status code alone: a 403 can mean "no access", "quota used up" or "signed link expired", depending on the service. Packages for a particular service map them from its error details.
 - **Nothing is changed after it's thrown.** The engine records what it knows about a failure, the part and the side it was calling, in `PartFailure` and `TransferFailedException.Side`, and leaves the protocol's exception as it was. A source's own exception therefore reaches the caller unchanged as `Error`.
 - **One type to catch.** `RunAsync` throws `TransferFailedException` for every failure, `OperationCanceledException` for cancellation, and exceptions from the caller's own code (such as a progress handler) unchanged. Protocol details are one pattern away:
@@ -528,11 +528,11 @@ try
 catch (OperationCanceledException)
 {
     var checkpoint = operation.GetCheckpoint();
-    File.WriteAllText("file.zip.naql", checkpoint!.Serialize());
+    File.WriteAllText("file.zip.naqel", checkpoint!.Serialize());
 }
 
 // Later, possibly in another process
-var checkpoint = TransferCheckpoint.Deserialize(File.ReadAllText("file.zip.naql"));
+var checkpoint = TransferCheckpoint.Deserialize(File.ReadAllText("file.zip.naqel"));
 await Transfer.From(source).To(target).ResumeFrom(checkpoint).RunAsync();
 ```
 
@@ -570,8 +570,8 @@ await Transfer.From(source).To(FileTarget.At("file.zip")).WithCheckpointStore(Fi
 - Before starting, the engine loads the stored checkpoint and resumes from it; a checkpoint passed to `ResumeFrom` wins over it.
 - While running, it saves the checkpoint every `CheckpointInterval` (2 seconds by default) when it changed, so even a killed process loses at most that much progress. It saves once more when the transfer fails or is canceled.
 - When the transfer completes, or stops in a way that can't be continued, it deletes the checkpoint.
-- The store is best effort: a failing store never fails a transfer that is otherwise fine. If it can't load, the transfer starts over, which costs progress but no data; if it can't save, a later run may have to start over. Every call to the store waits at most the response timeout, and failures show up as a `naql.checkpoint.error` event.
-- `FileCheckpointStore` writes a temporary file and renames it over the previous checkpoint, so a crash while saving never leaves a damaged checkpoint; an unreadable file counts as no checkpoint. `FileCheckpointStore.For(path)` keeps it next to the file as `path.naql-checkpoint`.
+- The store is best effort: a failing store never fails a transfer that is otherwise fine. If it can't load, the transfer starts over, which costs progress but no data; if it can't save, a later run may have to start over. Every call to the store waits at most the response timeout, and failures show up as a `naqel.checkpoint.error` event.
+- `FileCheckpointStore` writes a temporary file and renames it over the previous checkpoint, so a crash while saving never leaves a damaged checkpoint; an unreadable file counts as no checkpoint. `FileCheckpointStore.For(path)` keeps it next to the file as `path.naqel-checkpoint`.
 
 The store is a separate abstraction rather than a `FileTarget` feature so it works for every target, and for `FileTarget.InDirectory`, whose file name is only known once the transfer starts: the checkpoint's resume token already holds the partial file's path, so the store only needs a key the caller chooses, such as the URL.
 
@@ -598,7 +598,7 @@ public sealed class MemorySource(byte[] content) : ITransferSource
 
 It gets retries, parallel parts, throttling, progress, checkpoints and checksum verification without any more code.
 
-**A package for a service on HTTP**, such as Dropbox, Google Drive or a file host, builds on `Naql.Http` instead of starting over. A sketch of an upload through Dropbox's upload sessions:
+**A package for a service on HTTP**, such as Dropbox, Google Drive or a file host, builds on `Naqel.Http` instead of starting over. A sketch of an upload through Dropbox's upload sessions:
 
 ```csharp
 // Tokens come from the package's sign-in; the handler adds them and refreshes them on a 401
@@ -624,7 +624,7 @@ public sealed class DropboxTarget(HttpTransport transport, string path) : Chunke
 }
 ```
 
-[`samples/Naql.Samples.Dropbox`](../samples/Naql.Samples.Dropbox) is this package in full, with tests against a fake Dropbox API: resolvers for `dropbox:` files and folders, downloads from temporary links, uploads through upload sessions, and token refresh. Whole folders copy between `file:` and `dropbox:` in both directions through resolvers alone.
+[`samples/Naqel.Samples.Dropbox`](../samples/Naqel.Samples.Dropbox) is this package in full, with tests against a fake Dropbox API: resolvers for `dropbox:` files and folders, downloads from temporary links, uploads through upload sessions, and token refresh. Whole folders copy between `file:` and `dropbox:` in both directions through resolvers alone.
 
 The pieces it uses:
 
@@ -646,37 +646,39 @@ A transfer can be verified against a `Checksum` (MD5, SHA-1 or SHA-2): the calle
 
 ### 6.6 Diagnostics
 
-Transfers report traces and metrics through .NET's own `ActivitySource` and `Meter`, both named `NaqlDiagnostics.ActivitySourceName` (`"Naql"`). That needs no package, costs next to nothing without a listener, and works with OpenTelemetry, Application Insights, `dotnet-trace` and `dotnet-counters`.
+Transfers report traces and metrics through .NET's own `ActivitySource` and `Meter`, both named `NaqelDiagnostics.ActivitySourceName` (`"Naqel"`). That needs no package, costs next to nothing without a listener, and works with OpenTelemetry, Application Insights, `dotnet-trace` and `dotnet-counters`.
 
-- **Traces:** a `naql.transfer` activity per run, tagged with the source and target types, `naql.outcome` (`completed`, `failed` or `canceled`), bytes, resumed bytes, parts and retries, and on failure `error.type` (the `TransferErrorKind`) and `naql.error.side`. Each part is a `naql.part` child. Retries are `naql.retry` events on the part, or on the transfer for describing the content and opening or completing the target; starting over because the content changed is a `naql.restart` event, and a failing checkpoint store a `naql.checkpoint.error` event.
-- **Metrics:** `naql.transfer.bytes`, `naql.transfer.retries` (by error kind and side), `naql.transfers` and `naql.transfer.duration` (by outcome and error kind) and `naql.transfers.active`, all tagged with the source and target types.
+- **Traces:** a `naqel.transfer` activity per run, tagged with the source and target types, `naqel.outcome` (`completed`, `failed` or `canceled`), bytes, resumed bytes, parts and retries, and on failure `error.type` (the `TransferErrorKind`) and `naqel.error.side`. Each part is a `naqel.part` child. Retries are `naqel.retry` events on the part, or on the transfer for describing the content and opening or completing the target; starting over because the content changed is a `naqel.restart` event, and a failing checkpoint store a `naqel.checkpoint.error` event.
+- **Metrics:** `naqel.transfer.bytes`, `naqel.transfer.retries` (by error kind and side), `naqel.transfers` and `naqel.transfer.duration` (by outcome and error kind) and `naqel.transfers.active`, all tagged with the source and target types.
 
-There's no `ILogger` in the core: it would add a package dependency, which section 7.1 keeps out of the core, and progress already carries the last error. Integration with `Microsoft.Extensions.Logging` or dependency injection can come later as a separate `Naql.Extensions` package.
+There's no `ILogger` in the core: it would add a package dependency, which section 7.1 keeps out of the core, and progress already carries the last error. Integration with `Microsoft.Extensions.Logging` or dependency injection can come later as a separate `Naqel.Extensions` package.
 
 ## 7. Packages
 
 | Package | Contents | Dependencies |
 |---|---|---|
-| `Naql` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naql.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naql.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
-| `Naql.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication), and for packages for particular services `HttpSourceOptions`, `BearerTokenHandler`, `ChunkedUploadTarget`, `HttpSourceResolver` and `HttpTargetResolver` | `Naql` |
-| Later | `Naql.Tus`, `Naql.Sftp`, `Naql.Ftp`, `Naql.S3`, `Naql.AzureBlob` | `Naql` and that protocol's client library |
+| `Naqel.Core` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naqel.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naqel.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
+| `Naqel.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication), and for packages for particular services `HttpSourceOptions`, `BearerTokenHandler`, `ChunkedUploadTarget`, `HttpSourceResolver` and `HttpTargetResolver` | `Naqel` |
+| Later | `Naqel.Tus`, `Naqel.Sftp`, `Naqel.Ftp`, `Naqel.S3`, `Naqel.AzureBlob` | `Naqel.Core` and that protocol's client library |
+
+The core package is `Naqel.Core`, but its namespace is `Naqel`, so code reads `using Naqel;` next to `Naqel.Files` and `Naqel.Http`, the way `Polly.Core` uses `Polly`. The name `Naqel` alone belongs to the manager app built on the libraries, whose own namespace is `Naqel.App`, so its types never mix with the library's.
 
 ### 7.1 Which endpoints belong in the core
 
-An endpoint ships in the core package when **all** of these hold, and in its own `Naql.<Name>` package otherwise:
+An endpoint ships in the core package when **all** of these hold, and in its own `Naqel.<Name>` package otherwise:
 
 1. **It's local I/O that most transfers touch.** A download usually ends in a file or a stream, and an upload usually starts from one. Keeping them in the core means the most common transfer needs one protocol package, not two.
 2. **It needs nothing beyond the base library.** Files and streams only use `System.IO`, which every runtime has, so a separate package wouldn't spare anyone a download.
 3. **It has nothing protocol-specific to configure.** There's no client, connection, authentication or error mapping of its own to version separately.
 4. **It's small and stable**, and can be released together with the engine.
 
-Each endpoint group gets its own namespace inside the package: `Naql.Files` for files, `Naql.Streams` for streams. Namespaces separate concepts; packages separate dependencies and configuration.
+Each endpoint group gets its own namespace inside the package: `Naqel.Files` for files, `Naqel.Streams` for streams. Namespaces separate concepts; packages separate dependencies and configuration.
 
-Remote protocols always get their own package, even when they need no third-party library, as `Naql.Http` doesn't. Each brings its own client, settings, authentication and error mapping, and most future ones (SFTP, S3, Azure) bring an SDK. Building them only on the public contracts also keeps the extension model honest: if a protocol package can't be written without the core's internals, the contracts are missing something.
+Remote protocols always get their own package, even when they need no third-party library, as `Naqel.Http` doesn't. Each brings its own client, settings, authentication and error mapping, and most future ones (SFTP, S3, Azure) bring an SDK. Building them only on the public contracts also keeps the extension model honest: if a protocol package can't be written without the core's internals, the contracts are missing something.
 
 How the file, stream and HTTP endpoints behave:
 
-- **`FileTarget`** writes `name.naql-part`, reserves the full length up front when it's known, writes each part at its offset with positional writes, and renames the file on completion. `FileTarget.At(path)` writes a fixed path; `FileTarget.InDirectory(dir, nameSelector?)` names the file from the source and makes the name safe with the same rules on every OS: only the last path segment is kept, so it can't leave the directory; characters Windows doesn't allow become `_`; trailing dots and spaces go; names Windows reserves (`CON`, `NUL.txt`, `COM1`…) get a `_` in front; and a name longer than 237 UTF-8 bytes is shortened, keeping its extension, so it still fits in 255 bytes with `.naql-part` and a ` (n)`. `FileConflict` chooses between overwriting an existing file (the default), failing with `AlreadyExists` before transferring, or keeping both (`name (1).ext`). The partial file's path is the resume token.
+- **`FileTarget`** writes `name.naqel-part`, reserves the full length up front when it's known, writes each part at its offset with positional writes, and renames the file on completion. `FileTarget.At(path)` writes a fixed path; `FileTarget.InDirectory(dir, nameSelector?)` names the file from the source and makes the name safe with the same rules on every OS: only the last path segment is kept, so it can't leave the directory; characters Windows doesn't allow become `_`; trailing dots and spaces go; names Windows reserves (`CON`, `NUL.txt`, `COM1`…) get a `_` in front; and a name longer than 237 UTF-8 bytes is shortened, keeping its extension, so it still fits in 255 bytes with `.naqel-part` and a ` (n)`. `FileConflict` chooses between overwriting an existing file (the default), failing with `AlreadyExists` before transferring, or keeping both (`name (1).ext`). The partial file's path is the resume token.
 - **`FileSource`** describes the file with its size and last write time as the version, and fails with `SourceChanged` when either changes.
 - **`StreamSource` and `StreamTarget`** wrap a stream the caller owns and never dispose it. A seekable stream takes ranges and parallel parts (each read or write seeks first, one at a time); a stream that can't seek is read once, or written in order, and can't be retried or rewritten.
 - **`ConcatenatedSource`** joins ordered pieces, each a source of its own, into one content: the segments of a stream such as HLS, the volumes of a split archive. It describes itself by asking each piece once. When every piece has a length and ranges, it has ranges too, so it splits into parallel parts across piece boundaries and resumes; otherwise it reads the pieces one after another. Its version and identity are fingerprints of the pieces' versions and identities, so it only has a version when every piece has one. A piece that ends before its length fails the read instead of shifting every later byte, and a piece that changed makes the next run describe the pieces again.
@@ -702,7 +704,7 @@ Authentication isn't part of the core: each protocol configures it in its own wa
   - `HttpTransport.Default` can't use `SocketsHttpHandler` with a pooled connection lifetime on the netstandard builds, so it doesn't notice DNS changes. Pass your own `HttpClient` when that matters.
   - An `HttpRequestException` carries no status code there.
   - .NET Framework allows two connections per server by default, which would make parallel parts beyond two wait until the response timeout fails them. `HttpTransport.Default` sets `MaxConnectionsPerServer` to unlimited, like .NET Core; an `HttpClient` of your own needs at least `MaxConnections`. A real 100 MB download in four throttled parts on .NET Framework 4.8 caught this, which the tests with fake servers couldn't.
-- **Tests run against every build:** net10.0 tests the net8.0 build; net48 (on Windows) tests the netstandard2.0 build; and a run with `-p:NaqlTarget=netstandard2.1` makes the net10.0 tests use the netstandard2.1 build, which no current runtime picks by itself. CI runs all three.
+- **Tests run against every build:** net10.0 tests the net8.0 build; net48 (on Windows) tests the netstandard2.0 build; and a run with `-p:NaqelTarget=netstandard2.1` makes the net10.0 tests use the netstandard2.1 build, which no current runtime picks by itself. CI runs all three.
 
 ## 8. Guarantees the tests pin down
 
@@ -721,15 +723,15 @@ Besides the contracts above, these behaviors each have a test:
 11. A target that isn't `RepeatableWrites` never gets a part again after it read all of it.
 12. A checkpoint only continues the same content: a different identity, version or length starts over, and so does a resume token that doesn't belong to the target.
 
-Property-based tests (with CsCheck) check the engine's guarantees on generated cases rather than examples: transfers with random content, connections, capabilities, retry budgets and faults on any attempt either commit exactly the content or fail only because of an injected fault and commit nothing; a target that isn't `RepeatableWrites` never gets a part twice; checkpoints count only kept bytes and continue to exactly the content; and transfers canceled at random moments end promptly and dispose every stream and session. Bugs planted in the engine make these properties fail, which shows they test something. Damaged checkpoint text, file names from servers and the part planner are fuzzed the same way. `tests/Naql.Soak` runs the library against real servers on .NET 10 and .NET Framework 4.8, which catches what no fake server shows, such as .NET Framework limiting a client to two connections per server (see [7.2](#72-target-frameworks)).
+Property-based tests (with CsCheck) check the engine's guarantees on generated cases rather than examples: transfers with random content, connections, capabilities, retry budgets and faults on any attempt either commit exactly the content or fail only because of an injected fault and commit nothing; a target that isn't `RepeatableWrites` never gets a part twice; checkpoints count only kept bytes and continue to exactly the content; and transfers canceled at random moments end promptly and dispose every stream and session. Bugs planted in the engine make these properties fail, which shows they test something. Damaged checkpoint text, file names from servers and the part planner are fuzzed the same way. `tests/Naqel.Soak` runs the library against real servers on .NET 10 and .NET Framework 4.8, which catches what no fake server shows, such as .NET Framework limiting a client to two connections per server (see [7.2](#72-target-frameworks)).
 
 ## 9. Roadmap
 
 After the first release:
 
-- **Protocol packages:** `Naql.Tus` (resumable HTTP uploads), `Naql.Sftp`, `Naql.Ftp`, `Naql.S3` and `Naql.AzureBlob`, each built only on the public contracts.
+- **Protocol packages:** `Naqel.Tus` (resumable HTTP uploads), `Naqel.Sftp`, `Naqel.Ftp`, `Naqel.S3` and `Naqel.AzureBlob`, each built only on the public contracts.
 - **A URL registry** that turns a URL into a source or target (`client.CopyAsync("sftp://…", "s3://…")`), where each protocol package registers its schemes.
-- **`Naql.Extensions`** for dependency injection (`services.AddNaql()`) and `Microsoft.Extensions.Logging`.
+- **`Naqel.Extensions`** for dependency injection (`services.AddNaqel()`) and `Microsoft.Extensions.Logging`.
 
 ## 10. Alternatives considered
 

@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		net10.0 tests the libraries' net8.0 build. net48 tests their netstandard2.0 build on .NET Framework, which only
+		runs on Windows. On net48 the tests use the polyfills compiled into Naqel, which they can see as its friend.
+	-->
+	<PropertyGroup>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net48</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- xunit.v3 4.x runs on Microsoft.Testing.Platform, so Microsoft.NET.Test.Sdk and xunit.runner.visualstudio are not needed -->
+		<PackageReference Include="xunit.v3" />
+		<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+	</ItemGroup>
+
+	<!--
+		Property-based tests generate inputs and fault schedules, and shrink a failure to a small case. CsCheck only runs on
+		.NET 8 and later, so they are left out of the net48 run.
+	-->
+	<ItemGroup Condition="'$(TargetFramework)' != 'net48'">
+		<PackageReference Include="CsCheck" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<Compile Remove="PropertyTests\**" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<Reference Include="System.Net.Http" />
+		<Using Include="System.Net.Http" />
+	</ItemGroup>
+
+	<!--
+		On net10.0 the tests use the libraries' net8.0 build, which any current runtime picks. To test the netstandard2.1
+		build instead, run with -f net10.0 -p:NaqelTarget=netstandard2.1: the references then ask for that build explicitly.
+		Its one dependency ships with .NET, so this works; the netstandard2.0 build is tested on net48 instead.
+	-->
+	<ItemGroup Condition="'$(NaqelTarget)' == ''">
+		<ProjectReference Include="..\..\src\Naqel.Core\Naqel.Core.csproj" />
+		<ProjectReference Include="..\..\src\Naqel.Http\Naqel.Http.csproj" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(NaqelTarget)' != ''">
+		<ProjectReference Include="..\..\src\Naqel.Core\Naqel.Core.csproj" SetTargetFramework="TargetFramework=$(NaqelTarget)" />
+		<ProjectReference Include="..\..\src\Naqel.Http\Naqel.Http.csproj" SetTargetFramework="TargetFramework=$(NaqelTarget)" />
+	</ItemGroup>
+
+</Project>

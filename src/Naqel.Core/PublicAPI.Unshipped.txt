@@ -1,0 +1,423 @@
+#nullable enable
+Naqel.BandwidthLimiter
+Naqel.BandwidthLimiter.BandwidthLimiter(long bytesPerSecond) -> void
+Naqel.BandwidthLimiter.BytesPerSecond.get -> long
+Naqel.BandwidthLimiter.BytesPerSecond.set -> void
+Naqel.BandwidthLimiter.WaitAsync(long bytes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Naqel.ByteRange
+Naqel.ByteRange.ByteRange() -> void
+Naqel.ByteRange.ByteRange(long start, long? length = null) -> void
+Naqel.ByteRange.End.get -> long?
+Naqel.ByteRange.Equals(Naqel.ByteRange other) -> bool
+Naqel.ByteRange.IsAll.get -> bool
+Naqel.ByteRange.Length.get -> long?
+Naqel.ByteRange.Skip(long count) -> Naqel.ByteRange
+Naqel.ByteRange.Start.get -> long
+Naqel.CheckpointPart
+Naqel.CheckpointPart.CheckpointPart(Naqel.ByteRange range, long completed) -> void
+Naqel.CheckpointPart.Completed.get -> long
+Naqel.CheckpointPart.IsComplete.get -> bool
+Naqel.CheckpointPart.Range.get -> Naqel.ByteRange
+Naqel.Checksum
+Naqel.Checksum.Algorithm.get -> System.Security.Cryptography.HashAlgorithmName
+Naqel.Checksum.Checksum(System.Security.Cryptography.HashAlgorithmName algorithm, System.ReadOnlySpan<byte> value) -> void
+Naqel.Checksum.Equals(Naqel.Checksum? other) -> bool
+Naqel.Checksum.Matches(System.ReadOnlySpan<byte> hash) -> bool
+Naqel.Checksum.ToHex() -> string!
+Naqel.Checksum.Value.get -> System.ReadOnlyMemory<byte>
+Naqel.ConcatenatedSource
+Naqel.ConcatenatedSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceInfo!>!
+Naqel.ConcatenatedSource.OpenReadAsync(Naqel.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceRead!>!
+Naqel.ConcatenatedSource.Pieces.get -> System.Collections.Generic.IReadOnlyList<Naqel.ITransferSource!>!
+Naqel.Files.FileCheckpointStore
+Naqel.Files.FileCheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+const Naqel.Files.FileCheckpointStore.Extension = ".naqel-checkpoint" -> string!
+Naqel.Files.FileCheckpointStore.FileCheckpointStore(string! path) -> void
+Naqel.Files.FileCheckpointStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.TransferCheckpoint?>!
+Naqel.Files.FileCheckpointStore.Path.get -> string!
+Naqel.Files.FileCheckpointStore.SaveAsync(Naqel.TransferCheckpoint! checkpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Files.FileConflict
+Naqel.Files.FileConflict.Fail = 1 -> Naqel.Files.FileConflict
+Naqel.Files.FileConflict.KeepBoth = 2 -> Naqel.Files.FileConflict
+Naqel.Files.FileConflict.Overwrite = 0 -> Naqel.Files.FileConflict
+Naqel.Files.FileResolveOptions
+Naqel.Files.FileResolveOptions.<Clone>$() -> Naqel.Files.FileResolveOptions!
+Naqel.Files.FileResolveOptions.Conflict.get -> Naqel.Files.FileConflict?
+Naqel.Files.FileResolveOptions.Conflict.init -> void
+Naqel.Files.FileResolveOptions.Equals(Naqel.Files.FileResolveOptions? other) -> bool
+Naqel.Files.FileResolveOptions.FileResolveOptions() -> void
+Naqel.Files.FileResolveOptions.Recursive.get -> bool?
+Naqel.Files.FileResolveOptions.Recursive.init -> void
+Naqel.Files.FileSource
+Naqel.Files.FileSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceInfo!>!
+Naqel.Files.FileSource.OpenReadAsync(Naqel.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceRead!>!
+Naqel.Files.FileSource.Path.get -> string!
+Naqel.Files.FileSourceResolver
+Naqel.Files.FileSourceResolver.CanResolve(System.Uri! reference) -> bool
+Naqel.Files.FileSourceResolver.FileSourceResolver(bool recursive = true) -> void
+Naqel.Files.FileSourceResolver.Recursive.get -> bool
+Naqel.Files.FileSourceResolver.ResolveAsync(System.Uri! reference, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naqel.Resolved!>!
+Naqel.Files.FileTarget
+Naqel.Files.FileTarget.Capabilities.get -> Naqel.TargetCapabilities!
+Naqel.Files.FileTarget.Conflict.get -> Naqel.Files.FileConflict
+Naqel.Files.FileTarget.OpenAsync(Naqel.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.ITargetSession!>!
+const Naqel.Files.FileTarget.PartialExtension = ".naqel-part" -> string!
+Naqel.Files.FileTargetResolver
+Naqel.Files.FileTargetResolver.CanResolve(System.Uri! destination) -> bool
+Naqel.Files.FileTargetResolver.Conflict.get -> Naqel.Files.FileConflict
+Naqel.Files.FileTargetResolver.FileTargetResolver(Naqel.Files.FileConflict conflict = Naqel.Files.FileConflict.Overwrite) -> void
+Naqel.Files.FileTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naqel.SourceInfo? info, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naqel.ITransferTarget!>
+Naqel.IAcknowledgingSession
+Naqel.IAcknowledgingSession.Kept(long position) -> long
+Naqel.ICheckpointStore
+Naqel.ICheckpointStore.DeleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.ICheckpointStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.TransferCheckpoint?>!
+Naqel.ICheckpointStore.SaveAsync(Naqel.TransferCheckpoint! checkpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.ISourceResolver
+Naqel.ISourceResolver.CanResolve(System.Uri! reference) -> bool
+Naqel.ISourceResolver.ResolveAsync(System.Uri! reference, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naqel.Resolved!>!
+Naqel.ITargetResolver
+Naqel.ITargetResolver.CanResolve(System.Uri! destination) -> bool
+Naqel.ITargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naqel.SourceInfo? info, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naqel.ITransferTarget!>
+Naqel.ITargetSession
+Naqel.ITargetSession.AbortAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.ITargetSession.CompleteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.ITargetSession.Location.get -> string?
+Naqel.ITargetSession.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Naqel.ITargetSession.ResumeToken.get -> string?
+Naqel.ITargetSession.WritePartAsync(Naqel.ByteRange range, System.IO.Stream! content, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.ITransferSource
+Naqel.ITransferSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceInfo!>!
+Naqel.ITransferSource.OpenReadAsync(Naqel.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceRead!>!
+Naqel.ITransferTarget
+Naqel.ITransferTarget.Capabilities.get -> Naqel.TargetCapabilities!
+Naqel.ITransferTarget.OpenAsync(Naqel.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.ITargetSession!>!
+Naqel.IVerifiableSession
+Naqel.IVerifiableSession.ComputeHashAsync(System.Security.Cryptography.HashAlgorithmName algorithm, long length, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Naqel.NaqelDiagnostics
+const Naqel.NaqelDiagnostics.ActivitySourceName = "Naqel" -> string!
+const Naqel.NaqelDiagnostics.MeterName = "Naqel" -> string!
+Naqel.PartFailure
+Naqel.PartFailure.Attempts.get -> int
+Naqel.PartFailure.Error.get -> Naqel.TransferException!
+Naqel.PartFailure.Part.get -> Naqel.ByteRange
+Naqel.PartFailure.PartFailure(Naqel.ByteRange part, Naqel.TransferException! error, Naqel.TransferSide side, int attempts) -> void
+Naqel.PartFailure.Side.get -> Naqel.TransferSide
+Naqel.PartProgress
+Naqel.PartProgress.Range.get -> Naqel.ByteRange
+Naqel.PartProgress.State.get -> Naqel.PartState
+Naqel.PartProgress.Transferred.get -> long
+Naqel.PartState
+Naqel.PartState.Done = 3 -> Naqel.PartState
+Naqel.PartState.Failed = 4 -> Naqel.PartState
+Naqel.PartState.Retrying = 2 -> Naqel.PartState
+Naqel.PartState.Running = 1 -> Naqel.PartState
+Naqel.PartState.Waiting = 0 -> Naqel.PartState
+Naqel.ReadRequest
+Naqel.ReadRequest.IfVersion.get -> string?
+Naqel.ReadRequest.Range.get -> Naqel.ByteRange
+Naqel.ReadRequest.ReadRequest(Naqel.ByteRange range, string? ifVersion = null) -> void
+Naqel.RelativePath
+Naqel.Resolve
+const Naqel.Resolve.DefaultMaxDepth = 8 -> int
+Naqel.ResolveContext
+Naqel.ResolveContext.Filter.get -> System.Func<Naqel.ResolvedSource!, bool>?
+Naqel.ResolveContext.Get<T>() -> T?
+Naqel.ResolveContext.ResolveContext(System.Func<Naqel.ResolvedSource!, bool>? filter = null) -> void
+Naqel.ResolveContext.With<T>(T! options) -> Naqel.ResolveContext!
+Naqel.ResolveContext.WithFilter(System.Func<Naqel.ResolvedSource!, bool>? filter) -> Naqel.ResolveContext!
+Naqel.Resolved
+Naqel.Resolved.Path.get -> string!
+Naqel.ResolvedReference
+Naqel.ResolvedReference.Next.get -> System.Uri!
+Naqel.ResolvedReference.ResolvedReference(System.Uri! next, string! path = "") -> void
+Naqel.ResolvedSource
+Naqel.ResolvedSource.Info.get -> Naqel.SourceInfo?
+Naqel.ResolvedSource.ResolvedSource(Naqel.ITransferSource! source, string! path = "", Naqel.SourceInfo? info = null) -> void
+Naqel.ResolvedSource.Source.get -> Naqel.ITransferSource!
+Naqel.RetryPolicy
+Naqel.RetryPolicy.<Clone>$() -> Naqel.RetryPolicy!
+Naqel.RetryPolicy.BackoffFactor.get -> double
+Naqel.RetryPolicy.BackoffFactor.init -> void
+Naqel.RetryPolicy.Equals(Naqel.RetryPolicy? other) -> bool
+Naqel.RetryPolicy.GetDelay(int retry, System.TimeSpan? retryAfter = null) -> System.TimeSpan
+Naqel.RetryPolicy.InitialDelay.get -> System.TimeSpan
+Naqel.RetryPolicy.InitialDelay.init -> void
+Naqel.RetryPolicy.Jitter.get -> bool
+Naqel.RetryPolicy.Jitter.init -> void
+Naqel.RetryPolicy.MaxDelay.get -> System.TimeSpan
+Naqel.RetryPolicy.MaxDelay.init -> void
+Naqel.RetryPolicy.MaxRetries.get -> int
+Naqel.RetryPolicy.MaxRetries.init -> void
+Naqel.RetryPolicy.RetryPolicy() -> void
+Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.ChecksumHashedWhileStreaming = 5 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.ContinuedCheckpoint = 8 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.None = 0 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.NoRangeSupport = 3 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.NotRequested = 1 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.NoVersion = 4 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.SourceLimit = 9 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.TargetTakesOnePart = 6 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.TooSmall = 7 -> Naqel.SingleConnectionReason
+Naqel.SingleConnectionReason.UnknownLength = 2 -> Naqel.SingleConnectionReason
+Naqel.SourceInfo
+Naqel.SourceInfo.<Clone>$() -> Naqel.SourceInfo!
+Naqel.SourceInfo.Checksum.get -> Naqel.Checksum?
+Naqel.SourceInfo.Checksum.init -> void
+Naqel.SourceInfo.ContentType.get -> string?
+Naqel.SourceInfo.ContentType.init -> void
+Naqel.SourceInfo.Equals(Naqel.SourceInfo? other) -> bool
+Naqel.SourceInfo.Identity.get -> string?
+Naqel.SourceInfo.Identity.init -> void
+Naqel.SourceInfo.IsRepeatable.get -> bool
+Naqel.SourceInfo.IsRepeatable.init -> void
+Naqel.SourceInfo.LastModified.get -> System.DateTimeOffset?
+Naqel.SourceInfo.LastModified.init -> void
+Naqel.SourceInfo.Length.get -> long?
+Naqel.SourceInfo.Length.init -> void
+Naqel.SourceInfo.MaxConnections.get -> int?
+Naqel.SourceInfo.MaxConnections.init -> void
+Naqel.SourceInfo.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Naqel.SourceInfo.Metadata.init -> void
+Naqel.SourceInfo.Name.get -> string?
+Naqel.SourceInfo.Name.init -> void
+Naqel.SourceInfo.SourceInfo() -> void
+Naqel.SourceInfo.SupportsRanges.get -> bool
+Naqel.SourceInfo.SupportsRanges.init -> void
+Naqel.SourceInfo.Version.get -> string?
+Naqel.SourceInfo.Version.init -> void
+Naqel.SourceRead
+Naqel.SourceRead.Content.get -> System.IO.Stream!
+Naqel.SourceRead.Dispose() -> void
+Naqel.SourceRead.Info.get -> Naqel.SourceInfo!
+Naqel.SourceRead.SourceRead(System.IO.Stream! content, Naqel.SourceInfo! info) -> void
+Naqel.Streams.StreamSource
+Naqel.Streams.StreamSource.GetInfoAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceInfo!>!
+Naqel.Streams.StreamSource.Info.get -> Naqel.SourceInfo!
+Naqel.Streams.StreamSource.OpenReadAsync(Naqel.ReadRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.SourceRead!>!
+Naqel.Streams.StreamTarget
+Naqel.Streams.StreamTarget.Capabilities.get -> Naqel.TargetCapabilities!
+Naqel.Streams.StreamTarget.OpenAsync(Naqel.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.ITargetSession!>!
+Naqel.TargetCapabilities
+Naqel.TargetCapabilities.<Clone>$() -> Naqel.TargetCapabilities!
+Naqel.TargetCapabilities.Equals(Naqel.TargetCapabilities? other) -> bool
+Naqel.TargetCapabilities.MaxParts.get -> int?
+Naqel.TargetCapabilities.MaxParts.init -> void
+Naqel.TargetCapabilities.MaxPartSize.get -> long?
+Naqel.TargetCapabilities.MaxPartSize.init -> void
+Naqel.TargetCapabilities.MinPartSize.get -> long
+Naqel.TargetCapabilities.MinPartSize.init -> void
+Naqel.TargetCapabilities.ParallelParts.get -> bool
+Naqel.TargetCapabilities.ParallelParts.init -> void
+Naqel.TargetCapabilities.PartSizeMultiple.get -> long?
+Naqel.TargetCapabilities.PartSizeMultiple.init -> void
+Naqel.TargetCapabilities.RepeatableWrites.get -> bool
+Naqel.TargetCapabilities.RepeatableWrites.init -> void
+Naqel.TargetCapabilities.RequiresLength.get -> bool
+Naqel.TargetCapabilities.RequiresLength.init -> void
+Naqel.TargetCapabilities.Resumable.get -> bool
+Naqel.TargetCapabilities.Resumable.init -> void
+Naqel.TargetCapabilities.ResumableParts.get -> bool
+Naqel.TargetCapabilities.ResumableParts.init -> void
+Naqel.TargetCapabilities.SplittableParts.get -> bool
+Naqel.TargetCapabilities.SplittableParts.init -> void
+Naqel.TargetCapabilities.TargetCapabilities() -> void
+Naqel.TargetCapabilities.Verifiable.get -> bool
+Naqel.TargetCapabilities.Verifiable.init -> void
+Naqel.TargetOpenRequest
+Naqel.TargetOpenRequest.BufferSize.get -> int
+const Naqel.TargetOpenRequest.DefaultBufferSize = 81920 -> int
+Naqel.TargetOpenRequest.ResumeToken.get -> string?
+Naqel.TargetOpenRequest.Source.get -> Naqel.SourceInfo!
+Naqel.TargetOpenRequest.TargetOpenRequest(Naqel.SourceInfo! source, string? resumeToken = null, int bufferSize = 81920) -> void
+Naqel.Transfer
+Naqel.TransferBuilder
+Naqel.TransferBuilder.Build() -> Naqel.TransferOperation!
+Naqel.TransferBuilder.ResumeFrom(Naqel.TransferCheckpoint! checkpoint) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.RunAsync(System.IProgress<Naqel.TransferProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Naqel.TransferResult!>!
+Naqel.TransferBuilder.To(Naqel.ITransferTarget! target) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithCheckpointStore(Naqel.ICheckpointStore! store) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithExpectedChecksum(Naqel.Checksum! checksum) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithMaxBytesPerSecond(long bytesPerSecond) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithMaxConnections(int value) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithOptions(Naqel.TransferOptions! options) -> Naqel.TransferBuilder!
+Naqel.TransferBuilder.WithRetry(Naqel.RetryPolicy! policy) -> Naqel.TransferBuilder!
+Naqel.TransferCheckpoint
+Naqel.TransferCheckpoint.Completed.get -> long
+Naqel.TransferCheckpoint.Length.get -> long?
+Naqel.TransferCheckpoint.Parts.get -> System.Collections.Generic.IReadOnlyList<Naqel.CheckpointPart!>!
+Naqel.TransferCheckpoint.ResumeToken.get -> string?
+Naqel.TransferCheckpoint.Serialize() -> string!
+Naqel.TransferCheckpoint.SourceIdentity.get -> string?
+Naqel.TransferCheckpoint.SourceVersion.get -> string?
+Naqel.TransferCheckpoint.TransferCheckpoint(long? length, string? sourceIdentity, string? sourceVersion, string? resumeToken, System.Collections.Generic.IEnumerable<Naqel.CheckpointPart!>! parts) -> void
+Naqel.TransferClient
+Naqel.TransferClient.DefaultOptions.get -> Naqel.TransferOptions!
+Naqel.TransferClient.From(Naqel.ITransferSource! source) -> Naqel.TransferBuilder!
+Naqel.TransferClient.SharedLimiter.get -> Naqel.BandwidthLimiter?
+Naqel.TransferClient.TransferClient(Naqel.TransferOptions? defaultOptions = null, Naqel.BandwidthLimiter? sharedLimiter = null) -> void
+Naqel.TransferErrorKind
+Naqel.TransferErrorKind.AccessDenied = 2 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.AlreadyExists = 9 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Expired = 14 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.InsufficientStorage = 8 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Integrity = 7 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Network = 3 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.NotFound = 1 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Protocol = 5 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.QuotaExceeded = 13 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.RateLimited = 12 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.SourceChanged = 6 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Timeout = 4 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Unauthorized = 11 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Unknown = 0 -> Naqel.TransferErrorKind
+Naqel.TransferErrorKind.Unsupported = 10 -> Naqel.TransferErrorKind
+Naqel.TransferException
+Naqel.TransferException.IsTransient.get -> bool
+Naqel.TransferException.Kind.get -> Naqel.TransferErrorKind
+Naqel.TransferException.RetryDelay.get -> System.TimeSpan?
+Naqel.TransferException.Side.get -> Naqel.TransferSide
+Naqel.TransferException.TransferException(string! message, Naqel.TransferErrorKind kind, bool isTransient = false, Naqel.TransferSide side = Naqel.TransferSide.Unknown, System.TimeSpan? retryDelay = null, System.Exception? innerException = null) -> void
+Naqel.TransferFailedException
+Naqel.TransferFailedException.Error.get -> Naqel.TransferException!
+Naqel.TransferFailedException.PartFailures.get -> System.Collections.Generic.IReadOnlyList<Naqel.PartFailure!>!
+Naqel.TransferFailedException.TransferFailedException(Naqel.TransferException! error, Naqel.TransferSide side, System.Collections.Generic.IReadOnlyList<Naqel.PartFailure!>? partFailures = null) -> void
+Naqel.TransferOperation
+Naqel.TransferOperation.CheckpointStore.get -> Naqel.ICheckpointStore?
+Naqel.TransferOperation.GetCheckpoint() -> Naqel.TransferCheckpoint?
+Naqel.TransferOperation.MaxBytesPerSecond.get -> long
+Naqel.TransferOperation.MaxConnections.get -> int
+Naqel.TransferOperation.Options.get -> Naqel.TransferOptions!
+Naqel.TransferOperation.ResumeFrom.get -> Naqel.TransferCheckpoint?
+Naqel.TransferOperation.RunAsync(System.IProgress<Naqel.TransferProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Naqel.TransferResult!>!
+Naqel.TransferOperation.SetMaxBytesPerSecond(long bytesPerSecond) -> void
+Naqel.TransferOperation.SetMaxConnections(int maxConnections) -> void
+Naqel.TransferOperation.Source.get -> Naqel.ITransferSource!
+Naqel.TransferOperation.Target.get -> Naqel.ITransferTarget!
+Naqel.TransferOptions
+Naqel.TransferOptions.<Clone>$() -> Naqel.TransferOptions!
+Naqel.TransferOptions.AdaptiveSplitting.get -> bool
+Naqel.TransferOptions.AdaptiveSplitting.init -> void
+Naqel.TransferOptions.BufferSize.get -> int
+Naqel.TransferOptions.BufferSize.init -> void
+Naqel.TransferOptions.CheckpointInterval.get -> System.TimeSpan
+Naqel.TransferOptions.CheckpointInterval.init -> void
+Naqel.TransferOptions.DiscardPartialOnFailure.get -> bool
+Naqel.TransferOptions.DiscardPartialOnFailure.init -> void
+Naqel.TransferOptions.Equals(Naqel.TransferOptions? other) -> bool
+Naqel.TransferOptions.ExpectedChecksum.get -> Naqel.Checksum?
+Naqel.TransferOptions.ExpectedChecksum.init -> void
+Naqel.TransferOptions.IdleTimeout.get -> System.TimeSpan
+Naqel.TransferOptions.IdleTimeout.init -> void
+Naqel.TransferOptions.MaxBytesPerSecond.get -> long
+Naqel.TransferOptions.MaxBytesPerSecond.init -> void
+Naqel.TransferOptions.MaxConnections.get -> int
+Naqel.TransferOptions.MaxConnections.init -> void
+Naqel.TransferOptions.MinSplitPartSize.get -> long
+Naqel.TransferOptions.MinSplitPartSize.init -> void
+Naqel.TransferOptions.ProgressInterval.get -> System.TimeSpan
+Naqel.TransferOptions.ProgressInterval.init -> void
+Naqel.TransferOptions.ResponseTimeout.get -> System.TimeSpan
+Naqel.TransferOptions.ResponseTimeout.init -> void
+Naqel.TransferOptions.Retry.get -> Naqel.RetryPolicy!
+Naqel.TransferOptions.Retry.init -> void
+Naqel.TransferOptions.TransferOptions() -> void
+Naqel.TransferProgress
+Naqel.TransferProgress.ActiveParts.get -> int
+Naqel.TransferProgress.AverageRate.get -> double
+Naqel.TransferProgress.CompletedParts.get -> int
+Naqel.TransferProgress.CurrentRate.get -> double
+Naqel.TransferProgress.Elapsed.get -> System.TimeSpan
+Naqel.TransferProgress.Fraction.get -> double?
+Naqel.TransferProgress.LastError.get -> System.Exception?
+Naqel.TransferProgress.Parts.get -> System.Collections.Generic.IReadOnlyList<Naqel.PartProgress!>!
+Naqel.TransferProgress.Remaining.get -> System.TimeSpan?
+Naqel.TransferProgress.State.get -> Naqel.TransferState
+Naqel.TransferProgress.Total.get -> long?
+Naqel.TransferProgress.TotalParts.get -> int
+Naqel.TransferProgress.Transferred.get -> long
+Naqel.TransferResult
+Naqel.TransferResult.AverageRate.get -> double
+Naqel.TransferResult.Duration.get -> System.TimeSpan
+Naqel.TransferResult.Location.get -> string?
+Naqel.TransferResult.Parts.get -> int
+Naqel.TransferResult.Resumed.get -> long
+Naqel.TransferResult.Retries.get -> int
+Naqel.TransferResult.SingleConnectionReason.get -> Naqel.SingleConnectionReason
+Naqel.TransferResult.Source.get -> Naqel.SourceInfo!
+Naqel.TransferResult.TargetMetadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Naqel.TransferResult.Transferred.get -> long
+Naqel.TransferResult.VerifiedChecksum.get -> Naqel.Checksum?
+Naqel.TransferSide
+Naqel.TransferSide.Engine = 3 -> Naqel.TransferSide
+Naqel.TransferSide.Source = 1 -> Naqel.TransferSide
+Naqel.TransferSide.Target = 2 -> Naqel.TransferSide
+Naqel.TransferSide.Unknown = 0 -> Naqel.TransferSide
+Naqel.TransferState
+Naqel.TransferState.Canceled = 6 -> Naqel.TransferState
+Naqel.TransferState.Completed = 4 -> Naqel.TransferState
+Naqel.TransferState.Completing = 3 -> Naqel.TransferState
+Naqel.TransferState.Failed = 5 -> Naqel.TransferState
+Naqel.TransferState.Preparing = 0 -> Naqel.TransferState
+Naqel.TransferState.Retrying = 2 -> Naqel.TransferState
+Naqel.TransferState.Transferring = 1 -> Naqel.TransferState
+override Naqel.ByteRange.Equals(object? obj) -> bool
+override Naqel.ByteRange.GetHashCode() -> int
+override Naqel.ByteRange.ToString() -> string!
+override Naqel.Checksum.Equals(object? obj) -> bool
+override Naqel.Checksum.GetHashCode() -> int
+override Naqel.Checksum.ToString() -> string!
+override Naqel.Files.FileResolveOptions.Equals(object? obj) -> bool
+override Naqel.Files.FileResolveOptions.GetHashCode() -> int
+override Naqel.Files.FileResolveOptions.ToString() -> string!
+override Naqel.RetryPolicy.Equals(object? obj) -> bool
+override Naqel.RetryPolicy.GetHashCode() -> int
+override Naqel.RetryPolicy.ToString() -> string!
+override Naqel.SourceInfo.Equals(object? obj) -> bool
+override Naqel.SourceInfo.GetHashCode() -> int
+override Naqel.SourceInfo.ToString() -> string!
+override Naqel.TargetCapabilities.Equals(object? obj) -> bool
+override Naqel.TargetCapabilities.GetHashCode() -> int
+override Naqel.TargetCapabilities.ToString() -> string!
+override Naqel.TransferOptions.Equals(object? obj) -> bool
+override Naqel.TransferOptions.GetHashCode() -> int
+override Naqel.TransferOptions.ToString() -> string!
+static Naqel.ByteRange.All.get -> Naqel.ByteRange
+static Naqel.ByteRange.FromBounds(long start, long end) -> Naqel.ByteRange
+static Naqel.ByteRange.operator !=(Naqel.ByteRange left, Naqel.ByteRange right) -> bool
+static Naqel.ByteRange.operator ==(Naqel.ByteRange left, Naqel.ByteRange right) -> bool
+static Naqel.Checksum.FromBase64(System.Security.Cryptography.HashAlgorithmName algorithm, string! base64) -> Naqel.Checksum!
+static Naqel.Checksum.FromHex(System.Security.Cryptography.HashAlgorithmName algorithm, string! hex) -> Naqel.Checksum!
+static Naqel.Checksum.Sha256(string! hex) -> Naqel.Checksum!
+static Naqel.Checksum.Sha512(string! hex) -> Naqel.Checksum!
+static Naqel.ConcatenatedSource.From(System.Collections.Generic.IEnumerable<Naqel.ITransferSource!>! pieces, string? name = null, string? identity = null) -> Naqel.ConcatenatedSource!
+static Naqel.Files.FileCheckpointStore.For(string! path) -> Naqel.Files.FileCheckpointStore!
+static Naqel.Files.FileResolveOptions.operator !=(Naqel.Files.FileResolveOptions? left, Naqel.Files.FileResolveOptions? right) -> bool
+static Naqel.Files.FileResolveOptions.operator ==(Naqel.Files.FileResolveOptions? left, Naqel.Files.FileResolveOptions? right) -> bool
+static Naqel.Files.FileSource.At(string! path) -> Naqel.Files.FileSource!
+static Naqel.Files.FileTarget.At(string! path, Naqel.Files.FileConflict conflict = Naqel.Files.FileConflict.Overwrite) -> Naqel.Files.FileTarget!
+static Naqel.Files.FileTarget.InDirectory(string! directory, System.Func<Naqel.SourceInfo!, string?>? nameSelector = null, Naqel.Files.FileConflict conflict = Naqel.Files.FileConflict.Overwrite) -> Naqel.Files.FileTarget!
+static Naqel.RelativePath.Combine(string! parent, string! child) -> string!
+static Naqel.RelativePath.IsValid(string? path) -> bool
+static Naqel.RelativePath.Split(string! path) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Naqel.Resolve.SourcesAsync(System.Uri! reference, System.Collections.Generic.IReadOnlyList<Naqel.ISourceResolver!>! resolvers, Naqel.ResolveContext? context = null, int maxDepth = 8, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Naqel.ResolvedSource!>!
+static Naqel.Resolve.TargetAsync(System.Uri! destination, string! relativePath, Naqel.SourceInfo? info, System.Collections.Generic.IReadOnlyList<Naqel.ITargetResolver!>! resolvers, Naqel.ResolveContext? context = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Naqel.ITransferTarget!>
+static Naqel.ResolveContext.Default.get -> Naqel.ResolveContext!
+static Naqel.RetryPolicy.Default.get -> Naqel.RetryPolicy!
+static Naqel.RetryPolicy.None.get -> Naqel.RetryPolicy!
+static Naqel.RetryPolicy.operator !=(Naqel.RetryPolicy? left, Naqel.RetryPolicy? right) -> bool
+static Naqel.RetryPolicy.operator ==(Naqel.RetryPolicy? left, Naqel.RetryPolicy? right) -> bool
+static Naqel.SourceInfo.operator !=(Naqel.SourceInfo? left, Naqel.SourceInfo? right) -> bool
+static Naqel.SourceInfo.operator ==(Naqel.SourceInfo? left, Naqel.SourceInfo? right) -> bool
+static Naqel.Streams.StreamSource.From(System.IO.Stream! stream, string? name = null, long? length = null) -> Naqel.Streams.StreamSource!
+static Naqel.Streams.StreamTarget.To(System.IO.Stream! stream) -> Naqel.Streams.StreamTarget!
+static Naqel.TargetCapabilities.operator !=(Naqel.TargetCapabilities? left, Naqel.TargetCapabilities? right) -> bool
+static Naqel.TargetCapabilities.operator ==(Naqel.TargetCapabilities? left, Naqel.TargetCapabilities? right) -> bool
+static Naqel.Transfer.From(Naqel.ITransferSource! source) -> Naqel.TransferBuilder!
+static Naqel.TransferCheckpoint.Deserialize(string! text) -> Naqel.TransferCheckpoint!
+static Naqel.TransferCheckpoint.Fingerprint(string? identity) -> string?
+static Naqel.TransferClient.Default.get -> Naqel.TransferClient!
+static Naqel.TransferOptions.Default.get -> Naqel.TransferOptions!
+static Naqel.TransferOptions.operator !=(Naqel.TransferOptions? left, Naqel.TransferOptions? right) -> bool
+static Naqel.TransferOptions.operator ==(Naqel.TransferOptions? left, Naqel.TransferOptions? right) -> bool

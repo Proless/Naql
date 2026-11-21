@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		A sample package for a service on HTTP: dropbox: references resolve into downloads and uploads, built only on
+		Naqel's public API. It isn't published; it proves the extension points and shows how a real package would look.
+	-->
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AnalysisMode>Recommended</AnalysisMode>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Naqel.Http\Naqel.Http.csproj" />
+	</ItemGroup>
+
+</Project>

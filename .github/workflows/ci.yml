@@ -28,27 +28,27 @@ jobs:
           global-json-file: global.json
 
       - name: Build
-        run: dotnet build Naql.slnx --configuration Release
+        run: dotnet build Naqel.slnx --configuration Release
 
       # On Windows this also runs the tests on .NET Framework 4.8, against the netstandard2.0 build
       - name: Test
-        run: dotnet test --solution Naql.slnx --configuration Release --no-build
+        run: dotnet test --solution Naqel.slnx --configuration Release --no-build
 
       # No current runtime picks the netstandard2.1 build by itself, so the tests ask for it
       - name: Test the netstandard2.1 build
         if: matrix.os == 'ubuntu-latest'
-        run: dotnet test --project tests/Naql.Tests/Naql.Tests.csproj --configuration Release --framework net10.0 -p:NaqlTarget=netstandard2.1
+        run: dotnet test --project tests/Naqel.Core.Tests/Naqel.Core.Tests.csproj --configuration Release --framework net10.0 -p:NaqelTarget=netstandard2.1
 
       - name: Pack
         if: matrix.os == 'ubuntu-latest'
-        run: dotnet pack Naql.slnx --configuration Release --no-build --output artifacts
+        run: dotnet pack Naqel.slnx --configuration Release --no-build --output artifacts
 
       - name: Check that the tag matches the package version
         if: matrix.os == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          for package in Naql Naql.Http; do
+          for package in Naqel.Core Naqel.Http; do
             if [ ! -f "artifacts/$package.$version.nupkg" ]; then
               echo "::error::The tag says $version, but artifacts/ has: $(ls artifacts)"
               exit 1

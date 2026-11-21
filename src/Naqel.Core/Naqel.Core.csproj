@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- The package and assembly are Naqel.Core; the namespace is Naqel, as in using Naqel; -->
+		<RootNamespace>Naqel</RootNamespace>
+		<Description>The core of Naqel, a .NET library that moves data from a source to a target: the transfer engine (parallel parts, retries, timeouts, throttling, progress) and file and stream sources and targets. Install a protocol package such as Naqel.Http for remote transfers.</Description>
+		<PackageTags>naqel;transfer;download;upload;file</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Naqel.Core.Tests" />
+	</ItemGroup>
+
+</Project>
