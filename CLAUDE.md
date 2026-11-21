@@ -9,12 +9,17 @@ Naqel (ناقل, "carrier") is becoming a download and upload manager with two i
 | `src/Naqel.Core` | Package `Naqel.Core`, namespace `Naqel`: the transfer engine, contracts, resolvers, `Naqel.Files`, `Naqel.Streams` |
 | `src/Naqel.Http` | Package `Naqel.Http`: HTTP sources and targets, `BearerTokenHandler`, `ChunkedUploadTarget`, HTTP resolvers |
 | `src/Compat` | Polyfills compiled into each library on netstandard |
-| `src/Naqel.Plugins`, `Naqel.Manager`, `Naqel.Data` | Planned: plugin contracts, the manager, the job store |
+| `src/Naqel.Plugins` | The plugin contracts: the engine contract and the hooks (net10.0, API list kept, not packed yet) |
+| `src/Naqel.Manager` | The job manager and Naqel's own engine (net10.0, not a package) |
+| `src/Naqel.Data` | Planned: the job store with EF Core |
 | `src/Naqel.Contracts`, `Naqel.Application`, `Naqel.Client` | Planned: the operations and events the UI uses, implemented in-process and over the server's API |
 | `src/Naqel.Presentation`, `Naqel.Desktop` | Planned: the desktop UI's view models, and the desktop app with an Avalonia UI |
 | `src/Naqel.Server`, `Naqel.Web` | Planned: the server (REST API, SignalR), and its Vue.js web UI |
 | `samples/Naqel.Samples` | Console sample against real public servers |
+| `samples/Naqel.ConsoleHost` | Drives the job manager from the console with real links |
+| `tools/Sync-PublicApi.ps1` | Updates the `PublicAPI.Unshipped.txt` lists from the build |
 | `tests/Naqel.Core.Tests` | Tests for both libraries: net10.0 (net8.0 build) and net48 (netstandard2.0 build) |
+| `tests/Naqel.Manager.Tests` | The manager with fake engines, and Naqel's engine with real files |
 | `tests/Naqel.Soak` | Long runs against real servers, net10.0 and net48 |
 | `docs/architecture.md` | The plan for the app: plugin kinds, contracts, engines, phases |
 | `docs/design.md`, `docs/releasing.md` | How the libraries work and why; how to release |
@@ -27,6 +32,8 @@ dotnet test --solution Naqel.slnx
 dotnet test --project tests/Naqel.Core.Tests -f net10.0 -p:NaqelTarget=netstandard2.1
 dotnet pack Naqel.slnx -c Release -o artifacts
 dotnet run --project samples/Naqel.Samples -- all
+dotnet run --project samples/Naqel.ConsoleHost -- <links> --to ./downloads
+pwsh tools/Sync-PublicApi.ps1
 dotnet run --project tests/Naqel.Soak -f net10.0 -- --minutes 2
 ```
 
@@ -57,7 +64,7 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 
 The plan is [docs/architecture.md](docs/architecture.md); its phases, in order:
 
-- [ ] 1. Manager foundations: `Naqel.Plugins` with the engine contract and hooks, `Naqel.Manager` with jobs, queue, routing, job events, completion steps and job data, the Naqel engine adapter, and a console host.
+- [x] 1. Manager foundations: `Naqel.Plugins` with the engine contract and hooks, `Naqel.Manager` with jobs, queue, routing, job events, completion steps and job data, the Naqel engine adapter, and a console host.
 - [ ] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
 - [ ] 3. Plugin host: the catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user.
 - [ ] 4. Contracts, application and data: `Naqel.Contracts` with every operation and event, `Naqel.Application` implementing it, `Naqel.Data` with EF Core and SQLite.

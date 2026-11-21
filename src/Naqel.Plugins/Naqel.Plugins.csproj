@@ -6,6 +6,8 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Description>The contracts for Naqel plugins: transfer engines, and hooks that follow and take part in a job's life.</Description>
 		<PackageTags>naqel;transfer;download;upload;plugin</PackageTags>
+		<!-- A package for plugin authors once the plugin host loads plugins; until then the contracts still change -->
+		<IsPackable>false</IsPackable>
 	</PropertyGroup>
 
 	<ItemGroup>

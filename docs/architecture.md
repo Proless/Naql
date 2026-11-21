@@ -179,18 +179,24 @@ A site plugin says what it delivers before anything is downloaded:
 
 ### 6.3 Engines (in Naqel.Plugins)
 
-The manager drives every engine through one contract, Naqel's own engine included:
+The manager drives every engine through one contract, Naqel's own engine included. Phase 1 built it as follows:
 
 ```csharp
 public interface ITransferEngine : IAsyncDisposable
 {
-    EngineCapabilities Capabilities { get; }          // pause, seeding, file selection, priorities, limits per job and overall, uploads
+    string Name { get; }                              // stable, such as "naqel"; kept with each job to find the engine again
+    EngineCapabilities Capabilities { get; }          // pause, limits per job and overall, deleting data, seeding
     bool CanHandle(Uri reference);                    // magnet:, .torrent files, metalinks...
-    Task StartAsync(CancellationToken cancellationToken);   // start the engine or connect to it, and restore its state
+    Task StartAsync(IEngineHost host, CancellationToken cancellationToken);   // start the engine or connect to it
     Task<IEngineJob> AddAsync(JobRequest request, CancellationToken cancellationToken);
-    Task<IEngineJob?> AttachAsync(string jobId, CancellationToken cancellationToken);   // after a restart
-    IAsyncEnumerable<JobUpdate> WatchAsync(CancellationToken cancellationToken);
+    Task<IEngineJob?> AttachAsync(JobRequest request, string engineJobId, CancellationToken cancellationToken);   // after a restart
     Task SetLimitsAsync(EngineLimits limits, CancellationToken cancellationToken);
+}
+
+public interface IEngineHost
+{
+    void Report(string jobId, JobSnapshot snapshot);  // every change to a job, from any thread
+    IEngineState State { get; }                       // per-job text that survives a restart, such as checkpoints
 }
 
 public interface IEngineJob
@@ -204,7 +210,8 @@ public interface IEngineJob
 }
 ```
 
-- **States:** queued, needs attention, getting metadata, checking, transferring, paused, seeding, completed, failed. Errors use `TransferErrorKind`, so every engine's failures read the same.
+- **States:** queued, preparing, checking, transferring, needs attention, paused, finishing, seeding, completed, failed. The manager owns queued and finishing; engines report the rest. Errors use `TransferErrorKind`, so every engine's failures read the same.
+- **Reports and state:** an engine reports every change to a job through its host, and the manager keeps the latest; only state changes are saved. An engine without a store of its own, such as Naqel's, keeps what it needs to continue a job in the host's engine state, which the manager keeps in the job store. A reattached job comes back paused, and the manager resumes it when its turn comes.
 - **A job is not a transfer:** a torrent is many files and keeps seeding after it completes. The Naqel engine's adapter maps one job to one or more `TransferOperation`s, and its live controls (`SetMaxBytesPerSecond`, `SetMaxConnections`, per-part progress) to the job's.
 - **BitTorrent through MonoTorrent:** the first engine besides Naqel's own. MonoTorrent is MIT-licensed and runs in-process on every platform. The contract is fully async and allows engines in another process or container too, so adapters for programs such as qBittorrent could follow without changing it; such programs, under the GPL, would stay separate programs.
 - **Where files go:** an engine saves into a storage location the manager gives it. For an engine that can only write to its own folders, a completion step moves the result with a Naqel transfer (section 6.4).
@@ -251,7 +258,7 @@ public interface INaqelPlugin
 
 Each phase is a few topic commits with tests, reviewed before the next starts. The desktop app comes first; the server follows, reusing everything below the UI.
 
-1. **Manager foundations.** `Naqel.Plugins` with the engine contract and the hooks; `Naqel.Manager` with jobs, the queue, routing, job events, completion steps and job data; the Naqel engine adapter. Tested with fake plugins and a fake engine, and driven from a small console host.
+1. **Manager foundations (done).** `Naqel.Plugins` with the engine contract and the hooks; `Naqel.Manager` with jobs, the queue, routing, job events, completion steps and job data; the Naqel engine adapter. Tested with fake plugins and a fake engine, and driven from a small console host.
 2. **Storage.** `IStorage` and the generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
 3. **Plugin host.** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages install and load as plugins.
 4. **Contracts, application and data.** `Naqel.Contracts` with every operation and event; `Naqel.Application` implementing it, with the host interfaces; `Naqel.Data` with EF Core and SQLite. The console host moves onto it.

@@ -51,8 +51,10 @@ They run on .NET 8 and later, .NET Framework 4.6.2 and later, and everything net
 | Path | What |
 |---|---|
 | `src/Naqel.Core`, `src/Naqel.Http` | The libraries |
+| `src/Naqel.Plugins`, `src/Naqel.Manager` | The app's plugin contracts and its job manager, with Naqel's own engine |
 | `samples/Naqel.Samples` | A console app that uses the libraries against real servers |
-| `tests` | Unit and property-based tests, and a soak test against real servers |
+| `samples/Naqel.ConsoleHost` | A console app that runs the job manager with real links |
+| `tests` | Unit and property-based tests of the libraries and the manager, and a soak test against real servers |
 | `docs/architecture.md` | The plan for the desktop app, the server and plugins |
 | `docs/design.md` | How the libraries work and why |
 
