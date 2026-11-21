@@ -14,9 +14,7 @@ Naqel (ناقل, "carrier") is becoming a download and upload manager with two i
 | `src/Naqel.Presentation`, `Naqel.Desktop` | Planned: the desktop UI's view models, and the desktop app with an Avalonia UI |
 | `src/Naqel.Server`, `Naqel.Web` | Planned: the server (REST API, SignalR), and its Vue.js web UI |
 | `samples/Naqel.Samples` | Console sample against real public servers |
-| `samples/Naqel.Samples.Dropbox` | Sample service package built only on the public API (not packed) |
 | `tests/Naqel.Core.Tests` | Tests for both libraries: net10.0 (net8.0 build) and net48 (netstandard2.0 build) |
-| `tests/Naqel.Samples.Dropbox.Tests` | The Dropbox sample against a fake Dropbox API |
 | `tests/Naqel.Soak` | Long runs against real servers, net10.0 and net48 |
 | `docs/architecture.md` | The plan for the app: plugin kinds, contracts, engines, phases |
 | `docs/design.md`, `docs/releasing.md` | How the libraries work and why; how to release |
@@ -60,7 +58,7 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 The plan is [docs/architecture.md](docs/architecture.md); its phases, in order:
 
 - [ ] 1. Manager foundations: `Naqel.Plugins` with the engine contract and hooks, `Naqel.Manager` with jobs, queue, routing, job events, completion steps and job data, the Naqel engine adapter, and a console host.
-- [ ] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, with the Dropbox sample moved onto them; storage locations in the manager.
+- [ ] 2. Storage: `IStorage` and generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
 - [ ] 3. Plugin host: the catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user.
 - [ ] 4. Contracts, application and data: `Naqel.Contracts` with every operation and event, `Naqel.Application` implementing it, `Naqel.Data` with EF Core and SQLite.
 - [ ] 5. Desktop: `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux, tray, notifications, link handling and file pickers.
@@ -94,12 +92,3 @@ Decisions, also in section 9 of the plan:
   - [ ] `Naqel.S3`
   - [ ] `Naqel.AzureBlob`
 - [ ] `Naqel.Extensions` for dependency injection and `Microsoft.Extensions.Logging`.
-
-### Dropbox sample
-
-- [ ] Run it against a real Dropbox account; so far it has only run against the fake API.
-- [ ] To make it a real package:
-  - [ ] OAuth sign-in with PKCE
-  - [ ] resolving shared links
-  - [ ] checking Dropbox's `content_hash`
-  - [ ] concurrent upload sessions

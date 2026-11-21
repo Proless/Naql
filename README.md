@@ -52,8 +52,7 @@ They run on .NET 8 and later, .NET Framework 4.6.2 and later, and everything net
 |---|---|
 | `src/Naqel.Core`, `src/Naqel.Http` | The libraries |
 | `samples/Naqel.Samples` | A console app that uses the libraries against real servers |
-| `samples/Naqel.Samples.Dropbox` | A sample plugin-style package for one service, built only on the libraries' public API |
-| `tests` | Unit and property-based tests, the Dropbox sample's tests, and a soak test against real servers |
+| `tests` | Unit and property-based tests, and a soak test against real servers |
 | `docs/architecture.md` | The plan for the desktop app, the server and plugins |
 | `docs/design.md` | How the libraries work and why |
 

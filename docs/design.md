@@ -624,8 +624,6 @@ public sealed class DropboxTarget(HttpTransport transport, string path) : Chunke
 }
 ```
 
-[`samples/Naqel.Samples.Dropbox`](../samples/Naqel.Samples.Dropbox) is this package in full, with tests against a fake Dropbox API: resolvers for `dropbox:` files and folders, downloads from temporary links, uploads through upload sessions, and token refresh. Whole folders copy between `file:` and `dropbox:` in both directions through resolvers alone.
-
 The pieces it uses:
 
 - **`HttpTransport.SendAsync`** sends the package's own API calls with the transport's settings, and **`HttpTransferException.FromResponse`** turns an unsuccessful answer into an error the engine understands, or into the kind the package knows its service means, such as `QuotaExceeded` behind a 403.

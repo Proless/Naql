@@ -4,11 +4,9 @@
     <Project Path="src/Naqel.Http/Naqel.Http.csproj" />
   </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples/Naqel.Samples.Dropbox/Naqel.Samples.Dropbox.csproj" />
     <Project Path="samples/Naqel.Samples/Naqel.Samples.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Naqel.Samples.Dropbox.Tests/Naqel.Samples.Dropbox.Tests.csproj" />
     <Project Path="tests/Naqel.Soak/Naqel.Soak.csproj" />
     <Project Path="tests/Naqel.Core.Tests/Naqel.Core.Tests.csproj" />
   </Folder>

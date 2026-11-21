@@ -166,7 +166,7 @@ public sealed record StorageItem(string Path, string? Id, string Name, bool IsFo
 
 - Optional operations, such as delete, move and server-side copy, are capabilities with their own small interfaces, so a service implements only what it can.
 - Items have an id as well as a path, for services such as Google Drive, which identify files by id, allow two files with the same name in one folder, and let a file sit in several folders. The design is checked against Google Drive before it's settled.
-- `StorageSourceResolver` and `StorageTargetResolver` resolve any storage's references. The Dropbox sample moves onto the storage contract as the proof: it should get smaller, and its tests should still pass.
+- `StorageSourceResolver` and `StorageTargetResolver` resolve any storage's references, so a storage service plugin implements only listing, describing, reading and writing. Tests prove the contract against a fake storage service with ids, paths and case-insensitive names.
 - **Storage locations** in the manager are named, configured storages, such as "Media share" on an SMB server or "Backups" in a Dropbox folder. A local folder is one too, including a network share the OS has mounted.
 
 ### 6.2 Content kinds and choices (in Naqel.Core)
@@ -252,8 +252,8 @@ public interface INaqelPlugin
 Each phase is a few topic commits with tests, reviewed before the next starts. The desktop app comes first; the server follows, reusing everything below the UI.
 
 1. **Manager foundations.** `Naqel.Plugins` with the engine contract and the hooks; `Naqel.Manager` with jobs, the queue, routing, job events, completion steps and job data; the Naqel engine adapter. Tested with fake plugins and a fake engine, and driven from a small console host.
-2. **Storage.** `IStorage` and the generic storage resolvers in `Naqel.Core`, with the Dropbox sample moved onto them; storage locations in the manager.
-3. **Plugin host.** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages and the Dropbox sample install and load as plugins.
+2. **Storage.** `IStorage` and the generic storage resolvers in `Naqel.Core`, tested against a fake storage service; storage locations in the manager.
+3. **Plugin host.** The catalog with NuGet sources, manifests, a load context per plugin, ordering, plugin settings, accounts and asking the user. The protocol packages install and load as plugins.
 4. **Contracts, application and data.** `Naqel.Contracts` with every operation and event; `Naqel.Application` implementing it, with the host interfaces; `Naqel.Data` with EF Core and SQLite. The console host moves onto it.
 5. **Desktop.** `Naqel.Presentation` and `Naqel.Desktop`, standalone, with an Avalonia UI on Windows, macOS and Linux: the queue, job details with per-part progress, live speed and connection controls, adding links with format choices, storage locations, settings, accounts and plugins; tray, notifications, link handling and file pickers.
 6. **Server.** `Naqel.Server` with the REST API, OpenAPI, SignalR, an optional password and API keys; `Naqel.Client`; a Docker image.

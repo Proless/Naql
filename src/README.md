@@ -106,4 +106,4 @@ Settings live in an immutable `TransferOptions` record: `MaxConnections`, `MaxBy
 
 ## Extending
 
-A new protocol implements `ITransferSource` (describe the content, open a range of it) or `ITransferTarget` (write parts, then complete), and gets everything above without more code. A package for a service on HTTP, such as a cloud drive or a file host, builds on `Naqel.Http`; [the Dropbox sample](https://github.com/Proless/Naqel/tree/main/samples/Naqel.Samples.Dropbox) shows one, with resolvers, token refresh and resumable uploads. [The design](https://github.com/Proless/Naqel/blob/main/docs/design.md) explains the contracts and the engine.
+A new protocol implements `ITransferSource` (describe the content, open a range of it) or `ITransferTarget` (write parts, then complete), and gets everything above without more code. A package for a service on HTTP, such as a cloud drive or a file host, builds on `Naqel.Http`, with its resolvers, `BearerTokenHandler` for tokens and `ChunkedUploadTarget` for resumable uploads. [The design](https://github.com/Proless/Naqel/blob/main/docs/design.md) explains the contracts and the engine.
