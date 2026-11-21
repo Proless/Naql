@@ -7,7 +7,8 @@
 	<PropertyGroup>
 		<!--
 			netstandard2.0 serves .NET Framework 4.6.2 and later; netstandard2.1 serves .NET 5 to 7, .NET Core 3.x, Mono and
-			Unity; net8.0 serves .NET 8 and later with no dependencies
+			Unity; net8.0 serves .NET 8 and later with no dependencies. The app's own projects, such as Naqel.Plugins and
+			Naqel.Manager, set their own TargetFrameworks to net10.0 only.
 		-->
 		<TargetFrameworks>netstandard2.0;netstandard2.1;net8.0</TargetFrameworks>
 		<IsNetStandard>$([MSBuild]::GetTargetFrameworkIdentifier('$(TargetFramework)').Equals('.NETStandard'))</IsNetStandard>
@@ -32,8 +33,9 @@
 	<!--
 		The public API is listed in PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt next to each project, so a change to it
 		fails the build until the list says so. New members go to Unshipped; once a version is published, they move to Shipped.
+		A project that isn't a package, such as Naqel.Manager, sets TrackPublicApi to false.
 	-->
-	<ItemGroup>
+	<ItemGroup Condition="'$(TrackPublicApi)' != 'false'">
 		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
 		<AdditionalFiles Include="PublicAPI.Shipped.txt" />
 		<AdditionalFiles Include="PublicAPI.Unshipped.txt" />

@@ -36,7 +36,7 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 
 - **Commits:** the repository is public. Use the repo-local identity (`61435433+Proless@users.noreply.github.com`) and no AI attribution or co-author lines. One commit per topic. Don't push, tag or publish unless asked.
 - **Line endings:** files are CRLF. The Write tool and `sed -i` produce LF, so normalize new or edited files: `perl -pi -e 's/(?<!\r)\n/\r\n/' <files>`.
-- **Public API:** every public member is listed in each library's `PublicAPI.Unshipped.txt`. A change fails the build with RS0016 (missing) or RS0017 (removed) until the list matches.
+- **Public API:** every public member is listed in each package's `PublicAPI.Unshipped.txt`. A change fails the build with RS0016 (missing) or RS0017 (removed) until the list matches; `pwsh tools/Sync-PublicApi.ps1` updates the lists (run it until it reports no changes), then review the diff.
 - **Build rules:** warnings are errors, and the libraries use `AnalysisMode=Recommended`. Every public member needs XML docs.
 - **Targets:** the libraries build for netstandard2.0, netstandard2.1 and net8.0, with the same API. Consumers need C# 9 or later.
 - **Packages:** local I/O with no dependencies stays in `Naqel.Core`. Every remote protocol or service gets its own package built only on the public contracts. Resolvers are core abstractions; there is no registry.
@@ -81,7 +81,6 @@ Decisions, also in section 9 of the plan:
 
 ### Libraries
 
-- [ ] Add the PublicAPI sync script to the repository, for example `tools/Sync-PublicApi.ps1`. Today it only lives in a session scratchpad. It adds RS0016 symbols to `PublicAPI.Unshipped.txt` and removes RS0017 ones.
 - [ ] Update the design doc's roadmap (section 9): drop the URL registry, which resolvers replaced. Answer open question 2 (batches): that's the manager's job.
 - [ ] Optional: add a `WithAdaptiveSplitting` builder method.
 - [ ] Optional: smarter split sizes. Today a split always halves what's left of the slowest part.
