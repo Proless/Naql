@@ -69,6 +69,11 @@ public sealed class FileSource : ITransferSource
         }
     }
 
+    /// <summary>
+    /// What changes whenever the file's content does: its length and the time it was last written.
+    /// </summary>
+    internal static string VersionOf(FileInfo file) => FormattableString.Invariant($"{file.Length}:{file.LastWriteTimeUtc.Ticks}");
+
     private static SourceInfo Describe(FileInfo file)
     {
         if (!file.Exists)
@@ -83,7 +88,7 @@ public sealed class FileSource : ITransferSource
             SupportsRanges = true,
             IsRepeatable = true,
             Identity = file.FullName,
-            Version = FormattableString.Invariant($"{file.Length}:{lastWrite.Ticks}"),
+            Version = VersionOf(file),
             Name = file.Name,
             LastModified = new DateTimeOffset(lastWrite, TimeSpan.Zero)
         };

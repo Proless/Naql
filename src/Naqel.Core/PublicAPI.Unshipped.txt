@@ -421,3 +421,98 @@ static Naqel.TransferClient.Default.get -> Naqel.TransferClient!
 static Naqel.TransferOptions.Default.get -> Naqel.TransferOptions!
 static Naqel.TransferOptions.operator !=(Naqel.TransferOptions? left, Naqel.TransferOptions? right) -> bool
 static Naqel.TransferOptions.operator ==(Naqel.TransferOptions? left, Naqel.TransferOptions? right) -> bool
+Naqel.Storage.IStorage
+Naqel.Storage.IStorageCopy
+Naqel.Storage.IStorageDelete
+Naqel.Storage.IStorageLocator
+Naqel.Storage.IStorageLookup
+Naqel.Storage.IStorageMove
+Naqel.Storage.StorageItem.Path.get -> string!
+Naqel.Storage.StorageItem
+Naqel.Storage.StorageItem.Name.get -> string!
+Naqel.Storage.StorageItem.Path.init -> void
+Naqel.Storage.StorageItem.IsFolder.get -> bool
+override Naqel.Storage.StorageItem.ToString() -> string!
+Naqel.Storage.StorageItem.Name.init -> void
+Naqel.Files.FileStorage
+Naqel.Storage.StorageCapabilities
+override Naqel.Storage.StorageCapabilities.ToString() -> string!
+static Naqel.Storage.StorageCapabilities.operator !=(Naqel.Storage.StorageCapabilities? left, Naqel.Storage.StorageCapabilities? right) -> bool
+Naqel.Storage.StorageItem.IsFolder.init -> void
+static Naqel.Storage.StorageItem.operator !=(Naqel.Storage.StorageItem? left, Naqel.Storage.StorageItem? right) -> bool
+static Naqel.Storage.StorageItem.operator ==(Naqel.Storage.StorageItem? left, Naqel.Storage.StorageItem? right) -> bool
+override Naqel.Storage.StorageItem.GetHashCode() -> int
+static Naqel.Storage.StorageCapabilities.operator ==(Naqel.Storage.StorageCapabilities? left, Naqel.Storage.StorageCapabilities? right) -> bool
+override Naqel.Storage.StorageCapabilities.GetHashCode() -> int
+override Naqel.Storage.StorageCapabilities.Equals(object? obj) -> bool
+Naqel.Storage.StorageTarget
+Naqel.Storage.WriteMode
+Naqel.Storage.WriteMode.Overwrite = 0 -> Naqel.Storage.WriteMode
+Naqel.Storage.WriteMode.KeepBoth = 2 -> Naqel.Storage.WriteMode
+override Naqel.Storage.StorageItem.Equals(object? obj) -> bool
+Naqel.Storage.StorageItem.Equals(Naqel.Storage.StorageItem? other) -> bool
+Naqel.Storage.StorageItem.<Clone>$() -> Naqel.Storage.StorageItem!
+Naqel.Storage.StorageItem.Deconstruct(out string! Path, out string! Name, out bool IsFolder) -> void
+Naqel.Storage.StorageSourceResolver
+Naqel.Storage.StorageCapabilities.Equals(Naqel.Storage.StorageCapabilities? other) -> bool
+Naqel.Storage.StorageCapabilities.<Clone>$() -> Naqel.Storage.StorageCapabilities!
+Naqel.Storage.StorageCapabilities.StorageCapabilities() -> void
+Naqel.Storage.WriteMode.Fail = 1 -> Naqel.Storage.WriteMode
+Naqel.Storage.StorageTargetResolver
+Naqel.Storage.StorageTargetResolver.StorageTargetResolver(System.Uri! root, Naqel.Storage.IStorage! storage, Naqel.Storage.WriteMode mode = Naqel.Storage.WriteMode.Overwrite) -> void
+Naqel.Storage.StorageTargetResolver.Root.get -> System.Uri!
+Naqel.Storage.StorageTargetResolver.Storage.get -> Naqel.Storage.IStorage!
+Naqel.Storage.StorageTargetResolver.Mode.get -> Naqel.Storage.WriteMode
+Naqel.Storage.StorageTargetResolver.CanResolve(System.Uri! destination) -> bool
+Naqel.Files.FileStorage.FileStorage(string! root) -> void
+Naqel.Files.FileStorage.Root.get -> string!
+Naqel.Storage.IStorage.ListAsync(string! folder, bool recursive, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naqel.Storage.StorageItem!>!
+Naqel.Files.FileStorage.Capabilities.get -> Naqel.Storage.StorageCapabilities!
+Naqel.Storage.IStorage.OpenRead(Naqel.Storage.StorageItem! file) -> Naqel.ITransferSource!
+Naqel.Storage.IStorage.OpenWrite(string! path, Naqel.Storage.WriteMode mode, Naqel.SourceInfo? info) -> Naqel.ITransferTarget!
+Naqel.Storage.IStorage.GetAsync(string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem?>!
+Naqel.Files.FileStorage.GetAsync(string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem?>!
+Naqel.Storage.IStorage.Capabilities.get -> Naqel.Storage.StorageCapabilities!
+Naqel.Storage.StorageTargetResolver.ResolveAsync(System.Uri! destination, string! relativePath, Naqel.SourceInfo? info, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Naqel.ITransferTarget!>
+Naqel.Storage.IStorageLookup.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem?>!
+Naqel.Storage.IStorageLocator.TryLocate(System.Uri! reference, out Naqel.Storage.IStorage? storage, out string? path) -> bool
+Naqel.Storage.IStorageDelete.DeleteAsync(Naqel.Storage.StorageItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Storage.IStorageCopy.CopyAsync(Naqel.Storage.StorageItem! file, string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem!>!
+Naqel.Storage.IStorageMove.MoveAsync(Naqel.Storage.StorageItem! item, string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem!>!
+Naqel.Storage.StorageCapabilities.IgnoresCase.get -> bool
+Naqel.Storage.StorageCapabilities.Ids.init -> void
+Naqel.Storage.StorageCapabilities.DuplicateNames.get -> bool
+Naqel.Storage.StorageCapabilities.DuplicateNames.init -> void
+Naqel.Storage.StorageCapabilities.Ids.get -> bool
+Naqel.Storage.StorageCapabilities.IgnoresCase.init -> void
+Naqel.Storage.StorageTargetResolver.TryLocate(System.Uri! reference, out Naqel.Storage.IStorage? storage, out string? path) -> bool
+Naqel.Storage.StorageTarget.Storage.get -> Naqel.Storage.IStorage!
+Naqel.Storage.StorageTarget.Path.get -> string!
+Naqel.Storage.StorageTarget.Target.get -> Naqel.ITransferTarget!
+Naqel.Storage.StorageTarget.Capabilities.get -> Naqel.TargetCapabilities!
+Naqel.Storage.StorageTarget.StorageTarget(Naqel.Storage.IStorage! storage, string! path, Naqel.ITransferTarget! target) -> void
+Naqel.Storage.StorageItem.StorageItem(string! Path, string! Name, bool IsFolder) -> void
+Naqel.Storage.StorageItem.Id.get -> string?
+Naqel.Storage.StorageItem.Id.init -> void
+Naqel.Storage.StorageTarget.OpenAsync(Naqel.TargetOpenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.ITargetSession!>!
+Naqel.Storage.StorageItem.Version.get -> string?
+Naqel.Storage.StorageItem.Version.init -> void
+Naqel.Storage.StorageItem.Size.get -> long?
+Naqel.Storage.StorageItem.Hashes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Naqel.Storage.StorageItem.Modified.init -> void
+Naqel.Files.FileStorage.ListAsync(string! folder, bool recursive, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naqel.Storage.StorageItem!>!
+Naqel.Storage.StorageSourceResolver.StorageSourceResolver(System.Uri! root, Naqel.Storage.IStorage! storage, bool recursive = true) -> void
+Naqel.Storage.StorageSourceResolver.Storage.get -> Naqel.Storage.IStorage!
+Naqel.Storage.StorageSourceResolver.Root.get -> System.Uri!
+Naqel.Storage.StorageSourceResolver.Recursive.get -> bool
+Naqel.Storage.StorageSourceResolver.CanResolve(System.Uri! reference) -> bool
+Naqel.Storage.StorageItem.Size.init -> void
+Naqel.Storage.StorageItem.Hashes.init -> void
+Naqel.Storage.StorageItem.Modified.get -> System.DateTimeOffset?
+Naqel.Storage.StorageSourceResolver.TryLocate(System.Uri! reference, out Naqel.Storage.IStorage? storage, out string? path) -> bool
+Naqel.Files.FileStorage.OpenRead(Naqel.Storage.StorageItem! file) -> Naqel.ITransferSource!
+Naqel.Files.FileStorage.OpenWrite(string! path, Naqel.Storage.WriteMode mode, Naqel.SourceInfo? info) -> Naqel.ITransferTarget!
+Naqel.Storage.StorageSourceResolver.ResolveAsync(System.Uri! reference, Naqel.ResolveContext! context, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Naqel.Resolved!>!
+Naqel.Files.FileStorage.DeleteAsync(Naqel.Storage.StorageItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Files.FileStorage.CopyAsync(Naqel.Storage.StorageItem! file, string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem!>!
+Naqel.Files.FileStorage.MoveAsync(Naqel.Storage.StorageItem! item, string! path, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Storage.StorageItem!>!

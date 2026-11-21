@@ -265,6 +265,36 @@ public interface ITargetResolver
 - **Build file references from paths.** `new Uri(path)` for a local path keeps characters such as `#`, `%` and spaces in the file name, and `LocalPath` gives the path back.
 - **References are compared as `Uri` normalizes them.** `Resolve` finds loops by `AbsoluteUri`, so references that differ only in the case of their scheme or host count as the same reference.
 
+### 4.6 Storages
+
+A storage is a place where files live and can be browsed: a local folder, a network share, an SFTP server, a cloud drive; one account on one service. Where a resolver only answers "what does this reference stand for", a storage can also list, describe and change what's there, which a manager needs to browse remote folders and to save into them. It lives in the `Naqel.Storage` namespace:
+
+```csharp
+public interface IStorage
+{
+    StorageCapabilities Capabilities { get; }                          // ignores case, has ids, allows duplicate names
+    Task<StorageItem?> GetAsync(string path, CancellationToken cancellationToken);
+    IAsyncEnumerable<StorageItem> ListAsync(string folder, bool recursive, CancellationToken cancellationToken);
+    ITransferSource OpenRead(StorageItem file);
+    ITransferTarget OpenWrite(string path, WriteMode mode, SourceInfo? info);   // overwrite, fail or keep both
+}
+
+public sealed record StorageItem(string Path, string Name, bool IsFolder)
+{
+    public string? Id { get; init; }                                   // the storage's own id, which survives a move
+    public long? Size { get; init; }
+    public DateTimeOffset? Modified { get; init; }
+    public string? Version { get; init; }                              // such as an ETag or a revision
+    public IReadOnlyDictionary<string, string> Hashes { get; init; }   // by the storage's own name for each
+}
+```
+
+- **Paths** are relative to the storage's root, in the form `RelativePath` describes, so they can't leave it.
+- **Optional operations** are interfaces of their own, so a storage implements only what it can: `IStorageDelete`, `IStorageMove`, `IStorageCopy` (a copy that doesn't move bytes through the app) and `IStorageLookup` (finding an item by id).
+- **One resolver pair for every storage.** `StorageSourceResolver` and `StorageTargetResolver` map the references under a root URI, such as `dropbox:/` or `location://media/`, to paths in a storage, so a storage package implements only listing, describing, reading and writing. A folder resolves to its files with their paths inside it, and a single file goes into a destination folder under its own name. Their targets are `StorageTarget`s, which say which storage and path they write, so what a job wrote can be found again, such as to delete it.
+- **Google Drive's model.** Items have ids as well as paths, because some services identify files by id and allow two files with the same name in one folder. A path then doesn't always name one item; `GetAsync` returns one of them, `IStorageLookup` finds each by id, and `StorageSourceResolver` numbers the later ones of a folder, as in `a (2).txt`, so each keeps a place of its own wherever the folder goes.
+- **Local folders.** `FileStorage` in `Naqel.Files` is a local folder as a storage, with delete, move and copy. It ignores case on Windows and macOS, keeps it on Linux, leaves out unfinished transfers and checkpoints, and writes names that are safe on every OS.
+
 ## 5. The engine
 
 ### 5.1 How a transfer runs
@@ -655,7 +685,7 @@ There's no `ILogger` in the core: it would add a package dependency, which secti
 
 | Package | Contents | Dependencies |
 |---|---|---|
-| `Naqel.Core` | The contracts, the engine, options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naqel.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naqel.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
+| `Naqel.Core` | The contracts, the engine, storages (`Naqel.Storage`, with `FileStorage` in `Naqel.Files`), options, errors, checkpoints, checksums, `BandwidthLimiter`, `Naqel.Files` (`FileSource`, `FileTarget`, `FileCheckpointStore`, `FileSourceResolver`, `FileTargetResolver`) and `Naqel.Streams` (`StreamSource`, `StreamTarget`) | none on net8.0; see [7.2](#72-target-frameworks) |
 | `Naqel.Http` | `HttpSource` (GET with ranges, probing, `If-Range`, the name from `Content-Disposition`, the checksum from `Repr-Digest`, `Accept-Encoding: identity` on every request so the bytes are the content's, and an `Unsupported` error for a response encoded anyway), `HttpTarget` (PUT, POST or a multipart form in one request), `HttpTransport` (the `HttpClient`, headers, a request configurator for authentication), and for packages for particular services `HttpSourceOptions`, `BearerTokenHandler`, `ChunkedUploadTarget`, `HttpSourceResolver` and `HttpTargetResolver` | `Naqel` |
 | Later | `Naqel.Tus`, `Naqel.Sftp`, `Naqel.Ftp`, `Naqel.S3`, `Naqel.AzureBlob` | `Naqel.Core` and that protocol's client library |
 
