@@ -1,0 +1,226 @@
+#nullable enable
+Naqel.Plugins.IJobObserver
+Naqel.Plugins.IEngineHost
+Naqel.Plugins.ICompletionContext
+Naqel.Plugins.ICompletionStep
+Naqel.Plugins.IEngineState
+Naqel.Plugins.EngineCapabilities
+override Naqel.Plugins.EngineCapabilities.ToString() -> string!
+Naqel.Plugins.JobEventKind
+static Naqel.Plugins.EngineCapabilities.operator !=(Naqel.Plugins.EngineCapabilities? left, Naqel.Plugins.EngineCapabilities? right) -> bool
+static Naqel.Plugins.EngineCapabilities.operator ==(Naqel.Plugins.EngineCapabilities? left, Naqel.Plugins.EngineCapabilities? right) -> bool
+override Naqel.Plugins.EngineCapabilities.GetHashCode() -> int
+override Naqel.Plugins.EngineCapabilities.Equals(object? obj) -> bool
+Naqel.Plugins.EngineCapabilities.Equals(Naqel.Plugins.EngineCapabilities? other) -> bool
+Naqel.Plugins.EngineCapabilities.<Clone>$() -> Naqel.Plugins.EngineCapabilities!
+Naqel.Plugins.JobEventKind.StateChanged = 2 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.EngineCapabilities.EngineCapabilities() -> void
+Naqel.Plugins.JobEventKind.Failed = 4 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.JobEventKind.Removed = 5 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.JobEventKind.DataChanged = 6 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.JobEventKind.Completed = 3 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.JobEventKind.Started = 1 -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.IEngineJob
+Naqel.Plugins.EngineLimits
+Naqel.Plugins.JobError.Kind.get -> Naqel.TransferErrorKind
+Naqel.Plugins.JobState.Queued = 0 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobState.Preparing = 1 -> Naqel.Plugins.JobState
+override Naqel.Plugins.EngineLimits.ToString() -> string!
+static Naqel.Plugins.EngineLimits.operator !=(Naqel.Plugins.EngineLimits? left, Naqel.Plugins.EngineLimits? right) -> bool
+Naqel.Plugins.JobState.Failed = 9 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobEventKind.Added = 0 -> Naqel.Plugins.JobEventKind
+static Naqel.Plugins.EngineLimits.operator ==(Naqel.Plugins.EngineLimits? left, Naqel.Plugins.EngineLimits? right) -> bool
+Naqel.Plugins.JobError
+override Naqel.Plugins.EngineLimits.GetHashCode() -> int
+Naqel.Plugins.JobError.Kind.init -> void
+override Naqel.Plugins.EngineLimits.Equals(object? obj) -> bool
+override Naqel.Plugins.JobError.ToString() -> string!
+Naqel.Plugins.JobState
+Naqel.Plugins.JobState.Transferring = 3 -> Naqel.Plugins.JobState
+Naqel.Plugins.EngineLimits.Equals(Naqel.Plugins.EngineLimits? other) -> bool
+Naqel.Plugins.ITransferEngine
+static Naqel.Plugins.JobError.operator !=(Naqel.Plugins.JobError? left, Naqel.Plugins.JobError? right) -> bool
+Naqel.Plugins.EngineLimits.<Clone>$() -> Naqel.Plugins.EngineLimits!
+Naqel.Plugins.EngineLimits.EngineLimits() -> void
+static Naqel.Plugins.JobError.operator ==(Naqel.Plugins.JobError? left, Naqel.Plugins.JobError? right) -> bool
+override Naqel.Plugins.JobError.GetHashCode() -> int
+override Naqel.Plugins.JobError.Equals(object? obj) -> bool
+Naqel.Plugins.JobError.Equals(Naqel.Plugins.JobError? other) -> bool
+Naqel.Plugins.JobError.<Clone>$() -> Naqel.Plugins.JobError!
+Naqel.Plugins.JobRequest.JobId.get -> string!
+Naqel.Plugins.JobRequest.JobId.init -> void
+Naqel.Plugins.JobError.Deconstruct(out Naqel.TransferErrorKind Kind, out string! Message, out bool IsTransient) -> void
+Naqel.Plugins.JobState.Checking = 2 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobState.Finishing = 6 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobState.NeedsAttention = 4 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobRequest.Reference.get -> System.Uri!
+Naqel.Plugins.JobRequest.Destination.get -> System.Uri!
+Naqel.Plugins.JobRequest.Reference.init -> void
+Naqel.Plugins.JobRequest.Destination.init -> void
+Naqel.Plugins.JobRequest
+override Naqel.Plugins.JobRequest.ToString() -> string!
+Naqel.Plugins.JobError.Message.get -> string!
+Naqel.Plugins.JobError.Message.init -> void
+static Naqel.Plugins.JobRequest.operator !=(Naqel.Plugins.JobRequest? left, Naqel.Plugins.JobRequest? right) -> bool
+Naqel.Plugins.JobFile
+Naqel.Plugins.JobError.IsTransient.get -> bool
+Naqel.Plugins.JobError.IsTransient.init -> void
+static Naqel.Plugins.JobRequest.operator ==(Naqel.Plugins.JobRequest? left, Naqel.Plugins.JobRequest? right) -> bool
+override Naqel.Plugins.JobRequest.GetHashCode() -> int
+override Naqel.Plugins.JobRequest.Equals(object? obj) -> bool
+Naqel.Plugins.JobRequest.Equals(Naqel.Plugins.JobRequest? other) -> bool
+Naqel.Plugins.JobLimits
+Naqel.Plugins.JobRequest.<Clone>$() -> Naqel.Plugins.JobRequest!
+override Naqel.Plugins.JobLimits.ToString() -> string!
+override Naqel.Plugins.JobFile.ToString() -> string!
+static Naqel.Plugins.JobLimits.operator !=(Naqel.Plugins.JobLimits? left, Naqel.Plugins.JobLimits? right) -> bool
+Naqel.Plugins.JobFile.Length.get -> long?
+static Naqel.Plugins.JobFile.operator !=(Naqel.Plugins.JobFile? left, Naqel.Plugins.JobFile? right) -> bool
+static Naqel.Plugins.JobLimits.operator ==(Naqel.Plugins.JobLimits? left, Naqel.Plugins.JobLimits? right) -> bool
+Naqel.Plugins.JobState.Seeding = 7 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobFile.Length.init -> void
+Naqel.Plugins.JobState.Completed = 8 -> Naqel.Plugins.JobState
+static Naqel.Plugins.JobFile.operator ==(Naqel.Plugins.JobFile? left, Naqel.Plugins.JobFile? right) -> bool
+override Naqel.Plugins.JobLimits.GetHashCode() -> int
+override Naqel.Plugins.JobFile.GetHashCode() -> int
+override Naqel.Plugins.JobFile.Equals(object? obj) -> bool
+Naqel.Plugins.JobFile.Name.get -> string!
+Naqel.Plugins.JobState.Paused = 5 -> Naqel.Plugins.JobState
+Naqel.Plugins.JobFile.Name.init -> void
+Naqel.Plugins.JobFile.Path.get -> string!
+Naqel.Plugins.JobFile.Path.init -> void
+Naqel.Plugins.JobRequest.Deconstruct(out string! JobId, out System.Uri! Reference, out System.Uri! Destination) -> void
+Naqel.Plugins.JobFile.Transferred.get -> long
+override Naqel.Plugins.JobLimits.Equals(object? obj) -> bool
+Naqel.Plugins.JobFile.Transferred.init -> void
+Naqel.Plugins.JobLimits.Equals(Naqel.Plugins.JobLimits? other) -> bool
+Naqel.Plugins.JobLimits.<Clone>$() -> Naqel.Plugins.JobLimits!
+Naqel.Plugins.JobLimits.JobLimits() -> void
+Naqel.Plugins.JobFile.Location.get -> string?
+Naqel.Plugins.JobFile.Equals(Naqel.Plugins.JobFile? other) -> bool
+Naqel.Plugins.JobFile.<Clone>$() -> Naqel.Plugins.JobFile!
+Naqel.Plugins.JobFile.Deconstruct(out string! Path, out string! Name, out long? Length, out long Transferred, out bool Done, out string? Location) -> void
+Naqel.Plugins.JobFile.Done.get -> bool
+Naqel.Plugins.JobFile.Done.init -> void
+Naqel.Plugins.JobFile.Location.init -> void
+Naqel.Plugins.JobEvent.Kind.get -> Naqel.Plugins.JobEventKind
+Naqel.Plugins.JobEvent.Kind.init -> void
+Naqel.Plugins.JobEvent
+override Naqel.Plugins.JobEvent.ToString() -> string!
+Naqel.Plugins.JobEvent.Job.get -> Naqel.Plugins.JobInfo!
+static Naqel.Plugins.JobEvent.operator !=(Naqel.Plugins.JobEvent? left, Naqel.Plugins.JobEvent? right) -> bool
+Naqel.Plugins.JobEvent.Job.init -> void
+static Naqel.Plugins.JobEvent.operator ==(Naqel.Plugins.JobEvent? left, Naqel.Plugins.JobEvent? right) -> bool
+override Naqel.Plugins.JobEvent.GetHashCode() -> int
+Naqel.Plugins.JobEvent.Time.get -> System.DateTimeOffset
+override Naqel.Plugins.JobEvent.Equals(object? obj) -> bool
+Naqel.Plugins.JobEvent.Time.init -> void
+Naqel.Plugins.JobInfo
+override Naqel.Plugins.JobInfo.ToString() -> string!
+Naqel.Plugins.JobEvent.Equals(Naqel.Plugins.JobEvent? other) -> bool
+Naqel.Plugins.JobEvent.<Clone>$() -> Naqel.Plugins.JobEvent!
+Naqel.Plugins.JobEvent.Deconstruct(out Naqel.Plugins.JobEventKind Kind, out Naqel.Plugins.JobInfo! Job, out System.DateTimeOffset Time) -> void
+static Naqel.Plugins.JobInfo.operator !=(Naqel.Plugins.JobInfo? left, Naqel.Plugins.JobInfo? right) -> bool
+static Naqel.Plugins.JobInfo.operator ==(Naqel.Plugins.JobInfo? left, Naqel.Plugins.JobInfo? right) -> bool
+override Naqel.Plugins.JobInfo.GetHashCode() -> int
+override Naqel.Plugins.JobInfo.Equals(object? obj) -> bool
+Naqel.Plugins.JobSnapshot
+Naqel.Plugins.JobInfo.Equals(Naqel.Plugins.JobInfo? other) -> bool
+override Naqel.Plugins.JobSnapshot.ToString() -> string!
+static Naqel.Plugins.JobSnapshot.operator !=(Naqel.Plugins.JobSnapshot? left, Naqel.Plugins.JobSnapshot? right) -> bool
+static Naqel.Plugins.JobSnapshot.operator ==(Naqel.Plugins.JobSnapshot? left, Naqel.Plugins.JobSnapshot? right) -> bool
+override Naqel.Plugins.JobSnapshot.GetHashCode() -> int
+Naqel.Plugins.ICompletionContext.SetData(string! key, string? value) -> void
+Naqel.Plugins.JobInfo.<Clone>$() -> Naqel.Plugins.JobInfo!
+Naqel.Plugins.ICompletionStep.RunAsync(Naqel.Plugins.ICompletionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.JobInfo.JobInfo() -> void
+override Naqel.Plugins.JobSnapshot.Equals(object? obj) -> bool
+Naqel.Plugins.JobSnapshot.Equals(Naqel.Plugins.JobSnapshot? other) -> bool
+Naqel.Plugins.JobSnapshot.<Clone>$() -> Naqel.Plugins.JobSnapshot!
+Naqel.Plugins.ICompletionStep.Name.get -> string!
+Naqel.Plugins.JobSnapshot.JobSnapshot() -> void
+Naqel.Plugins.ICompletionContext.Job.get -> Naqel.Plugins.JobInfo!
+Naqel.Plugins.IEngineHost.State.get -> Naqel.Plugins.IEngineState!
+Naqel.Plugins.IEngineHost.Report(string! jobId, Naqel.Plugins.JobSnapshot! snapshot) -> void
+Naqel.Plugins.IEngineJob.Snapshot.get -> Naqel.Plugins.JobSnapshot!
+Naqel.Plugins.IEngineJob.ResumeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.IEngineJob.SetLimitsAsync(Naqel.Plugins.JobLimits! limits, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.IEngineJob.Id.get -> string!
+Naqel.Plugins.IEngineState.GetAsync(string! jobId, string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Naqel.Plugins.IEngineJob.PauseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.IEngineJob.RemoveAsync(bool deleteData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.ITransferEngine.Name.get -> string!
+Naqel.Plugins.ITransferEngine.CanHandle(System.Uri! reference) -> bool
+Naqel.Plugins.ITransferEngine.StartAsync(Naqel.Plugins.IEngineHost! host, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.IEngineState.SetAsync(string! jobId, string! key, string? value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.ITransferEngine.Capabilities.get -> Naqel.Plugins.EngineCapabilities!
+Naqel.Plugins.IJobObserver.OnEventAsync(Naqel.Plugins.JobEvent! jobEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Naqel.Plugins.EngineLimits.None.get -> Naqel.Plugins.EngineLimits!
+Naqel.Plugins.ITransferEngine.AddAsync(Naqel.Plugins.JobRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Plugins.IEngineJob!>!
+Naqel.Plugins.ITransferEngine.AttachAsync(Naqel.Plugins.JobRequest! request, string! engineJobId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Naqel.Plugins.IEngineJob?>!
+Naqel.Plugins.EngineLimits.MaxBytesPerSecond.get -> long
+Naqel.Plugins.EngineCapabilities.Pause.get -> bool
+Naqel.Plugins.ITransferEngine.SetLimitsAsync(Naqel.Plugins.EngineLimits! limits, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Naqel.Plugins.EngineCapabilities.JobLimits.get -> bool
+Naqel.Plugins.JobLimits.MaxBytesPerSecond.get -> long
+Naqel.Plugins.EngineCapabilities.Pause.init -> void
+static Naqel.Plugins.JobLimits.None.get -> Naqel.Plugins.JobLimits!
+Naqel.Plugins.EngineCapabilities.EngineLimits.init -> void
+Naqel.Plugins.JobSnapshot.State.get -> Naqel.Plugins.JobState
+Naqel.Plugins.JobError.JobError(Naqel.TransferErrorKind Kind, string! Message, bool IsTransient) -> void
+Naqel.Plugins.JobFile.JobFile(string! Path, string! Name, long? Length, long Transferred, bool Done, string? Location = null) -> void
+Naqel.Plugins.JobSnapshot.Transferred.get -> long
+Naqel.Plugins.EngineCapabilities.JobLimits.init -> void
+static Naqel.Plugins.JobSnapshot.Empty.get -> Naqel.Plugins.JobSnapshot!
+Naqel.Plugins.EngineCapabilities.EngineLimits.get -> bool
+Naqel.Plugins.JobSnapshot.Transferred.init -> void
+Naqel.Plugins.JobSnapshot.State.init -> void
+Naqel.Plugins.EngineCapabilities.Seeding.get -> bool
+Naqel.Plugins.EngineCapabilities.DeleteData.get -> bool
+Naqel.Plugins.EngineCapabilities.Seeding.init -> void
+Naqel.Plugins.JobEvent.JobEvent(Naqel.Plugins.JobEventKind Kind, Naqel.Plugins.JobInfo! Job, System.DateTimeOffset Time) -> void
+Naqel.Plugins.JobRequest.JobRequest(string! JobId, System.Uri! Reference, System.Uri! Destination) -> void
+Naqel.Plugins.JobSnapshot.Total.init -> void
+Naqel.Plugins.JobSnapshot.Rate.init -> void
+Naqel.Plugins.JobSnapshot.ContentComplete.get -> bool
+Naqel.Plugins.JobEvent.PreviousState.init -> void
+Naqel.Plugins.JobSnapshot.Files.get -> System.Collections.Generic.IReadOnlyList<Naqel.Plugins.JobFile!>!
+Naqel.Plugins.JobSnapshot.Files.init -> void
+Naqel.Plugins.JobInfo.Id.init -> void
+Naqel.Plugins.JobEvent.PreviousState.get -> Naqel.Plugins.JobState?
+Naqel.Plugins.JobRequest.Limits.get -> Naqel.Plugins.JobLimits!
+Naqel.Plugins.JobInfo.Reference.get -> System.Uri!
+Naqel.Plugins.EngineCapabilities.DeleteData.init -> void
+Naqel.Plugins.JobSnapshot.Total.get -> long?
+Naqel.Plugins.JobRequest.Limits.init -> void
+Naqel.Plugins.JobInfo.Reference.init -> void
+Naqel.Plugins.JobInfo.Id.get -> string!
+Naqel.Plugins.JobInfo.Destination.init -> void
+Naqel.Plugins.JobSnapshot.Rate.get -> double
+Naqel.Plugins.JobInfo.Destination.get -> System.Uri!
+Naqel.Plugins.JobSnapshot.Error.get -> Naqel.Plugins.JobError?
+Naqel.Plugins.JobInfo.Engine.get -> string!
+Naqel.Plugins.JobSnapshot.Error.init -> void
+Naqel.Plugins.JobSnapshot.ContentComplete.init -> void
+Naqel.Plugins.JobInfo.Engine.init -> void
+Naqel.Plugins.JobInfo.State.init -> void
+Naqel.Plugins.JobInfo.Progress.get -> Naqel.Plugins.JobSnapshot!
+Naqel.Plugins.JobInfo.Progress.init -> void
+Naqel.Plugins.JobInfo.Limits.get -> Naqel.Plugins.JobLimits!
+Naqel.Plugins.JobInfo.Limits.init -> void
+Naqel.Plugins.JobInfo.Labels.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Naqel.Plugins.JobInfo.Labels.init -> void
+Naqel.Plugins.JobInfo.Data.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Naqel.Plugins.JobInfo.State.get -> Naqel.Plugins.JobState
+Naqel.Plugins.JobInfo.Added.get -> System.DateTimeOffset
+Naqel.Plugins.JobLimits.MaxBytesPerSecond.init -> void
+Naqel.Plugins.JobInfo.Added.init -> void
+Naqel.Plugins.JobInfo.Completed.get -> System.DateTimeOffset?
+Naqel.Plugins.JobInfo.Data.init -> void
+Naqel.Plugins.JobInfo.Completed.init -> void
+static Naqel.Plugins.JobError.From(System.Exception! exception) -> Naqel.Plugins.JobError!
+Naqel.Plugins.EngineLimits.MaxBytesPerSecond.init -> void
+Naqel.Plugins.JobLimits.MaxConnections.get -> int?
+Naqel.Plugins.JobLimits.MaxConnections.init -> void
+Naqel.Plugins.JobInfo.Error.get -> Naqel.Plugins.JobError?
+Naqel.Plugins.JobInfo.Error.init -> void

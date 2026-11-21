@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Naqel.Core/Naqel.Core.csproj" />
     <Project Path="src/Naqel.Http/Naqel.Http.csproj" />
+    <Project Path="src/Naqel.Plugins/Naqel.Plugins.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Naqel.Samples/Naqel.Samples.csproj" />

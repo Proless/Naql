@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- The contracts plugins implement for the Naqel app. Plugins run in the app, so only the app's .NET version is needed -->
+	<PropertyGroup>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Description>The contracts for Naqel plugins: transfer engines, and hooks that follow and take part in a job's life.</Description>
+		<PackageTags>naqel;transfer;download;upload;plugin</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Naqel.Core\Naqel.Core.csproj" />
+	</ItemGroup>
+
+</Project>
