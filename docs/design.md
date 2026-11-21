@@ -620,16 +620,18 @@ public sealed class DropboxTarget(HttpTransport transport, string path) : Chunke
         => OffsetFromErrorAsync(upload.Token!, ct);                                  // Dropbox reports the offset in an error
 
     protected override async Task CompleteAsync(ChunkedUpload upload, CancellationToken ct)
-        => upload.Metadata["id"] = await FinishAsync(upload.Token!, path, ct);       // upload_session/finish
+        => upload.Metadata["id"] = await FinishAsync(upload.Token!, path, upload.Acknowledged, ct);   // upload_session/finish
 }
 ```
+
+[`samples/Naql.Samples.Dropbox`](../samples/Naql.Samples.Dropbox) is this package in full, with tests against a fake Dropbox API: resolvers for `dropbox:` files and folders, downloads from temporary links, uploads through upload sessions, and token refresh. Whole folders copy between `file:` and `dropbox:` in both directions through resolvers alone.
 
 The pieces it uses:
 
 - **`HttpTransport.SendAsync`** sends the package's own API calls with the transport's settings, and **`HttpTransferException.FromResponse`** turns an unsuccessful answer into an error the engine understands, or into the kind the package knows its service means, such as `QuotaExceeded` behind a 403.
 - **`HttpSourceOptions`** gives a download a stable `Identity` (such as `dropbox:id:abc`, so a checkpoint fits a later, different signed link), a `Name`, and a `Refresh` that gets a new link when one expired.
-- **`BearerTokenHandler`** adds OAuth tokens and refreshes them once on a 401: a request without a body is sent again at once, and an upload fails as a transient `Unauthorized`, so the transfer's retry sends it with the fresh token.
-- **`ChunkedUploadTarget`** sends the content in chunks, in order, and sends again what the server didn't take. It's an `IAcknowledgingSession`, so a failed transfer, or a later one from a checkpoint, continues from what the server acknowledged; a session the service forgot starts the upload over.
+- **`BearerTokenHandler`** adds OAuth tokens and refreshes them once on a 401: a request without a body, or with one in memory such as an API call's JSON, is sent again at once, and a streamed upload fails as a transient `Unauthorized`, so the transfer's retry sends it with the fresh token.
+- **`ChunkedUploadTarget`** sends the content in chunks, in order, and sends again what the server didn't take. It's an `IAcknowledgingSession`, so a failed transfer, or a later one from a checkpoint, continues from what the server acknowledged; a session the service forgot starts the upload over. `ChunkedUpload.Acknowledged` tells the steps how far the server is, such as the length a finish step needs. Content without a version can't continue a session after a failure, since its bytes might differ from what the server has; it starts a new one.
 - **Resolvers.** The package's `ISourceResolver` turns its share links into sources, or into further references; `HttpSourceResolver` resolves plain links, and goes last. `HttpTargetResolver` uploads into WebDAV-like folder URLs.
 
 ### 6.5 Checksums

@@ -4,9 +4,11 @@
     <Project Path="src/Naql.Http/Naql.Http.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/Naql.Samples.Dropbox/Naql.Samples.Dropbox.csproj" />
     <Project Path="samples/Naql.Samples/Naql.Samples.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Naql.Samples.Dropbox.Tests/Naql.Samples.Dropbox.Tests.csproj" />
     <Project Path="tests/Naql.Soak/Naql.Soak.csproj" />
     <Project Path="tests/Naql.Tests/Naql.Tests.csproj" />
   </Folder>
