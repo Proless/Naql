@@ -107,7 +107,7 @@ public sealed class PluginHostTests : IAsyncDisposable
         Assert.Same(typeof(ISourceResolver).Assembly, resolver.GetType().GetInterface(nameof(ISourceResolver))!.Assembly);
         Assert.Equal("hello", File.ReadAllText(Path.Combine(_temp, "out", "world.txt")));
         var events = Path.Combine(Data, "Naqel.TestPlugin", "events.txt");
-        await EventuallyAsync(() => File.Exists(events) && File.ReadAllText(events).Contains("Completed", StringComparison.Ordinal));
+        await EventuallyAsync(() => ReadShared(events).Contains("Completed", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -188,6 +188,21 @@ public sealed class PluginHostTests : IAsyncDisposable
 
         Assert.Single(set.Plugins);
         Assert.Empty(set.Failures);
+    }
+
+    // Reads a file the plugin may be writing to meanwhile, or nothing while it can't be read
+    private static string ReadShared(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        catch (IOException)
+        {
+            return "";
+        }
     }
 
     private static async Task EventuallyAsync(Func<bool> condition)

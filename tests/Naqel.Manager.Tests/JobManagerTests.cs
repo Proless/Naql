@@ -156,6 +156,29 @@ public sealed class JobManagerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task A_job_resumed_before_its_pause_was_reported_runs_and_the_late_report_doesnt_pause_it()
+    {
+        var engine = new FakeEngine();
+        var manager = await StartAsync(Options(engine));
+        var job = await manager.AddAsync(Link(1), Destination, cancellationToken: Token);
+        engine.Job(job.Id).Transfer(100);
+        await StateAsync(manager, job.Id, JobState.Transferring);
+
+        // The engine reports the pause only once resuming waits for the manager, so the report comes after it
+        var gate = new TaskCompletionSource();
+        engine.Job(job.Id).PauseGate = gate.Task;
+        var pausing = manager.PauseAsync(job.Id, Token);
+        var resuming = manager.ResumeAsync(job.Id, Token);
+        gate.SetResult();
+        await pausing;
+        await resuming;
+
+        engine.Job(job.Id).Transfer(500);
+        await EventuallyAsync(() => manager.Find(job.Id)!.Progress.Transferred == 500, "the reports after resuming arrived");
+        Assert.Equal(JobState.Transferring, manager.Find(job.Id)!.State);
+    }
+
+    [Fact]
     public async Task A_queued_job_can_be_paused_and_never_starts_until_resumed()
     {
         var engine = new FakeEngine();

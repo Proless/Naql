@@ -500,6 +500,7 @@ public sealed class JobManager : IAsyncDisposable
     {
         try
         {
+            job.StartedAfter = ManagerMessage.Last;
             if (job.EngineJob == null)
             {
                 job.EngineJob = await job.Engine!.AddAsync(job.Request, _shutdown.Token).ConfigureAwait(false);
@@ -535,7 +536,8 @@ public sealed class JobManager : IAsyncDisposable
                     {
                         continue;
                     }
-                    if (message is EngineReport report && job.EngineJob != null)
+                    // A report from before the job last started, such as that it paused, says nothing about its new run
+                    if (message is EngineReport report && job.EngineJob != null && report.Sequence > job.StartedAfter)
                     {
                         await ApplyAsync(job, report.Snapshot).ConfigureAwait(false);
                     }

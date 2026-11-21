@@ -30,7 +30,16 @@ internal sealed class EngineHost(ChannelWriter<ManagerMessage> reports, IJobStor
 /// <summary>
 /// Something for the manager's loop to take in, in order, under its lock.
 /// </summary>
-internal abstract record ManagerMessage(string JobId);
+internal abstract record ManagerMessage(string JobId)
+{
+    private static long s_last;
+
+    /// <summary>The order the message was made in, so the manager can tell what came before a job last started.</summary>
+    public long Sequence { get; } = Interlocked.Increment(ref s_last);
+
+    /// <summary>The sequence of the latest message made so far.</summary>
+    public static long Last => Interlocked.Read(ref s_last);
+}
 
 /// <summary>
 /// What an engine reported about one of its jobs.

@@ -22,6 +22,9 @@ internal sealed class ManagedJob(JobInfo info, ITransferEngine? engine, string? 
     /// <summary>The state the engine last reported, which the job takes on once its completion steps ran.</summary>
     public JobState EngineState { get; set; } = info.State;
 
+    /// <summary>The last message made before the engine last started the job; the engine's reports up to it are stale.</summary>
+    public long StartedAfter { get; set; }
+
     /// <summary>How many questions about the job wait for the user; while any do, the job needs attention.</summary>
     public int Attention { get; set; }
 

@@ -132,11 +132,17 @@ public sealed class FakeJob(FakeEngine engine, JobRequest request, string id) : 
     public void Fail(TransferErrorKind kind = TransferErrorKind.Network) =>
         Report(_snapshot with { State = JobState.Failed, Error = new JobError(kind, "It broke", IsTransient: true) });
 
-    public Task PauseAsync(CancellationToken cancellationToken)
+    /// <summary>When set, pausing waits for it before it reports, as an engine does that stops a run first.</summary>
+    public Task? PauseGate { get; set; }
+
+    public async Task PauseAsync(CancellationToken cancellationToken)
     {
         Pauses++;
+        if (PauseGate is { } gate)
+        {
+            await gate;
+        }
         Report(_snapshot with { State = JobState.Paused });
-        return Task.CompletedTask;
     }
 
     public Task ResumeAsync(CancellationToken cancellationToken)
