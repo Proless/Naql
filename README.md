@@ -2,36 +2,35 @@
 
 [![CI](https://github.com/Proless/Naqel/actions/workflows/ci.yml/badge.svg)](https://github.com/Proless/Naqel/actions/workflows/ci.yml)
 
-Naqel (ناقل, "carrier") is a download and upload manager in the making, and the .NET libraries it's built on, which anyone can use on their own. The libraries move data from a **source** to a **target**: a download, an upload, or a copy between two servers is the same operation. Their engine does what every transfer needs, for every protocol:
+Naqel (ناقل, "carrier") is a download and upload manager. It comes as a desktop app for Windows, macOS and Linux, and as the same app run as a self-hosted server, with a web UI and a REST API, for a home server, a NAS or Docker. The desktop app works on its own, and can also connect to a Naqel Server and manage it. Plugins add protocols, sites and services, and engines for protocols such as BitTorrent.
 
-- parallel parts over several connections, when the source supports ranges, with connections that free up taking over the end of slower parts
-- retries with backoff, continuing a part where it stopped when both sides allow it
-- response and idle timeouts, even for streams that ignore cancellation
-- a speed limit for one transfer or shared by many, and a speed limit and connection count that can change while a transfer runs
-- progress reports, down to every part's range, bytes and state, and errors that say what went wrong, on which side, and whether retrying can help
-- traces and metrics through .NET's `ActivitySource` and `Meter` (named `"Naqel"`), ready for OpenTelemetry or `dotnet-counters`
-- checkpoints that continue an unfinished transfer later, even after a restart
-- checksums (SHA-2, SHA-1, MD5, or the server's `Repr-Digest`) verified before the result becomes visible
-- noticing when the content changes during a transfer, and starting over
+> **Status:** in development. The .NET libraries Naqel is built on, `Naqel.Core` and `Naqel.Http`, work and are tested, and anyone can use them on their own. The desktop app and the server are planned; [the architecture plan](docs/architecture.md) describes them and the order they'll be built in.
+
+## What Naqel will do
+
+- **Manage downloads and uploads in one place:** one queue, one place to set speed limits and connections, and the same progress and errors for every kind of job.
+- **Many protocols:** HTTP first, then FTP, SFTP, WebDAV, SMB, S3 and tus, each a plugin that follows its standard.
+- **Many sites and services:** plugins for cloud drives, file hosters, and video, audio and podcast sites, which know each site's links, sign-in and content, such as the qualities a video comes in.
+- **Other engines:** BitTorrent through MonoTorrent, managed like any other job, and room for more engines behind the same contract.
+- **Storage locations:** save to local folders, network shares, FTP, SFTP, WebDAV or cloud drives, set up once.
+- **Desktop and server alike:** both are for one user with one setup and share all their logic. The desktop app has a native UI built with Avalonia; the server has a Vue.js web UI, and a REST API for other apps and automation.
+
+```
+ Naqel Desktop (Avalonia)                 Naqel Server (REST API, Vue.js web UI)
+             └──────────── the same core ────────────┘
+          jobs, queue, plugins, engines, storage locations
+                               │
+        Naqel.Core and protocol libraries such as Naqel.Http
+```
+
+## The libraries
+
+The libraries move data from a **source** to a **target**: a download, an upload, or a copy between two servers is the same operation, and one engine does what every transfer needs. That includes parallel parts, retries that continue where they stopped, timeouts, speed limits, progress, checkpoints that survive a restart, and checksums.
 
 | Package | Contents |
 |---|---|
 | `Naqel.Core` | The engine, file sources and targets (`Naqel.Files`), and stream sources and targets (`Naqel.Streams`) |
 | `Naqel.Http` | HTTP and HTTPS downloads (with ranges and `If-Range`) and uploads (PUT, POST, multipart forms) |
-
-The packages run on .NET 8 and later, .NET 5 to 7, .NET Core 3.x, Mono, Unity and .NET Framework 4.6.2 and later. The .NET 8 build has no dependencies; the netstandard builds bring a few Microsoft packages such as `System.Diagnostics.DiagnosticSource`. The API uses records and `init` setters, so it needs C# 9 or later: in a .NET Framework project, set `<LangVersion>9.0</LangVersion>` or later.
-
-The first release is a preview, so install it with `--prerelease`:
-
-```bash
-dotnet add package Naqel.Http --prerelease
-```
-
-`Naqel.Http` brings in `Naqel.Core`; install only `Naqel.Core` for file and stream transfers. The packages' namespaces start with `Naqel`: `Naqel`, `Naqel.Files`, `Naqel.Streams` and `Naqel.Http`.
-
-## Usage
-
-Download a file, naming it from the server's `Content-Disposition` or the URL:
 
 ```csharp
 using Naqel;
@@ -41,72 +40,22 @@ using Naqel.Http;
 var result = await Transfer
     .From(HttpSource.Get("https://example.com/file.zip"))
     .To(FileTarget.InDirectory("downloads"))
-    .RunAsync();
-
-Console.WriteLine($"{result.Transferred} bytes in {result.Duration} to {result.Location}");
-```
-
-Download over four connections with a speed limit and progress:
-
-```csharp
-var progress = new Progress<TransferProgress>(p => Console.WriteLine($"{p.Fraction:P0} at {p.CurrentRate / 1024:0} KB/s"));
-
-await Transfer
-    .From(HttpSource.Get(uri))
-    .To(FileTarget.At("file.zip"))
     .WithMaxConnections(4)
-    .WithMaxBytesPerSecond(1024 * 1024)
-    .RunAsync(progress, cancellationToken);
-```
-
-Upload a file:
-
-```csharp
-await Transfer.From(FileSource.At("backup.tar")).To(HttpTarget.Put(uploadUri)).RunAsync();
-await Transfer.From(FileSource.At("photo.jpg")).To(HttpTarget.PostForm(formUri, "file")).RunAsync();
-```
-
-Continue an unfinished download by itself, even after a crash or a restart:
-
-```csharp
-// Saves the checkpoint to file.zip.naqel-checkpoint while running and when stopped, and deletes it once complete.
-// Running the same code again transfers only the missing bytes, or everything if the file changed meanwhile.
-await Transfer
-    .From(HttpSource.Get(uri))
-    .To(FileTarget.At("file.zip"))
-    .WithCheckpointStore(FileCheckpointStore.For("file.zip"))
-    .RunAsync(progress, cancellationToken);
-```
-
-To keep checkpoints somewhere else, implement `ICheckpointStore`, or handle them yourself with `operation.GetCheckpoint()`, `TransferCheckpoint.Serialize()` and `ResumeFrom(checkpoint)`.
-
-Verify the content before it gets its real name:
-
-```csharp
-await Transfer.From(HttpSource.Get(uri)).To(FileTarget.At("file.zip"))
-    .WithExpectedChecksum(Checksum.Sha256("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"))
     .RunAsync();
 ```
 
-Handle failures:
+They run on .NET 8 and later, .NET Framework 4.6.2 and later, and everything netstandard 2.0 and 2.1 cover. [The libraries' readme](src/README.md) shows how to use them, and [the design](docs/design.md) explains how they work. They aren't published to NuGet yet.
 
-```csharp
-try
-{
-    await Transfer.From(source).To(target).RunAsync();
-}
-catch (TransferFailedException ex)
-{
-    // ex.Kind: NotFound, Unauthorized, AccessDenied, Network, Timeout, RateLimited, SourceChanged, AlreadyExists, ...
-    // ex.Side: Source or Target; ex.IsTransient: whether a later attempt could succeed
-    // ex.Error: the failure itself, such as an HttpTransferException with its StatusCode
-    // ex.PartFailures: every part that failed, with its range and number of attempts
-}
-```
+## Repository
 
-Settings live in an immutable `TransferOptions` record: `MaxConnections`, `MaxBytesPerSecond`, `Retry` (a `RetryPolicy`), `ResponseTimeout`, `IdleTimeout` and more. Pass them with `WithOptions`, or give a `TransferClient` defaults and a `BandwidthLimiter` its transfers share. `TransferOperation.SetMaxBytesPerSecond` and `SetMaxConnections` change a transfer's limits while it runs. For HTTP authentication and headers, create an `HttpTransport` with your `HttpClient` and a `ConfigureRequest` callback such as `HttpTransport.BasicAuthentication(user, password)`.
-
-A new protocol implements `ITransferSource` (describe the content, open a range of it) or `ITransferTarget` (write parts, then complete), and gets everything above without more code. A package for a service on HTTP, such as a cloud drive or a file host, builds on `Naqel.Http`; [the Dropbox sample](https://github.com/Proless/Naqel/tree/main/samples/Naqel.Samples.Dropbox) shows one, with resolvers, token refresh and resumable uploads. [The design](https://github.com/Proless/Naqel/blob/main/docs/design.md) explains the contracts and the engine.
+| Path | What |
+|---|---|
+| `src/Naqel.Core`, `src/Naqel.Http` | The libraries |
+| `samples/Naqel.Samples` | A console app that uses the libraries against real servers |
+| `samples/Naqel.Samples.Dropbox` | A sample plugin-style package for one service, built only on the libraries' public API |
+| `tests` | Unit and property-based tests, the Dropbox sample's tests, and a soak test against real servers |
+| `docs/architecture.md` | The plan for the desktop app, the server and plugins |
+| `docs/design.md` | How the libraries work and why |
 
 ## Build and test
 
@@ -129,7 +78,7 @@ To collect code coverage:
 dotnet test --coverage --coverage-output-format cobertura
 ```
 
-`tests/Naqel.Soak` runs transfers against real servers for a while (parallel, throttled, canceled and resumed, checksum-verified, uploaded) and checks every result; it builds for .NET 10 and .NET Framework 4.8, in C# 9:
+`tests/Naqel.Soak` runs transfers against real servers for a while (parallel, throttled, canceled and resumed, checksum-verified, uploaded, and with limits changed while running) and checks every result; it builds for .NET 10 and .NET Framework 4.8, in C# 9:
 
 ```bash
 dotnet run --project tests/Naqel.Soak -c Release -f net10.0 -- --minutes 10
@@ -137,7 +86,7 @@ dotnet run --project tests/Naqel.Soak -c Release -f net10.0 -- --minutes 10
 
 ## Samples
 
-`samples/Naqel.Samples` is a console app that shows how to use the library and runs it against real servers.
+`samples/Naqel.Samples` is a console app that shows how to use the libraries and runs them against real servers.
 
 Download your own files, optionally in parallel parts and with a speed limit. If a download stops, even because the process was killed, running the same command again continues it:
 
@@ -160,3 +109,7 @@ dotnet run --project samples/Naqel.Samples -- all
 The default test file is served over plain HTTP. To use HTTPS, or if that server is unreachable, pass another file that supports byte ranges with `--url`, for example `--url https://fra-de-ping.vultr.com/vultr.com.100MB.bin` (100 MB).
 
 The scenarios are `simple`, `parallel`, `resume`, `throttle`, `auth`, `upload` and `errors`; `help` lists every command and option. Ctrl+C cancels the running transfer.
+
+## License
+
+[MIT](LICENSE.md)

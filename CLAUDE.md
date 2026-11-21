@@ -43,7 +43,7 @@ Test output on this machine is in German ("gesamt", "fehlgeschlagen").
 - **Targets:** the libraries build for netstandard2.0, netstandard2.1 and net8.0, with the same API. Consumers need C# 9 or later.
 - **Packages:** local I/O with no dependencies stays in `Naqel.Core`. Every remote protocol or service gets its own package built only on the public contracts. Resolvers are core abstractions; there is no registry.
 - **Tests:** prefer deterministic fakes (in-memory sources and targets, fake `HttpMessageHandler`s). Prove a new test can fail by planting the bug it guards against, then restore the code. Also run the samples or soak test against real servers when HTTP behavior changes.
-- **Docs:** update `docs/design.md`, `README.md` and `CHANGELOG.md` with every user-visible change.
+- **Docs:** update `docs/design.md`, `src/README.md` (the packages' readme), `README.md` (about Naqel as a whole) and `CHANGELOG.md` with every user-visible change.
 - **Working style:** one phase at a time, with tests. Explain the change and wait for review before moving on.
 
 ## TODO

@@ -84,8 +84,9 @@
 		<Compile Include="$(MSBuildThisFileDirectory)Compat\*.cs" Link="Compat\%(Filename)%(Extension)" />
 	</ItemGroup>
 
+	<!-- The packages get the libraries' own readme; the repository's README is about the whole of Naqel -->
 	<ItemGroup>
-		<None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />
+		<None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
 	</ItemGroup>
 
 </Project>
