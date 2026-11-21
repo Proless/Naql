@@ -297,6 +297,8 @@ Naql.TransferOperation.Source.get -> Naql.ITransferSource!
 Naql.TransferOperation.Target.get -> Naql.ITransferTarget!
 Naql.TransferOptions
 Naql.TransferOptions.<Clone>$() -> Naql.TransferOptions!
+Naql.TransferOptions.AdaptiveSplitting.get -> bool
+Naql.TransferOptions.AdaptiveSplitting.init -> void
 Naql.TransferOptions.BufferSize.get -> int
 Naql.TransferOptions.BufferSize.init -> void
 Naql.TransferOptions.CheckpointInterval.get -> System.TimeSpan

@@ -151,13 +151,13 @@ internal sealed class RunState
     /// running part's stream ends sooner, so no byte is moved twice, and the new part follows it in the list, which keeps
     /// the parts in order for checkpoints.
     /// </summary>
-    /// <returns>The new part, or <c>null</c> when no part can be split: the length isn't known, the source can't read
+    /// <returns>The new part, or <c>null</c> when no part can be split: splitting is off, the length isn't known, the source can't read
     /// ranges or its parts can't be combined, the target can't take it, a hash needs the bytes in order, or no running
     /// part has enough left</returns>
     public PartRun? TrySplit()
     {
         var info = _info;
-        if (info?.Length is not long length || !info.SupportsRanges || !CanCombine(info) ||
+        if (!_options.AdaptiveSplitting || info?.Length is not long length || !info.SupportsRanges || !CanCombine(info) ||
             !_capabilities.ParallelParts || !_capabilities.SplittableParts || IsHashing || Acknowledging != null)
         {
             return null;

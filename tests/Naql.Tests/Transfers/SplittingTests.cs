@@ -80,6 +80,42 @@ public sealed class SplittingTests
     }
 
     [Fact]
+    public async Task Without_adaptive_splitting_the_planned_parts_stay()
+    {
+        var content = Content(40_000);
+        var target = new MemoryTarget { Capabilities = Splittable };
+        var options = Options with { MaxConnections = 2, AdaptiveSplitting = false };
+
+        var result = await Transfer.From(SlowSecondHalf(content)).To(target).WithOptions(options).RunAsync(cancellationToken: Token);
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(2, result.Parts);
+    }
+
+    [Fact]
+    public async Task Without_adaptive_splitting_more_connections_dont_split_a_running_transfer()
+    {
+        var content = Content(40_000);
+        var target = new MemoryTarget { Capabilities = Splittable };
+        var operation = Transfer.From(SlowFirstRead(content)).To(target).WithOptions(Options with { AdaptiveSplitting = false }).Build();
+        long transferred = 0;
+
+        var run = operation.RunAsync(new SynchronousProgress(p => Interlocked.Exchange(ref transferred, p.Transferred)), Token);
+        await WaitUntilAsync(() => Interlocked.Read(ref transferred) > 0);
+        operation.SetMaxConnections(4);
+        var result = await run;
+
+        Assert.Equal(content, target.Session.Data);
+        Assert.Equal(1, result.Parts);
+    }
+
+    [Fact]
+    public void Adaptive_splitting_is_on_by_default()
+    {
+        Assert.True(new TransferOptions().AdaptiveSplitting);
+    }
+
+    [Fact]
     public async Task A_target_with_a_part_limit_gets_no_more_parts()
     {
         var content = Content(40_000);

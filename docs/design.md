@@ -304,7 +304,7 @@ parts = Plan(source length, source.SupportsRanges, target capabilities, options)
 
 ### 5.2.1 Splitting running parts
 
-Planned parts of equal size rarely finish together: one connection is slower, or a part retried. The connection that freed up then sits idle while the slowest part holds up the end of the transfer. So when a connection frees up, or a part starts while one is free, and no part is waiting for it, the engine gives the end of the running part with the most bytes left to a new part:
+Planned parts of equal size rarely finish together: one connection is slower, or a part retried. The connection that freed up then sits idle while the slowest part holds up the end of the transfer. So when a connection frees up, or a part starts while one is free, and no part is waiting for it, the engine gives the end of the running part with the most bytes left to a new part. `TransferOptions.AdaptiveSplitting` turns this on, and is on by default; turned off, a transfer keeps exactly the planned parts:
 
 - **Where:** halfway through what that part hasn't read yet, at a multiple of the target's `PartSizeMultiple`, and only when both halves keep at least `MinSplitPartSize` bytes and the new part the target's `MinPartSize`, and the target takes another part (`MaxParts`).
 - **How:** the running part's stream ends sooner. The engine never gives away bytes the part already read, or that a read in flight may still return, so no byte moves twice and nothing is lost. The target's write sees its content end before the range it was given; a target declares `SplittableParts` when that is fine, which is when it writes each byte where it belongs as it arrives, as files and seekable streams do.
@@ -334,7 +334,7 @@ A download manager lets people change the speed limit or the number of connectio
 
 - **The speed limit** is the transfer's own `BandwidthLimiter`, which every operation has, set to 0 when there is no limit. A new rate applies to the next read; a read already waiting finishes its wait. A shared limiter still applies on top.
 - **The connections** go through an internal gate the parts wait at, whose limit can change. Raising it starts waiting parts at once. Lowering it stops no running part, which would throw away the bytes it is moving and its connection; it starts no new parts until fewer run. The source's `SourceInfo.MaxConnections` still caps it.
-- More connections than parts are filled by splitting running parts (see [5.2.1](#521-splitting-running-parts)), so raising the connections of a transfer that started with one connection speeds it up too, when the target and the source allow it.
+- More connections than parts are filled by splitting running parts (see [5.2.1](#521-splitting-running-parts)), so raising the connections of a transfer that started with one connection speeds it up too, when the target and the source allow it. With `AdaptiveSplitting` off, raising the connections only starts parts that are waiting.
 
 ### 5.4 Progress
 
@@ -445,6 +445,7 @@ public sealed record TransferOptions               // derive variants with `with
     public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromMilliseconds(100);
     public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(2);
     public bool DiscardPartialOnFailure { get; init; }
+    public bool AdaptiveSplitting { get; init; } = true;     // split running parts for connections that free up (5.2.1)
     public Checksum? ExpectedChecksum { get; init; }
 }
 

@@ -93,8 +93,9 @@ public sealed record TransferOptions
     /// <summary>
     /// The smallest part worth its own connection when the engine splits the content: content smaller than twice this
     /// size uses one connection. It's a preference, unlike <see cref="TargetCapabilities.MinPartSize"/>, which is a limit:
-    /// a target's <see cref="TargetCapabilities.MaxPartSize"/> can still make parts smaller than this. A running part is
-    /// only split for a connection that freed up when at least twice this size is left of it.
+    /// a target's <see cref="TargetCapabilities.MaxPartSize"/> can still make parts smaller than this. With
+    /// <see cref="AdaptiveSplitting"/>, a running part is only split for a connection that freed up when at least twice
+    /// this size is left of it.
     /// </summary>
     public long MinSplitPartSize
     {
@@ -137,6 +138,14 @@ public sealed record TransferOptions
     /// Discard what was written when the transfer fails or is canceled, even when the target could resume it.
     /// </summary>
     public bool DiscardPartialOnFailure { get; init; }
+
+    /// <summary>
+    /// When a connection frees up and no part waits for it, give the end of the running part with the most left to a
+    /// new part on that connection, so a slow part doesn't hold up the end of the transfer, and more connections set
+    /// while it runs are used even when every planned part already started. On by default; it only splits for targets
+    /// with <see cref="TargetCapabilities.SplittableParts"/>. Turn it off to keep exactly the planned parts.
+    /// </summary>
+    public bool AdaptiveSplitting { get; init; } = true;
 
     /// <summary>
     /// The hash the content must have. The transfer fails with <see cref="TransferErrorKind.Integrity"/> and discards
